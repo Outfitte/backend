@@ -45,3 +45,11 @@ Decisions:
 - Router: stdlib `net/http` only
 - Config: env vars only (no config file)
 - No domain errors defined yet
+
+## Task Guidelines
+
+**Branch naming:** `username/tasknr-short-name`
+Example: `alice/42-add-auth`
+
+**Commit message format:** `tasknr: one sentence message`
+Example: `42: add JWT-based authentication`
