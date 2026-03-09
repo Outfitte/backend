@@ -8,14 +8,20 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - revive
 
-linters-settings:
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+formatters-settings:
   goimports:
-    local-prefixes: github.com/outfitte/outfitte
+    local-prefixes:
+      - github.com/outfitte/outfitte
+
+linters-settings:
   revive:
     rules:
       - name: exported
