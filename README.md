@@ -18,6 +18,14 @@ cd Outfitte
 go build ./...
 ```
 
+## Linting
+
+Install [golangci-lint](https://golangci-lint.run/usage/install/) then run:
+
+```bash
+golangci-lint run ./...
+```
+
 ## Roadmap
 
 | Milestone | Description |
