@@ -9,7 +9,7 @@ import (
 	"github.com/outfitte/outfitte/internal/config"
 )
 
-func TestLoad_MissingRequired(t *testing.T) {
+func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
 
@@ -19,7 +19,7 @@ func TestLoad_MissingRequired(t *testing.T) {
 	assert.Contains(t, err.Error(), "MEDIA_STORAGE_PATH")
 }
 
-func TestLoad_Defaults(t *testing.T) {
+func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("SERVER_PORT", "")
@@ -33,7 +33,7 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.LogLevel)
 }
 
-func TestLoad_MissingOneRequired(t *testing.T) {
+func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
 
@@ -43,7 +43,7 @@ func TestLoad_MissingOneRequired(t *testing.T) {
 	assert.Contains(t, err.Error(), "MEDIA_STORAGE_PATH")
 }
 
-func TestLoad_InvalidPort(t *testing.T) {
+func TestLoadShouldErrorWhenServerPortIsInvalid(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("SERVER_PORT", "notaport")
@@ -53,7 +53,7 @@ func TestLoad_InvalidPort(t *testing.T) {
 	assert.Contains(t, err.Error(), "SERVER_PORT")
 }
 
-func TestLoad_CustomValues(t *testing.T) {
+func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	t.Setenv("SERVER_PORT", "9090")
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("STORAGE_DATA_PATH", "/var/data")
