@@ -30,22 +30,6 @@ internal/
     └── handler/  # HTTP handlers — depends on service layer
 ```
 
-## Common Commands
-
-```bash
-# Build
-go build ./...
-
-# Test
-go test ./...
-
-# Vet
-go vet ./...
-
-# Format (run before committing)
-gofmt -w .
-```
-
 ## Current Milestone: M0 — Foundation
 
 Goal: get the app running and ready for feature development. No user-facing features.
