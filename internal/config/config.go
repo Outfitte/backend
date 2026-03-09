@@ -22,17 +22,23 @@ type Config struct {
 // Load reads configuration from environment variables, applies defaults,
 // and returns an error if any required variable is missing.
 func Load() (*Config, error) {
-	cfg := &Config{
-		ServerPort:       getEnv("SERVER_PORT", "8080"),
-		AppEnv:           getEnv("APP_ENV", "dev"),
-		StorageDataPath:  os.Getenv("STORAGE_DATA_PATH"),
-		MediaStoragePath: os.Getenv("MEDIA_STORAGE_PATH"),
-		LogLevel:         getEnv("LOG_LEVEL", "info"),
-	}
+	cfg := &Config{}
+	loadFromEnv(cfg)
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// loadFromEnv populates cfg from environment variables, applying defaults for
+// optional variables. Separating this step from validation makes it easy to
+// swap in an alternative loading strategy (e.g. config file) in the future.
+func loadFromEnv(cfg *Config) {
+	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
+	cfg.AppEnv = getEnv("APP_ENV", "dev")
+	cfg.StorageDataPath = os.Getenv("STORAGE_DATA_PATH")
+	cfg.MediaStoragePath = os.Getenv("MEDIA_STORAGE_PATH")
+	cfg.LogLevel = getEnv("LOG_LEVEL", "info")
 }
 
 func (c *Config) validate() error {
