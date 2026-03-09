@@ -53,3 +53,6 @@ Example: `alice/42-add-auth`
 
 **Commit message format:** `tasknr: one sentence message`
 Example: `42: add JWT-based authentication`
+
+**PR title format:** `tasknr: short description`
+Example: `42: add JWT-based authentication`
