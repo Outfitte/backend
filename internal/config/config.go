@@ -30,9 +30,6 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// loadFromEnv populates cfg from environment variables, applying defaults for
-// optional variables. Separating this step from validation makes it easy to
-// swap in an alternative loading strategy (e.g. config file) in the future.
 func loadFromEnv(cfg *Config) {
 	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
 	cfg.AppEnv = getEnv("APP_ENV", "dev")
