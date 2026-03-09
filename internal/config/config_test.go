@@ -33,6 +33,26 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "info", cfg.LogLevel)
 }
 
+func TestLoad_MissingOneRequired(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "STORAGE_DATA_PATH")
+	assert.Contains(t, err.Error(), "MEDIA_STORAGE_PATH")
+}
+
+func TestLoad_InvalidPort(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("SERVER_PORT", "notaport")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SERVER_PORT")
+}
+
 func TestLoad_CustomValues(t *testing.T) {
 	t.Setenv("SERVER_PORT", "9090")
 	t.Setenv("APP_ENV", "production")

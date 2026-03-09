@@ -1,8 +1,12 @@
+// Package config handles environment-variable-driven configuration.
+// Empty string and unset environment variables are treated equivalently:
+// optional vars fall back to their defaults, required vars produce an error.
 package config
 
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -41,6 +45,10 @@ func (c *Config) validate() error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+	port, err := strconv.Atoi(c.ServerPort)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("SERVER_PORT must be a valid port number (1-65535), got %q", c.ServerPort)
 	}
 	return nil
 }

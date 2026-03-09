@@ -11,8 +11,8 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "configuration error: %s\n", err)
+		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
 		os.Exit(1)
 	}
-	_ = cfg
+	_ = cfg // TODO: wire cfg into server
 }
