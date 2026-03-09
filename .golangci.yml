@@ -1,0 +1,26 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/outfitte/outfitte
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
