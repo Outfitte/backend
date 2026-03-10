@@ -10,9 +10,8 @@ import (
 // before returning them.
 type MediaProvider interface {
 	// Upload stores the content from r under the given key.
-	// Returns the stored key on success. Infrastructure errors are translated
-	// into domain errors before being returned.
-	Upload(ctx context.Context, key string, r io.Reader) (string, error)
+	// Infrastructure errors are translated into domain errors before being returned.
+	Upload(ctx context.Context, key string, r io.Reader) error
 
 	// Delete removes the media file identified by key.
 	// Returns a domain not-found error if no file with that key exists.
