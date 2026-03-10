@@ -2,17 +2,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-
-	"github.com/outfitte/outfitte/internal/config"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
-	cfg, err := config.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	if err := run(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	_ = cfg // TODO: wire cfg into server
 }
