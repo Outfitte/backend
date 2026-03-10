@@ -8,7 +8,7 @@ import (
 	"github.com/outfitte/outfitte/internal/api/handler"
 )
 
-func TestHealth(t *testing.T) {
+func TestHealthShouldReturn200WhenCalled(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
