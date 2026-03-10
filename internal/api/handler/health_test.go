@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/api/handler"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHealthShouldReturn200WhenCalled(t *testing.T) {
@@ -14,7 +15,5 @@ func TestHealthShouldReturn200WhenCalled(t *testing.T) {
 
 	handler.Health(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
+	require.Equal(t, http.StatusOK, w.Code)
 }

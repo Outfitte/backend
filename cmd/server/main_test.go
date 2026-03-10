@@ -7,17 +7,24 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func freePort(t *testing.T) string {
 	t.Helper()
 	l, err := net.Listen("tcp", ":0")
-	if err != nil {
-		t.Fatalf("failed to find free port: %v", err)
-	}
-	port := l.Addr().(*net.TCPAddr).Port
+	require.NoError(t, err)
+	port := strconv.Itoa(l.Addr().(*net.TCPAddr).Port)
 	l.Close()
-	return strconv.Itoa(port)
+	return port
+}
+
+func TestRunShouldReturnErrorWhenConfigInvalid(t *testing.T) {
+	err := run(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configuration error")
 }
 
 func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
@@ -26,34 +33,22 @@ func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	t.Setenv("MEDIA_STORAGE_PATH", t.TempDir())
 	t.Setenv("SERVER_PORT", port)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
 
 	done := make(chan error, 1)
-	go func() {
-		done <- run(ctx)
-	}()
+	go func() { done <- run(ctx) }()
 
 	addr := "http://localhost:" + port + "/health"
-	var resp *http.Response
-	for range 20 {
-		var err error
-		resp, err = http.Get(addr)
-		if err == nil {
-			break
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(addr)
+		if err != nil {
+			return false
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if resp == nil {
-		t.Fatal("server did not start")
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d", resp.StatusCode)
-	}
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, 2*time.Second, 10*time.Millisecond)
 
 	cancel()
-	if err := <-done; err != nil {
-		t.Fatalf("run returned error: %v", err)
-	}
+	require.NoError(t, <-done)
 }
