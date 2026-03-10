@@ -13,9 +13,5 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
-	srv, err := server.New(cfg)
-	if err != nil {
-		return fmt.Errorf("server init: %w", err)
-	}
-	return server.Run(ctx, srv)
+	return server.Run(ctx, server.New(cfg))
 }

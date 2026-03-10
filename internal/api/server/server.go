@@ -13,14 +13,14 @@ import (
 )
 
 // New builds a configured *http.Server from cfg.
-func New(cfg *config.Config) (*http.Server, error) {
+func New(cfg *config.Config) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handler.Health)
 
 	return &http.Server{
 		Addr:    ":" + cfg.ServerPort,
 		Handler: mux,
-	}, nil
+	}
 }
 
 // Run listens on srv's configured address and shuts down when ctx is done.

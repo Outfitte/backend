@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,8 +19,7 @@ import (
 
 func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv, err := New(cfg)
-	require.NoError(t, err)
+	srv := New(cfg)
 	assert.Equal(t, ":8080", srv.Addr)
 
 	ts := httptest.NewServer(srv.Handler)
@@ -29,6 +29,13 @@ func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestRunShouldReturnErrorWhenAddressInvalid(t *testing.T) {
+	srv := &http.Server{Addr: ":::not-a-port"}
+	err := Run(t.Context(), srv)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "listen")
 }
 
 // idleListener blocks Accept on a channel; Close unblocks it.
@@ -48,8 +55,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	l.Close()
 
 	cfg := &config.Config{ServerPort: port}
-	srv, err := New(cfg)
-	require.NoError(t, err)
+	srv := New(cfg)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -70,11 +76,39 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	require.NoError(t, <-done)
 }
 
+// errorListener returns an injected error on the first Accept, then blocks.
+type errorListener struct {
+	once sync.Once
+	done chan struct{}
+}
+
+var errInjected = errors.New("injected accept error")
+
+func (l *errorListener) Accept() (net.Conn, error) {
+	var fired bool
+	l.once.Do(func() { fired = true })
+	if fired {
+		return nil, errInjected
+	}
+	<-l.done
+	return nil, net.ErrClosed
+}
+func (l *errorListener) Close() error  { return nil }
+func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
+
+func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	srv := New(cfg)
+
+	l := &errorListener{done: make(chan struct{})}
+	err := serve(t.Context(), srv, l)
+	require.ErrorIs(t, err, errInjected)
+}
+
 func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := &config.Config{ServerPort: "8080"}
-		srv, err := New(cfg)
-		require.NoError(t, err)
+		srv := New(cfg)
 
 		l := &idleListener{done: make(chan struct{})}
 		ctx, cancel := context.WithCancel(t.Context())
