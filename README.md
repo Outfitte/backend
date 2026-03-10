@@ -2,21 +2,30 @@
 
 Self-hosted wardrobe management application built in Go.
 
+> **Status:** Early development — M0 (Foundation) in progress. No user-facing features yet.
+
 ## Overview
 
 Outfitte lets you catalogue your clothing, organise items into locations, log wear events, and build outfit journals — all from your own infrastructure.
 
-## Getting Started
-
-> The project is currently in **M0 (Foundation)** — scaffolding and core infrastructure only. No user-facing features yet.
-
-Requirements: Go 1.22+, Docker (optional)
+## Running with Docker Compose
 
 ```bash
-git clone https://github.com/Outfitte/Outfitte
-cd Outfitte
-go build ./...
+cp .env.example .env   # edit STORAGE_DATA_PATH and MEDIA_STORAGE_PATH
+docker compose up
 ```
+
+See `.env.example` for all available variables.
+
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `SERVER_PORT` | `8080` | HTTP listen port |
+| `APP_ENV` | `dev` | Runtime environment (`dev`/`prod`) |
+| `STORAGE_DATA_PATH` | *(required)* | Directory for JSON storage data |
+| `MEDIA_STORAGE_PATH` | *(required)* | Directory for media files |
+| `LOG_LEVEL` | `info` | Log verbosity |
 
 ## Linting
 
