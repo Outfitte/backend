@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/api/handler"
+	"github.com/outfitte/outfitte/internal/api/server"
 	"github.com/outfitte/outfitte/internal/config"
 )
 
@@ -30,12 +30,9 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handler.Health)
-
-	srv := &http.Server{
-		Addr:    ":" + cfg.ServerPort,
-		Handler: mux,
+	srv, err := server.New(cfg)
+	if err != nil {
+		return fmt.Errorf("server init: %w", err)
 	}
 
 	go func() {
