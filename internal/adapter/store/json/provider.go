@@ -102,7 +102,7 @@ func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
 	}
 	defer f.Close()
 
-	var entities []T
+	entities := []T{}
 	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
