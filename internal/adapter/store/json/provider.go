@@ -83,6 +83,33 @@ func (p *Provider[T]) Get(ctx context.Context, id string) (T, error) {
 	return zero, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
 }
 
+// List returns all stored entities in an unspecified order.
+// Returns an empty slice if the store file does not exist yet.
+func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	f, err := os.Open(p.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []T{}, nil
+		}
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer f.Close()
+
+	entities := []T{}
+	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return entities, nil
+}
+
 // Save creates or replaces the entity identified by entity.GetID().
 func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 	if err := ctx.Err(); err != nil {
