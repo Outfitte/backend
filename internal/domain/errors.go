@@ -8,4 +8,5 @@ var (
 	ErrUnauthorized         = errors.New("unauthorized")
 	ErrForbidden            = errors.New("forbidden")
 	ErrRegistrationDisabled = errors.New("registration disabled")
+	ErrIO                   = errors.New("io error")
 )
