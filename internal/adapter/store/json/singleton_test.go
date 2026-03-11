@@ -97,6 +97,29 @@ func TestSingletonSaveShouldPersistValueWhenSuccessful(t *testing.T) {
 	require.Equal(t, settings, got)
 }
 
+func TestSingletonStoreShouldMaintainConsistencyWhenPerformingFullSaveLoadCycle(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
+
+	// Save initial value
+	initial := domain.AppSettings{RegistrationEnabled: true}
+	require.NoError(t, s.Save(t.Context(), initial))
+
+	// Load and verify
+	got, err := s.Load(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, initial, got)
+
+	// Save updated value
+	updated := domain.AppSettings{RegistrationEnabled: false}
+	require.NoError(t, s.Save(t.Context(), updated))
+
+	// Load and verify updated
+	got, err = s.Load(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, updated, got)
+}
+
 func TestSingletonSaveShouldBeThreadSafeWhenCalledConcurrently(t *testing.T) {
 	s := NewSingletonStore[domain.AppSettings](t.TempDir(), "app_settings.json")
 	const goroutines = 20
