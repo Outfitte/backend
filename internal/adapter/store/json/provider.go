@@ -29,6 +29,29 @@ func NewProvider[T ports.Entity](root, filename string) *Provider[T] {
 	}
 }
 
+// openFile opens the store file with the given flags.
+// Returns domain.ErrNotFound if the file does not exist, or domain.ErrIO for any other OS error.
+func (p *Provider[T]) openFile(flag int) (*os.File, error) {
+	f, err := os.OpenFile(p.path, flag, 0o644)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return f, nil
+}
+
+// decodeEntities reads and decodes JSON entities from f.
+// Returns domain.ErrIO on decode failure.
+func decodeEntities[T any](f *os.File) ([]T, error) {
+	entities := []T{}
+	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return entities, nil
+}
+
 func writeJSON(f *os.File, v any) error {
 	if err := f.Truncate(0); err != nil {
 		return err
@@ -60,18 +83,15 @@ func (p *Provider[T]) Get(ctx context.Context, id string) (T, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	f, err := os.Open(p.path)
+	f, err := p.openFile(os.O_RDONLY)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return zero, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
-		}
-		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return zero, err
 	}
 	defer f.Close()
 
-	var entities []T
-	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
-		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	entities, err := decodeEntities[T](f)
+	if err != nil {
+		return zero, err
 	}
 
 	for _, e := range entities {
@@ -93,21 +113,16 @@ func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	f, err := os.Open(p.path)
+	f, err := p.openFile(os.O_RDONLY)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, domain.ErrNotFound) {
 			return []T{}, nil
 		}
-		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return nil, err
 	}
 	defer f.Close()
 
-	entities := []T{}
-	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	return entities, nil
+	return decodeEntities[T](f)
 }
 
 // Delete removes the entity with the given id.
@@ -120,18 +135,15 @@ func (p *Provider[T]) Delete(ctx context.Context, id string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	f, err := os.OpenFile(p.path, os.O_RDWR, 0o644)
+	f, err := p.openFile(os.O_RDWR)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
-		}
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return err
 	}
 	defer f.Close()
 
-	var entities []T
-	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	entities, err := decodeEntities[T](f)
+	if err != nil {
+		return err
 	}
 
 	found := false
@@ -163,15 +175,17 @@ func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Save uses O_CREATE, so ErrNotExist means a broken environment (wrong dir),
+	// not a missing entity — all open errors are ErrIO here.
 	f, err := os.OpenFile(p.path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	defer f.Close()
 
-	var entities []T
-	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	entities, err := decodeEntities[T](f)
+	if err != nil {
+		return err
 	}
 
 	entities = upsert(entities, entity)
