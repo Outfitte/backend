@@ -16,6 +16,15 @@ func TestNewProviderShouldReturnProvider(t *testing.T) {
 	require.NotNil(t, p)
 }
 
+func TestSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := p.Save(ctx, domain.User{})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestSaveShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
 	p := json.NewProvider[domain.User]("/nonexistent/path", "users.json")
 
