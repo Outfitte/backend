@@ -7,11 +7,13 @@ import (
 	"sync"
 )
 
+var errNotImplemented = errors.New("not implemented")
+
 // SingletonStore is a JSON file-backed implementation of ports.SingletonStore[T].
 // The file contains a single JSON object (no map wrapper).
 type SingletonStore[T any] struct {
 	path string
-	mu   sync.Mutex
+	mu   sync.RWMutex
 }
 
 // NewSingletonStore creates a SingletonStore that stores the singleton value in root/filename.
@@ -26,11 +28,16 @@ func NewSingletonStore[T any](root, filename string) *SingletonStore[T] {
 // Returns domain.ErrNotFound if no value has been saved yet.
 func (s *SingletonStore[T]) Load(ctx context.Context) (T, error) {
 	var zero T
-	return zero, errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+	return zero, errNotImplemented
 }
 
 // Save persists the singleton value, replacing any previously saved value.
 func (s *SingletonStore[T]) Save(ctx context.Context, _ T) error {
-	return errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return errNotImplemented
 }
-
