@@ -3,8 +3,12 @@ package json
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/outfitte/outfitte/internal/domain"
 )
 
 var errNotImplemented = errors.New("not implemented")
@@ -35,9 +39,23 @@ func (s *SingletonStore[T]) Load(ctx context.Context) (T, error) {
 }
 
 // Save persists the singleton value, replacing any previously saved value.
-func (s *SingletonStore[T]) Save(ctx context.Context, _ T) error {
+func (s *SingletonStore[T]) Save(ctx context.Context, value T) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return errNotImplemented
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	f, err := os.OpenFile(s.path, os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer f.Close()
+
+	if err := writeJSON(f, value); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return nil
 }
