@@ -234,6 +234,52 @@ func TestDeleteShouldRemoveEntity(t *testing.T) {
 	require.Equal(t, u2, got[0])
 }
 
+func TestProviderShouldMaintainConsistencyWhenPerformingFullCRUDCycle(t *testing.T) {
+	dir := t.TempDir()
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	// Create
+	var u domain.User
+	u.ID = "42"
+	u.Email = "alice@example.com"
+	require.NoError(t, p.Save(t.Context(), u))
+
+	// Read
+	got, err := p.Get(t.Context(), "42")
+	require.NoError(t, err)
+	require.Equal(t, u, got)
+
+	all, err := p.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	require.Equal(t, u, all[0])
+
+	// Update
+	var updated domain.User
+	updated.ID = "42"
+	updated.Email = "alice-updated@example.com"
+	require.NoError(t, p.Save(t.Context(), updated))
+
+	got, err = p.Get(t.Context(), "42")
+	require.NoError(t, err)
+	require.Equal(t, updated, got)
+
+	all, err = p.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	require.Equal(t, updated, all[0])
+
+	// Delete
+	require.NoError(t, p.Delete(t.Context(), "42"))
+
+	_, err = p.Get(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+
+	all, err = p.List(t.Context())
+	require.NoError(t, err)
+	require.Empty(t, all)
+}
+
 func TestSaveShouldOverwriteExistingEntity(t *testing.T) {
 	dir := t.TempDir()
 	p := json.NewProvider[domain.User](dir, "users.json")
