@@ -29,6 +29,16 @@ func NewProvider[T ports.Entity](root, filename string) *Provider[T] {
 	}
 }
 
+func upsert[T ports.Entity](entities []T, entity T) []T {
+	for i, e := range entities {
+		if e.GetID() == entity.GetID() {
+			entities[i] = entity
+			return entities
+		}
+	}
+	return append(entities, entity)
+}
+
 // Save creates or replaces the entity identified by entity.GetID().
 func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 	if err := ctx.Err(); err != nil {
@@ -49,17 +59,7 @@ func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	replaced := false
-	for i, e := range entities {
-		if e.GetID() == entity.GetID() {
-			entities[i] = entity
-			replaced = true
-			break
-		}
-	}
-	if !replaced {
-		entities = append(entities, entity)
-	}
+	entities = upsert(entities, entity)
 
 	if err := f.Truncate(0); err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
