@@ -62,6 +62,9 @@ func (p *Provider[T]) Get(ctx context.Context, id string) (T, error) {
 
 	f, err := os.Open(p.path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return zero, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+		}
 		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	defer f.Close()

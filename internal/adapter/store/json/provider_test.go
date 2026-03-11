@@ -34,8 +34,18 @@ func TestSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestGetShouldReturnNotFoundWhenStoreIsEmpty(t *testing.T) {
+	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
+
+	_, err := p.Get(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestGetShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
-	p := json.NewProvider[domain.User]("/nonexistent/path", "users.json")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "users.json")
+	require.NoError(t, os.WriteFile(path, []byte("[]"), 0o000))
+	p := json.NewProvider[domain.User](dir, "users.json")
 
 	_, err := p.Get(t.Context(), "42")
 	require.ErrorIs(t, err, domain.ErrIO)
