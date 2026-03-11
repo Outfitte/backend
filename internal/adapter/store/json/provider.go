@@ -49,6 +49,40 @@ func upsert[T ports.Entity](entities []T, entity T) []T {
 	return append(entities, entity)
 }
 
+// Get retrieves the entity with the given id.
+// Returns domain.ErrNotFound if no entity with that id exists.
+func (p *Provider[T]) Get(ctx context.Context, id string) (T, error) {
+	var zero T
+	if err := ctx.Err(); err != nil {
+		return zero, err
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	f, err := os.Open(p.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return zero, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+		}
+		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer f.Close()
+
+	var entities []T
+	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
+		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	for _, e := range entities {
+		if e.GetID() == id {
+			return e, nil
+		}
+	}
+
+	return zero, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+}
+
 // Save creates or replaces the entity identified by entity.GetID().
 func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 	if err := ctx.Err(); err != nil {
