@@ -16,6 +16,15 @@ func TestNewProviderShouldReturnProvider(t *testing.T) {
 	require.NotNil(t, p)
 }
 
+func TestGetShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := p.Get(ctx, "42")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
 	ctx, cancel := context.WithCancel(t.Context())
@@ -25,11 +34,38 @@ func TestSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestGetShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
+	p := json.NewProvider[domain.User]("/nonexistent/path", "users.json")
+
+	_, err := p.Get(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestSaveShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
 	p := json.NewProvider[domain.User]("/nonexistent/path", "users.json")
 
 	err := p.Save(t.Context(), domain.User{})
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "users.json"), []byte("not json"), 0o644))
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	_, err := p.Get(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetShouldReturnNotFoundWhenEntityDoesNotExist(t *testing.T) {
+	dir := t.TempDir()
+	p := json.NewProvider[domain.User](dir, "users.json")
+	var u domain.User
+	u.ID = "42"
+	require.NoError(t, p.Save(t.Context(), u))
+
+	_, err := p.Get(t.Context(), "99")
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestSaveShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
@@ -39,6 +75,19 @@ func TestSaveShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
 
 	err := p.Save(t.Context(), domain.User{})
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetShouldReturnEntityWhenFound(t *testing.T) {
+	dir := t.TempDir()
+	p := json.NewProvider[domain.User](dir, "users.json")
+	var u domain.User
+	u.ID = "42"
+	u.Email = "alice@example.com"
+	require.NoError(t, p.Save(t.Context(), u))
+
+	got, err := p.Get(t.Context(), "42")
+	require.NoError(t, err)
+	require.Equal(t, u, got)
 }
 
 func TestSaveShouldPersistNewEntity(t *testing.T) {
