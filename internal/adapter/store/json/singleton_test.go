@@ -101,8 +101,8 @@ func TestSingletonStoreShouldMaintainConsistencyWhenPerformingFullSaveLoadCycle(
 	dir := t.TempDir()
 	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
 
-	// Save initial value
-	initial := domain.AppSettings{RegistrationEnabled: true}
+	// Save initial value (false serialises longer than true; ensures O_TRUNC is required)
+	initial := domain.AppSettings{RegistrationEnabled: false}
 	require.NoError(t, s.Save(t.Context(), initial))
 
 	// Load and verify
@@ -110,8 +110,8 @@ func TestSingletonStoreShouldMaintainConsistencyWhenPerformingFullSaveLoadCycle(
 	require.NoError(t, err)
 	require.Equal(t, initial, got)
 
-	// Save updated value
-	updated := domain.AppSettings{RegistrationEnabled: false}
+	// Save updated value (shorter serialisation — stale bytes remain without O_TRUNC)
+	updated := domain.AppSettings{RegistrationEnabled: true}
 	require.NoError(t, s.Save(t.Context(), updated))
 
 	// Load and verify updated
