@@ -193,6 +193,15 @@ func TestDeleteShouldReturnNotFoundWhenEntityDoesNotExist(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestDeleteShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "users.json"), []byte("not json"), 0o644))
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	err := p.Delete(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestDeleteShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "users.json")
