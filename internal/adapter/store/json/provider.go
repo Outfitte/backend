@@ -3,6 +3,7 @@ package json
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,16 +44,9 @@ func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 	}
 	defer f.Close()
 
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
 	var entities []T
-	if len(data) > 0 {
-		if err := json.Unmarshal(data, &entities); err != nil {
-			return fmt.Errorf("%w: %w", domain.ErrIO, err)
-		}
+	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
 	replaced := false
@@ -67,15 +61,13 @@ func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 		entities = append(entities, entity)
 	}
 
-	out, err := json.Marshal(entities)
-	if err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
 	if err := f.Truncate(0); err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	if _, err := f.WriteAt(out, 0); err != nil {
+	if _, err := f.Seek(0, 0); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	if err := json.NewEncoder(f).Encode(entities); err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
