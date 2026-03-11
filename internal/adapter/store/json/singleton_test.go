@@ -2,6 +2,7 @@ package json
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -21,7 +22,6 @@ func TestLoadShouldReturnNotImplemented(t *testing.T) {
 	_, err := s.Load(t.Context())
 	require.ErrorIs(t, err, errNotImplemented)
 }
-
 
 func TestLoadShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	s := NewSingletonStore[domain.AppSettings](t.TempDir(), "app_settings.json")
@@ -52,11 +52,17 @@ func TestSingletonSaveShouldReturnIOErrorWhenFileCannotBeOpened(t *testing.T) {
 }
 
 func TestSingletonSaveShouldPersistValueWhenSuccessful(t *testing.T) {
-	s := NewSingletonStore[domain.AppSettings](t.TempDir(), "app_settings.json")
+	dir := t.TempDir()
+	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
 	settings := domain.AppSettings{RegistrationEnabled: true}
 
-	err := s.Save(t.Context(), settings)
+	require.NoError(t, s.Save(t.Context(), settings))
+
+	data, err := os.ReadFile(dir + "/app_settings.json")
 	require.NoError(t, err)
+	var got domain.AppSettings
+	require.NoError(t, json.Unmarshal(data, &got))
+	require.Equal(t, settings, got)
 }
 
 func TestSingletonSaveShouldBeThreadSafeWhenCalledConcurrently(t *testing.T) {

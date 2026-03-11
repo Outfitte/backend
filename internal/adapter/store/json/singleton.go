@@ -47,7 +47,7 @@ func (s *SingletonStore[T]) Save(ctx context.Context, value T) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	f, err := os.OpenFile(s.path, os.O_RDWR|os.O_CREATE, 0o644)
+	f, err := os.OpenFile(s.path, os.O_WRONLY|os.O_CREATE, 0o644)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
