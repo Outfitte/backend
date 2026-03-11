@@ -24,13 +24,13 @@ func NewSingletonStore[T any](root, filename string) *SingletonStore[T] {
 
 // Load retrieves the singleton value.
 // Returns domain.ErrNotFound if no value has been saved yet.
-func (s *SingletonStore[T]) Load(_ context.Context) (T, error) {
+func (s *SingletonStore[T]) Load(ctx context.Context) (T, error) {
 	var zero T
 	return zero, errors.New("not implemented")
 }
 
 // Save persists the singleton value, replacing any previously saved value.
-func (s *SingletonStore[T]) Save(_ context.Context, _ T) error {
+func (s *SingletonStore[T]) Save(ctx context.Context, _ T) error {
 	return errors.New("not implemented")
 }
 
