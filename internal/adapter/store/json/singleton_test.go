@@ -33,6 +33,26 @@ func TestLoadShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestLoadShouldReturnIOErrorWhenFileCannotBeOpened(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app_settings.json")
+	require.NoError(t, os.WriteFile(path, []byte("{}"), 0o000))
+	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
+
+	_, err := s.Load(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLoadShouldReturnIOErrorWhenFileContainsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app_settings.json")
+	require.NoError(t, os.WriteFile(path, []byte("not-json"), 0o644))
+	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
+
+	_, err := s.Load(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestLoadShouldReturnValueWhenFileExists(t *testing.T) {
 	dir := t.TempDir()
 	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
