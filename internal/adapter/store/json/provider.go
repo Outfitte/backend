@@ -3,11 +3,13 @@ package json
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 
+	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/ports"
 )
 
@@ -27,25 +29,29 @@ func NewProvider[T ports.Entity](root, filename string) *Provider[T] {
 }
 
 // Save creates or replaces the entity identified by entity.GetID().
-func (p *Provider[T]) Save(_ context.Context, entity T) error {
+func (p *Provider[T]) Save(ctx context.Context, entity T) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	f, err := os.OpenFile(p.path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	defer f.Close()
 
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
 	var entities []T
 	if len(data) > 0 {
 		if err := json.Unmarshal(data, &entities); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
 	}
 
@@ -63,14 +69,14 @@ func (p *Provider[T]) Save(_ context.Context, entity T) error {
 
 	out, err := json.Marshal(entities)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
 	if err := f.Truncate(0); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	if _, err := f.WriteAt(out, 0); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
 	return nil

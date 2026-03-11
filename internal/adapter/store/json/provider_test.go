@@ -20,7 +20,7 @@ func TestSaveShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
 	p := json.NewProvider[domain.User]("/nonexistent/path", "users.json")
 
 	err := p.Save(context.Background(), domain.User{})
-	require.ErrorContains(t, err, "no such file or directory")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestSaveShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
@@ -29,7 +29,7 @@ func TestSaveShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
 	p := json.NewProvider[domain.User](dir, "users.json")
 
 	err := p.Save(context.Background(), domain.User{})
-	require.ErrorContains(t, err, "invalid character")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestSaveShouldPersistNewEntity(t *testing.T) {
@@ -47,10 +47,15 @@ func TestSaveShouldPersistNewEntity(t *testing.T) {
 func TestSaveShouldOverwriteExistingEntity(t *testing.T) {
 	dir := t.TempDir()
 	p := json.NewProvider[domain.User](dir, "users.json")
-	original := domain.User{Email: "alice@example.com"}
+
+	var original domain.User
+	original.ID = "42"
+	original.Email = "alice@example.com"
 	require.NoError(t, p.Save(context.Background(), original))
 
-	updated := domain.User{Email: "alice-updated@example.com"}
+	var updated domain.User
+	updated.ID = "42"
+	updated.Email = "alice-updated@example.com"
 	require.NoError(t, p.Save(context.Background(), updated))
 
 	data, err := os.ReadFile(filepath.Join(dir, "users.json"))
