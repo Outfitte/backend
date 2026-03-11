@@ -234,6 +234,26 @@ func TestDeleteShouldRemoveEntity(t *testing.T) {
 	require.Equal(t, u2, got[0])
 }
 
+func TestSaveShouldOverwriteExistingEntity(t *testing.T) {
+	dir := t.TempDir()
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	var original domain.User
+	original.ID = "42"
+	original.Email = "alice@example.com"
+	require.NoError(t, p.Save(t.Context(), original))
+
+	var updated domain.User
+	updated.ID = "42"
+	updated.Email = "alice-updated@example.com"
+	require.NoError(t, p.Save(t.Context(), updated))
+
+	data, err := os.ReadFile(filepath.Join(dir, "users.json"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), "alice-updated@example.com")
+	require.NotContains(t, string(data), "alice@example.com")
+}
+
 func TestProviderShouldMaintainConsistencyWhenPerformingFullCRUDCycle(t *testing.T) {
 	dir := t.TempDir()
 	p := json.NewProvider[domain.User](dir, "users.json")
@@ -278,24 +298,4 @@ func TestProviderShouldMaintainConsistencyWhenPerformingFullCRUDCycle(t *testing
 	all, err = p.List(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, all)
-}
-
-func TestSaveShouldOverwriteExistingEntity(t *testing.T) {
-	dir := t.TempDir()
-	p := json.NewProvider[domain.User](dir, "users.json")
-
-	var original domain.User
-	original.ID = "42"
-	original.Email = "alice@example.com"
-	require.NoError(t, p.Save(t.Context(), original))
-
-	var updated domain.User
-	updated.ID = "42"
-	updated.Email = "alice-updated@example.com"
-	require.NoError(t, p.Save(t.Context(), updated))
-
-	data, err := os.ReadFile(filepath.Join(dir, "users.json"))
-	require.NoError(t, err)
-	require.Contains(t, string(data), "alice-updated@example.com")
-	require.NotContains(t, string(data), "alice@example.com")
 }
