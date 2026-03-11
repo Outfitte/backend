@@ -29,6 +29,16 @@ func NewProvider[T ports.Entity](root, filename string) *Provider[T] {
 	}
 }
 
+func writeJSON(f *os.File, v any) error {
+	if err := f.Truncate(0); err != nil {
+		return err
+	}
+	if _, err := f.Seek(0, 0); err != nil {
+		return err
+	}
+	return json.NewEncoder(f).Encode(v)
+}
+
 func upsert[T ports.Entity](entities []T, entity T) []T {
 	for i, e := range entities {
 		if e.GetID() == entity.GetID() {
@@ -61,13 +71,7 @@ func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 
 	entities = upsert(entities, entity)
 
-	if err := f.Truncate(0); err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-	if _, err := f.Seek(0, 0); err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-	if err := json.NewEncoder(f).Encode(entities); err != nil {
+	if err := writeJSON(f, entities); err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
