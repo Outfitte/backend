@@ -110,6 +110,50 @@ func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
 	return entities, nil
 }
 
+// Delete removes the entity with the given id.
+// Returns domain.ErrNotFound if no entity with that id exists.
+func (p *Provider[T]) Delete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	f, err := os.OpenFile(p.path, os.O_RDWR, 0o644)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+		}
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer f.Close()
+
+	var entities []T
+	if err := json.NewDecoder(f).Decode(&entities); err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	found := false
+	filtered := make([]T, 0, len(entities))
+	for _, e := range entities {
+		if e.GetID() == id {
+			found = true
+		} else {
+			filtered = append(filtered, e)
+		}
+	}
+	if !found {
+		return fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+	}
+
+	if err := writeJSON(f, filtered); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return nil
+}
+
 // Save creates or replaces the entity identified by entity.GetID().
 func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 	if err := ctx.Err(); err != nil {
