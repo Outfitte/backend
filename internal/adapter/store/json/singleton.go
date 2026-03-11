@@ -2,6 +2,7 @@ package json
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -10,8 +11,6 @@ import (
 
 	"github.com/outfitte/outfitte/internal/domain"
 )
-
-var errNotImplemented = errors.New("not implemented")
 
 // SingletonStore is a JSON file-backed implementation of ports.SingletonStore[T].
 // The file contains a single JSON object (no map wrapper).
@@ -35,7 +34,25 @@ func (s *SingletonStore[T]) Load(ctx context.Context) (T, error) {
 	if err := ctx.Err(); err != nil {
 		return zero, err
 	}
-	return zero, errNotImplemented
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	f, err := os.Open(s.path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return zero, domain.ErrNotFound
+		}
+		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer f.Close()
+
+	var value T
+	if err := json.NewDecoder(f).Decode(&value); err != nil {
+		return zero, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return value, nil
 }
 
 // Save persists the singleton value, replacing any previously saved value.

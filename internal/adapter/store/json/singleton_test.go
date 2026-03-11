@@ -17,11 +17,11 @@ func TestNewSingletonStoreShouldImplementSingletonStore(t *testing.T) {
 	require.Implements(t, (*ports.SingletonStore[domain.AppSettings])(nil), s)
 }
 
-func TestLoadShouldReturnNotImplemented(t *testing.T) {
+func TestLoadShouldReturnNotFoundWhenFileDoesNotExist(t *testing.T) {
 	s := NewSingletonStore[domain.AppSettings](t.TempDir(), "app_settings.json")
 
 	_, err := s.Load(t.Context())
-	require.ErrorIs(t, err, errNotImplemented)
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestLoadShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -31,6 +31,17 @@ func TestLoadShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 
 	_, err := s.Load(ctx)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLoadShouldReturnValueWhenFileExists(t *testing.T) {
+	dir := t.TempDir()
+	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
+	settings := domain.AppSettings{RegistrationEnabled: true}
+	require.NoError(t, s.Save(t.Context(), settings))
+
+	got, err := s.Load(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, settings, got)
 }
 
 func TestSingletonSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
