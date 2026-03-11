@@ -8,12 +8,13 @@ import (
 
 	"github.com/outfitte/outfitte/internal/adapter/store/json"
 	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewProviderShouldReturnProvider(t *testing.T) {
+func TestNewProviderShouldImplementStorageProvider(t *testing.T) {
 	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
-	require.NotNil(t, p)
+	require.Implements(t, (*ports.StorageProvider[domain.User])(nil), p)
 }
 
 func TestListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -164,6 +165,73 @@ func TestSaveShouldPersistNewEntity(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(dir, "users.json"))
 	require.NoError(t, err)
 	require.Contains(t, string(data), "alice@example.com")
+}
+
+func TestDeleteShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := p.Delete(ctx, "42")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestDeleteShouldReturnNotFoundWhenStoreIsEmpty(t *testing.T) {
+	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
+
+	err := p.Delete(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestDeleteShouldReturnNotFoundWhenEntityDoesNotExist(t *testing.T) {
+	dir := t.TempDir()
+	p := json.NewProvider[domain.User](dir, "users.json")
+	var u domain.User
+	u.ID = "42"
+	require.NoError(t, p.Save(t.Context(), u))
+
+	err := p.Delete(t.Context(), "99")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestDeleteShouldReturnErrorWhenFileContainsInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "users.json"), []byte("not json"), 0o644))
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	err := p.Delete(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestDeleteShouldReturnErrorWhenFileCannotBeOpened(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "users.json")
+	require.NoError(t, os.WriteFile(path, []byte("[]"), 0o000))
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	err := p.Delete(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestDeleteShouldRemoveEntity(t *testing.T) {
+	dir := t.TempDir()
+	p := json.NewProvider[domain.User](dir, "users.json")
+
+	var u1, u2 domain.User
+	u1.ID = "1"
+	u2.ID = "2"
+	require.NoError(t, p.Save(t.Context(), u1))
+	require.NoError(t, p.Save(t.Context(), u2))
+
+	require.NoError(t, p.Delete(t.Context(), "1"))
+
+	_, err := p.Get(t.Context(), "1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+
+	got, err := p.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, u2, got[0])
 }
 
 func TestSaveShouldOverwriteExistingEntity(t *testing.T) {
