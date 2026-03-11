@@ -8,12 +8,14 @@ import (
 
 	"github.com/outfitte/outfitte/internal/adapter/store/json"
 	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewProviderShouldReturnProvider(t *testing.T) {
+func TestNewProviderShouldImplementStorageProvider(t *testing.T) {
 	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
 	require.NotNil(t, p)
+	var _ ports.StorageProvider[domain.User] = p
 }
 
 func TestListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
