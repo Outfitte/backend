@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/domain"
@@ -43,7 +44,7 @@ func TestSingletonSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 
 func TestSingletonSaveShouldReturnIOErrorWhenFileCannotBeOpened(t *testing.T) {
 	dir := t.TempDir()
-	path := dir + "/app_settings.json"
+	path := filepath.Join(dir, "app_settings.json")
 	require.NoError(t, os.WriteFile(path, []byte("{}"), 0o000))
 	s := NewSingletonStore[domain.AppSettings](dir, "app_settings.json")
 
@@ -58,7 +59,7 @@ func TestSingletonSaveShouldPersistValueWhenSuccessful(t *testing.T) {
 
 	require.NoError(t, s.Save(t.Context(), settings))
 
-	data, err := os.ReadFile(dir + "/app_settings.json")
+	data, err := os.ReadFile(filepath.Join(dir, "app_settings.json"))
 	require.NoError(t, err)
 	var got domain.AppSettings
 	require.NoError(t, json.Unmarshal(data, &got))
