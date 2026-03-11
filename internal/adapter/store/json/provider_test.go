@@ -14,8 +14,7 @@ import (
 
 func TestNewProviderShouldImplementStorageProvider(t *testing.T) {
 	p := json.NewProvider[domain.User](t.TempDir(), "users.json")
-	require.NotNil(t, p)
-	var _ ports.StorageProvider[domain.User] = p
+	require.Implements(t, (*ports.StorageProvider[domain.User])(nil), p)
 }
 
 func TestListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
