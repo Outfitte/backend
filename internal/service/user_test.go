@@ -118,6 +118,37 @@ func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrConflict)
 }
 
+func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
+	store := &mockUserStore{listErr: domain.ErrIO}
+	settings := &mockSettingsStore{}
+	svc := service.NewUserService(store, settings)
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
+	var existingUser domain.User
+	existingUser.ID = "1"
+	existingUser.Email = "bob@example.com"
+
+	store := &mockUserStore{users: []domain.User{existingUser}}
+	settings := &mockSettingsStore{err: domain.ErrIO}
+	svc := service.NewUserService(store, settings)
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRegisterShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
+	store := &mockUserStore{saveErr: domain.ErrIO}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	svc := service.NewUserService(store, settings)
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestRegisterShouldCreateAdminWhenFirstUserEvenIfRegistrationDisabled(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
@@ -147,35 +178,4 @@ func TestRegisterShouldCreateMemberWhenRegistrationIsEnabled(t *testing.T) {
 	require.NotEmpty(t, user.GetID())
 	require.NotEmpty(t, user.PasswordHash)
 	require.False(t, user.CreatedAt.IsZero())
-}
-
-func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
-	store := &mockUserStore{listErr: domain.ErrIO}
-	settings := &mockSettingsStore{}
-	svc := service.NewUserService(store, settings)
-
-	_, err := svc.Register(t.Context(), "alice@example.com", "password")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestRegisterShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
-	store := &mockUserStore{saveErr: domain.ErrIO}
-	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
-
-	_, err := svc.Register(t.Context(), "alice@example.com", "password")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
-	var existingUser domain.User
-	existingUser.ID = "1"
-	existingUser.Email = "bob@example.com"
-
-	store := &mockUserStore{users: []domain.User{existingUser}}
-	settings := &mockSettingsStore{err: domain.ErrIO}
-	svc := service.NewUserService(store, settings)
-
-	_, err := svc.Register(t.Context(), "alice@example.com", "password")
-	require.ErrorIs(t, err, domain.ErrIO)
 }
