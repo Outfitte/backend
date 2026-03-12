@@ -125,6 +125,18 @@ func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestRegisterShouldReturnErrIOWhenRandFails(t *testing.T) {
+	store := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	svc := service.NewUserService(store, settings)
+	svc.SetRandRead(func(b []byte) (int, error) {
+		return 0, errors.New("entropy failure")
+	})
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestRegisterShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	store := &mockUserStore{saveErr: domain.ErrIO}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}

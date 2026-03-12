@@ -17,10 +17,16 @@ import (
 type UserService struct {
 	users    ports.StorageProvider[domain.User]
 	settings ports.SingletonStore[domain.AppSettings]
+	randRead func([]byte) (int, error)
 }
 
 func NewUserService(users ports.StorageProvider[domain.User], settings ports.SingletonStore[domain.AppSettings]) *UserService {
-	return &UserService{users: users, settings: settings}
+	return &UserService{users: users, settings: settings, randRead: rand.Read}
+}
+
+// SetRandRead replaces the random reader. Used in tests to inject a failing fake.
+func (s *UserService) SetRandRead(fn func([]byte) (int, error)) {
+	s.randRead = fn
 }
 
 func (s *UserService) Register(ctx context.Context, email, password string) (domain.User, error) {
@@ -32,7 +38,7 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 		return domain.User{}, err
 	}
 
-	hash, err := hashPassword(password, rand.Read)
+	hash, err := hashPassword(password, s.randRead)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
