@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,6 +104,49 @@ func TestGetURLShouldReturnMediaPathWhenSuccessful(t *testing.T) {
 	url, err := p.GetURL(t.Context(), "sub/image.jpg")
 	require.NoError(t, err)
 	require.Equal(t, "/media/sub/image.jpg", url)
+}
+
+func TestDownloadShouldReturnErrWhenContextIsCancelled(t *testing.T) {
+	p := local.NewProvider(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := p.Download(ctx, "image.jpg")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestDownloadShouldReturnErrIOWhenOpenFails(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "locked.jpg")
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0o000))
+	t.Cleanup(func() { os.Chmod(path, 0o644) })
+
+	p := local.NewProvider(root)
+	_, err := p.Download(t.Context(), "locked.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestDownloadShouldReturnErrNotFoundWhenFileDoesNotExist(t *testing.T) {
+	p := local.NewProvider(t.TempDir())
+
+	_, err := p.Download(t.Context(), "missing.jpg")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestDownloadShouldReturnReadableContentWhenSuccessful(t *testing.T) {
+	root := t.TempDir()
+	p := local.NewProvider(root)
+
+	content := "hello download"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "image.jpg"), []byte(content), 0o644))
+
+	rc, err := p.Download(t.Context(), "image.jpg")
+	require.NoError(t, err)
+	t.Cleanup(func() { rc.Close() })
+
+	got, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, content, string(got))
 }
 
 func TestUploadShouldWriteLargeFileWhenContentExceedsBuffer(t *testing.T) {

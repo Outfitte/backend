@@ -53,8 +53,22 @@ func (p *Provider) Delete(ctx context.Context, key string) error {
 }
 
 // Download returns a reader for the media file identified by key.
+// The caller is responsible for closing the returned ReadCloser.
+// Translates all os errors into domain errors.
 func (p *Provider) Download(ctx context.Context, key string) (io.ReadCloser, error) {
-	return nil, errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	f, err := os.Open(filepath.Join(p.root, key))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("%w: %w", domain.ErrNotFound, err)
+		}
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return f, nil
 }
 
 // GetURL returns the URL for the media file identified by key.
