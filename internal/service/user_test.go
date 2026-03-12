@@ -120,6 +120,14 @@ func TestGetByEmailShouldReturnErrNotFoundWhenEmailDoesNotExist(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestGetByEmailShouldReturnErrorWhenListFails(t *testing.T) {
+	store := &mockUserStore{listErr: domain.ErrIO}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	_, err := svc.GetByEmail(t.Context(), "alice@example.com")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestGetByEmailShouldReturnUserWhenFound(t *testing.T) {
 	var u domain.User
 	u.ID = "42"
