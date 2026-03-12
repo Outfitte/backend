@@ -149,6 +149,45 @@ func TestDownloadShouldReturnReadableContentWhenSuccessful(t *testing.T) {
 	require.Equal(t, content, string(got))
 }
 
+func TestDeleteShouldReturnErrWhenContextIsCancelled(t *testing.T) {
+	p := local.NewProvider(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := p.Delete(ctx, "image.jpg")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestDeleteShouldReturnErrIOWhenRemoveFails(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "image.jpg"), []byte("data"), 0o644))
+	require.NoError(t, os.Chmod(root, 0o555))
+	t.Cleanup(func() { os.Chmod(root, 0o755) })
+
+	p := local.NewProvider(root)
+	err := p.Delete(t.Context(), "image.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestDeleteShouldReturnErrNotFoundWhenFileDoesNotExist(t *testing.T) {
+	p := local.NewProvider(t.TempDir())
+
+	err := p.Delete(t.Context(), "missing.jpg")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestDeleteShouldRemoveFileWhenSuccessful(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "image.jpg")
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0o644))
+
+	p := local.NewProvider(root)
+	require.NoError(t, p.Delete(t.Context(), "image.jpg"))
+
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestUploadShouldWriteLargeFileWhenContentExceedsBuffer(t *testing.T) {
 	root := t.TempDir()
 	p := local.NewProvider(root)
