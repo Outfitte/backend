@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/argon2"
 
 	"github.com/outfitte/outfitte/internal/domain"
@@ -27,21 +28,20 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 		return domain.User{}, err
 	}
 
+	settings, err := s.settings.Load(ctx)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if !settings.RegistrationEnabled {
+		return domain.User{}, domain.ErrRegistrationDisabled
+	}
+
 	existing, err := s.users.List(ctx)
 	if err != nil {
 		return domain.User{}, err
 	}
 
 	firstUser := len(existing) == 0
-	if !firstUser {
-		settings, err := s.settings.Load(ctx)
-		if err != nil {
-			return domain.User{}, err
-		}
-		if !settings.RegistrationEnabled {
-			return domain.User{}, domain.ErrRegistrationDisabled
-		}
-	}
 
 	for _, u := range existing {
 		if u.Email == email {
@@ -60,7 +60,7 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 	}
 
 	var user domain.User
-	user.ID = newID()
+	user.ID = uuid.NewString()
 	user.Email = email
 	user.PasswordHash = hash
 	user.Role = role
@@ -91,9 +91,4 @@ func hashPassword(password string) (string, error) {
 	return encoded, nil
 }
 
-func newID() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
-}
 

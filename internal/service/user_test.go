@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/outfitte/outfitte/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -52,9 +51,6 @@ func (m *mockUserStore) Delete(_ context.Context, id string) error {
 	return errors.New("not implemented")
 }
 
-// Verify the mock satisfies the interface.
-var _ ports.StorageProvider[domain.User] = (*mockUserStore)(nil)
-
 // mockSettingsStore is an in-memory SingletonStore[domain.AppSettings] for tests.
 type mockSettingsStore struct {
 	settings domain.AppSettings
@@ -80,9 +76,6 @@ func (m *mockSettingsStore) Save(_ context.Context, s domain.AppSettings) error 
 	return nil
 }
 
-// Verify the mock satisfies the interface.
-var _ ports.SingletonStore[domain.AppSettings] = (*mockSettingsStore)(nil)
-
 func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := service.NewUserService(&mockUserStore{}, &mockSettingsStore{})
 	ctx, cancel := context.WithCancel(t.Context())
@@ -93,11 +86,7 @@ func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 }
 
 func TestRegisterShouldReturnErrRegistrationDisabledWhenRegistrationIsDisabled(t *testing.T) {
-	var existingUser domain.User
-	existingUser.ID = "1"
-	existingUser.Email = "bob@example.com"
-
-	store := &mockUserStore{users: []domain.User{existingUser}}
+	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
 	svc := service.NewUserService(store, settings)
 
@@ -120,7 +109,7 @@ func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
 
 func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
 	store := &mockUserStore{listErr: domain.ErrIO}
-	settings := &mockSettingsStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
 	svc := service.NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
@@ -128,11 +117,7 @@ func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
 }
 
 func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
-	var existingUser domain.User
-	existingUser.ID = "1"
-	existingUser.Email = "bob@example.com"
-
-	store := &mockUserStore{users: []domain.User{existingUser}}
+	store := &mockUserStore{}
 	settings := &mockSettingsStore{err: domain.ErrIO}
 	svc := service.NewUserService(store, settings)
 
@@ -149,9 +134,9 @@ func TestRegisterShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestRegisterShouldCreateAdminWhenFirstUserEvenIfRegistrationDisabled(t *testing.T) {
+func TestRegisterShouldCreateAdminWhenFirstUser(t *testing.T) {
 	store := &mockUserStore{}
-	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
 	svc := service.NewUserService(store, settings)
 
 	user, err := svc.Register(t.Context(), "alice@example.com", "password")
