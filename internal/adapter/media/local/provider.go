@@ -58,6 +58,13 @@ func (p *Provider) Download(ctx context.Context, key string) (io.ReadCloser, err
 }
 
 // GetURL returns the URL for the media file identified by key.
+// Returns a relative path of the form /media/<key>; no filesystem I/O is performed.
+// Note: unlike Download and Delete, this implementation does not check whether the
+// file exists — URL construction is purely deterministic. Existence validation is
+// left to the caller or to the Download/Delete methods.
 func (p *Provider) GetURL(ctx context.Context, key string) (string, error) {
-	return "", errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return "/media/" + key, nil
 }
