@@ -48,8 +48,21 @@ func (p *Provider) Upload(ctx context.Context, key string, r io.Reader) error {
 }
 
 // Delete removes the media file identified by key.
+// Translates all os errors into domain errors.
 func (p *Provider) Delete(ctx context.Context, key string) error {
-	return errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	err := os.Remove(filepath.Join(p.root, key))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%w: %w", domain.ErrNotFound, err)
+		}
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return nil
 }
 
 // Download returns a reader for the media file identified by key.
