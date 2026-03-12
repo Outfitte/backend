@@ -98,6 +98,25 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 	return user, nil
 }
 
+func (s *UserService) UpdateRegistrationEnabled(ctx context.Context, callerID string, enabled bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	caller, err := s.users.Get(ctx, callerID)
+	if err != nil {
+		return err
+	}
+	if caller.Role != domain.RoleAdmin {
+		return domain.ErrForbidden
+	}
+	settings, err := s.settings.Load(ctx)
+	if err != nil {
+		return err
+	}
+	settings.RegistrationEnabled = enabled
+	return s.settings.Save(ctx, settings)
+}
+
 // canRegister checks that registration is enabled.
 func (s *UserService) canRegister(ctx context.Context) error {
 	settings, err := s.settings.Load(ctx)

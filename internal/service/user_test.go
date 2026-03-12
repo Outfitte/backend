@@ -54,6 +54,7 @@ func (m *mockUserStore) Delete(_ context.Context, id string) error {
 type mockSettingsStore struct {
 	settings domain.AppSettings
 	err      error
+	saveErr  error
 	notFound bool
 }
 
@@ -71,8 +72,79 @@ func (m *mockSettingsStore) Save(_ context.Context, s domain.AppSettings) error 
 	if m.err != nil {
 		return m.err
 	}
+	if m.saveErr != nil {
+		return m.saveErr
+	}
 	m.settings = s
 	return nil
+}
+
+func TestUpdateRegistrationEnabledShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.UpdateRegistrationEnabled(ctx, "42", true)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestUpdateRegistrationEnabledShouldReturnErrNotFoundWhenCallerDoesNotExist(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+
+	err := svc.UpdateRegistrationEnabled(t.Context(), "42", true)
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestUpdateRegistrationEnabledShouldReturnErrForbiddenWhenCallerIsNotAdmin(t *testing.T) {
+	var member domain.User
+	member.ID = "42"
+	member.Role = domain.RoleMember
+
+	store := &mockUserStore{users: []domain.User{member}}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	err := svc.UpdateRegistrationEnabled(t.Context(), "42", true)
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestUpdateRegistrationEnabledShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
+	var admin domain.User
+	admin.ID = "42"
+	admin.Role = domain.RoleAdmin
+
+	store := &mockUserStore{users: []domain.User{admin}}
+	settings := &mockSettingsStore{err: domain.ErrIO}
+	svc := NewUserService(store, settings)
+
+	err := svc.UpdateRegistrationEnabled(t.Context(), "42", true)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestUpdateRegistrationEnabledShouldReturnErrorWhenSettingsSaveFails(t *testing.T) {
+	var admin domain.User
+	admin.ID = "42"
+	admin.Role = domain.RoleAdmin
+
+	store := &mockUserStore{users: []domain.User{admin}}
+	settings := &mockSettingsStore{saveErr: domain.ErrIO}
+	svc := NewUserService(store, settings)
+
+	err := svc.UpdateRegistrationEnabled(t.Context(), "42", true)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestUpdateRegistrationEnabledShouldUpdateSettingsWhenCallerIsAdmin(t *testing.T) {
+	var admin domain.User
+	admin.ID = "42"
+	admin.Role = domain.RoleAdmin
+
+	store := &mockUserStore{users: []domain.User{admin}}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
+	svc := NewUserService(store, settings)
+
+	err := svc.UpdateRegistrationEnabled(t.Context(), "42", true)
+	require.NoError(t, err)
+	require.True(t, settings.settings.RegistrationEnabled)
 }
 
 func TestListAllShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
