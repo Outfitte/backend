@@ -31,6 +31,22 @@ func (s *UserService) GetByID(ctx context.Context, id string) (domain.User, erro
 	return s.users.Get(ctx, id)
 }
 
+func (s *UserService) GetByEmail(ctx context.Context, email string) (domain.User, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.User{}, err
+	}
+	users, err := s.users.List(ctx)
+	if err != nil {
+		return domain.User{}, err
+	}
+	for _, u := range users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return domain.User{}, domain.ErrNotFound
+}
+
 func (s *UserService) Register(ctx context.Context, email, password string) (domain.User, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.User{}, err
