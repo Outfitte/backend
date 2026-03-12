@@ -58,6 +58,10 @@ func (p *Provider) Download(ctx context.Context, key string) (io.ReadCloser, err
 }
 
 // GetURL returns the URL for the media file identified by key.
+// Returns a relative path of the form /media/<key>; no filesystem I/O is performed.
 func (p *Provider) GetURL(ctx context.Context, key string) (string, error) {
-	return "", errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return "/media/" + key, nil
 }

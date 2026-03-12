@@ -88,6 +88,23 @@ func TestUploadShouldWriteEmptyFileWhenReaderIsEmpty(t *testing.T) {
 	require.Empty(t, got)
 }
 
+func TestGetURLShouldReturnErrWhenContextIsCancelled(t *testing.T) {
+	p := local.NewProvider(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := p.GetURL(ctx, "image.jpg")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGetURLShouldReturnMediaPathWhenSuccessful(t *testing.T) {
+	p := local.NewProvider(t.TempDir())
+
+	url, err := p.GetURL(t.Context(), "sub/image.jpg")
+	require.NoError(t, err)
+	require.Equal(t, "/media/sub/image.jpg", url)
+}
+
 func TestUploadShouldWriteLargeFileWhenContentExceedsBuffer(t *testing.T) {
 	root := t.TempDir()
 	p := local.NewProvider(root)
