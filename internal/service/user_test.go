@@ -353,6 +353,24 @@ func TestRegisterShouldCreateAdminWhenFirstUser(t *testing.T) {
 	require.NotEmpty(t, user.PasswordHash)
 }
 
+func TestRegisterShouldCreateMemberWhenRegistrationIsEnabled(t *testing.T) {
+	var existingUser domain.User
+	existingUser.ID = "1"
+	existingUser.Email = "bob@example.com"
+
+	store := &mockUserStore{users: []domain.User{existingUser}}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	svc := NewUserService(store, settings)
+
+	user, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+	require.Equal(t, domain.RoleMember, user.Role)
+	require.Equal(t, "alice@example.com", user.Email)
+	require.NotEmpty(t, user.GetID())
+	require.NotEmpty(t, user.PasswordHash)
+	require.False(t, user.CreatedAt.IsZero())
+}
+
 func TestUserServiceShouldCompleteFullCycleWhenOperationsAreValid(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
@@ -396,22 +414,4 @@ func TestUserServiceShouldCompleteFullCycleWhenOperationsAreValid(t *testing.T) 
 	// A new registration must now be rejected.
 	_, err = svc.Register(t.Context(), "carol@example.com", "pw")
 	require.ErrorIs(t, err, domain.ErrRegistrationDisabled)
-}
-
-func TestRegisterShouldCreateMemberWhenRegistrationIsEnabled(t *testing.T) {
-	var existingUser domain.User
-	existingUser.ID = "1"
-	existingUser.Email = "bob@example.com"
-
-	store := &mockUserStore{users: []domain.User{existingUser}}
-	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := NewUserService(store, settings)
-
-	user, err := svc.Register(t.Context(), "alice@example.com", "password")
-	require.NoError(t, err)
-	require.Equal(t, domain.RoleMember, user.Role)
-	require.Equal(t, "alice@example.com", user.Email)
-	require.NotEmpty(t, user.GetID())
-	require.NotEmpty(t, user.PasswordHash)
-	require.False(t, user.CreatedAt.IsZero())
 }
