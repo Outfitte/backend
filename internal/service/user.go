@@ -28,19 +28,18 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 		return domain.User{}, err
 	}
 
-	firstUser, err := s.canRegister(ctx, email)
-	if err != nil {
+	if err := s.canRegister(ctx); err != nil {
 		return domain.User{}, err
 	}
 
-	hash, err := hashPassword(password)
+	hash, err := hashPassword(password, rand.Read)
 	if err != nil {
 		return domain.User{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	role := domain.RoleMember
-	if firstUser {
-		role = domain.RoleAdmin
+	role, err := s.defineRole(ctx, email)
+	if err != nil {
+		return domain.User{}, err
 	}
 
 	var user domain.User
@@ -57,29 +56,36 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 	return user, nil
 }
 
-// canRegister checks that registration is enabled and the email is not taken.
-// It returns whether this will be the first (admin) user.
-func (s *UserService) canRegister(ctx context.Context, email string) (firstUser bool, err error) {
+// canRegister checks that registration is enabled.
+func (s *UserService) canRegister(ctx context.Context) error {
 	settings, err := s.settings.Load(ctx)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if !settings.RegistrationEnabled {
-		return false, domain.ErrRegistrationDisabled
+		return domain.ErrRegistrationDisabled
 	}
+	return nil
+}
 
+// defineRole lists existing users to check for email conflicts and determine
+// the role for the new user: RoleAdmin if this is the first user, RoleMember otherwise.
+func (s *UserService) defineRole(ctx context.Context, email string) (domain.Role, error) {
 	existing, err := s.users.List(ctx)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 
 	for _, u := range existing {
 		if u.Email == email {
-			return false, domain.ErrConflict
+			return "", domain.ErrConflict
 		}
 	}
 
-	return len(existing) == 0, nil
+	if len(existing) == 0 {
+		return domain.RoleAdmin, nil
+	}
+	return domain.RoleMember, nil
 }
 
 const (
@@ -90,9 +96,9 @@ const (
 	argon2SaltLen = 16
 )
 
-func hashPassword(password string) (string, error) {
+func hashPassword(password string, randRead func([]byte) (int, error)) (string, error) {
 	salt := make([]byte, argon2SaltLen)
-	if _, err := rand.Read(salt); err != nil {
+	if _, err := randRead(salt); err != nil {
 		return "", err
 	}
 	key := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
