@@ -188,6 +188,39 @@ func TestDeleteShouldRemoveFileWhenSuccessful(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
+func TestProviderShouldCompleteFullCycleWhenOperationsAreSequenced(t *testing.T) {
+	root := t.TempDir()
+	p := local.NewProvider(root)
+	ctx := t.Context()
+
+	const key = "cycle/image.jpg"
+	content := "full cycle content"
+
+	// Upload
+	err := p.Upload(ctx, key, strings.NewReader(content))
+	require.NoError(t, err)
+
+	// GetURL
+	url, err := p.GetURL(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, "/media/"+key, url)
+
+	// Download and verify content
+	rc, err := p.Download(ctx, key)
+	require.NoError(t, err)
+	got, err := io.ReadAll(rc)
+	require.NoError(t, rc.Close())
+	require.NoError(t, err)
+	require.Equal(t, content, string(got))
+
+	// Delete
+	require.NoError(t, p.Delete(ctx, key))
+
+	// Verify gone
+	_, err = p.Download(ctx, key)
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestUploadShouldWriteLargeFileWhenContentExceedsBuffer(t *testing.T) {
 	root := t.TempDir()
 	p := local.NewProvider(root)
