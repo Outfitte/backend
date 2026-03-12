@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
+
+	"github.com/outfitte/outfitte/internal/ports"
 )
+
+var _ ports.MediaProvider = (*Provider)(nil)
 
 // Provider is a local filesystem-backed implementation of ports.MediaProvider.
 // Media files are stored under root, keyed by their path segment.
