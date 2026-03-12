@@ -75,6 +75,35 @@ func (m *mockSettingsStore) Save(_ context.Context, s domain.AppSettings) error 
 	return nil
 }
 
+func TestGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.GetByID(ctx, "42")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGetByIDShouldReturnErrNotFoundWhenUserDoesNotExist(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+
+	_, err := svc.GetByID(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestGetByIDShouldReturnUserWhenFound(t *testing.T) {
+	var u domain.User
+	u.ID = "42"
+	u.Email = "alice@example.com"
+
+	store := &mockUserStore{users: []domain.User{u}}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	got, err := svc.GetByID(t.Context(), "42")
+	require.NoError(t, err)
+	require.Equal(t, u, got)
+}
+
 func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
 	ctx, cancel := context.WithCancel(t.Context())
