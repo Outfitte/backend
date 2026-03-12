@@ -353,6 +353,51 @@ func TestRegisterShouldCreateAdminWhenFirstUser(t *testing.T) {
 	require.NotEmpty(t, user.PasswordHash)
 }
 
+func TestUserServiceShouldCompleteFullCycleWhenOperationsAreValid(t *testing.T) {
+	store := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	svc := NewUserService(store, settings)
+
+	// Register first user → must become admin.
+	admin, err := svc.Register(t.Context(), "alice@example.com", "s3cr3t")
+	require.NoError(t, err)
+	require.Equal(t, domain.RoleAdmin, admin.Role)
+	require.Equal(t, "alice@example.com", admin.Email)
+	require.NotEmpty(t, admin.ID)
+	require.False(t, admin.CreatedAt.IsZero())
+
+	// Register second user → must become member.
+	member, err := svc.Register(t.Context(), "bob@example.com", "p4ssw0rd")
+	require.NoError(t, err)
+	require.Equal(t, domain.RoleMember, member.Role)
+	require.Equal(t, "bob@example.com", member.Email)
+	require.NotEmpty(t, member.ID)
+
+	// GetByID must return the stored admin.
+	got, err := svc.GetByID(t.Context(), admin.ID)
+	require.NoError(t, err)
+	require.Equal(t, admin, got)
+
+	// GetByEmail must return the stored member.
+	got, err = svc.GetByEmail(t.Context(), "bob@example.com")
+	require.NoError(t, err)
+	require.Equal(t, member, got)
+
+	// ListAll as admin must return both users.
+	all, err := svc.ListAll(t.Context(), admin.ID)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+
+	// UpdateRegistrationEnabled must persist the change.
+	err = svc.UpdateRegistrationEnabled(t.Context(), admin.ID, false)
+	require.NoError(t, err)
+	require.False(t, settings.settings.RegistrationEnabled)
+
+	// A new registration must now be rejected.
+	_, err = svc.Register(t.Context(), "carol@example.com", "pw")
+	require.ErrorIs(t, err, domain.ErrRegistrationDisabled)
+}
+
 func TestRegisterShouldCreateMemberWhenRegistrationIsEnabled(t *testing.T) {
 	var existingUser domain.User
 	existingUser.ID = "1"
