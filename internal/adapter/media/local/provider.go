@@ -3,7 +3,12 @@ package local
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/outfitte/outfitte/internal/domain"
 )
 
 // Provider is a local filesystem-backed implementation of ports.MediaProvider.
@@ -18,8 +23,28 @@ func NewProvider(root string) *Provider {
 }
 
 // Upload stores the content from r under the given key.
+// Creates any necessary parent directories. Translates all os errors into domain errors.
 func (p *Provider) Upload(ctx context.Context, key string, r io.Reader) error {
-	return errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	dest := filepath.Join(p.root, key)
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	f, err := os.Create(dest)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, r); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return nil
 }
 
 // Delete removes the media file identified by key.
