@@ -104,6 +104,35 @@ func TestGetByIDShouldReturnUserWhenFound(t *testing.T) {
 	require.Equal(t, u, got)
 }
 
+func TestGetByEmailShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.GetByEmail(ctx, "alice@example.com")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGetByEmailShouldReturnErrNotFoundWhenEmailDoesNotExist(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+
+	_, err := svc.GetByEmail(t.Context(), "alice@example.com")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestGetByEmailShouldReturnUserWhenFound(t *testing.T) {
+	var u domain.User
+	u.ID = "42"
+	u.Email = "alice@example.com"
+
+	store := &mockUserStore{users: []domain.User{u}}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	got, err := svc.GetByEmail(t.Context(), "alice@example.com")
+	require.NoError(t, err)
+	require.Equal(t, u, got)
+}
+
 func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
 	ctx, cancel := context.WithCancel(t.Context())
