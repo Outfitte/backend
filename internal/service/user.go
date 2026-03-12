@@ -24,6 +24,13 @@ func NewUserService(users ports.StorageProvider[domain.User], settings ports.Sin
 	return &UserService{users: users, settings: settings, randRead: rand.Read}
 }
 
+func (s *UserService) GetByID(ctx context.Context, id string) (domain.User, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.User{}, err
+	}
+	return s.users.Get(ctx, id)
+}
+
 func (s *UserService) Register(ctx context.Context, email, password string) (domain.User, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.User{}, err
