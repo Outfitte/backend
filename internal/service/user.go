@@ -28,25 +28,9 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 		return domain.User{}, err
 	}
 
-	settings, err := s.settings.Load(ctx)
+	firstUser, err := s.canRegister(ctx, email)
 	if err != nil {
 		return domain.User{}, err
-	}
-	if !settings.RegistrationEnabled {
-		return domain.User{}, domain.ErrRegistrationDisabled
-	}
-
-	existing, err := s.users.List(ctx)
-	if err != nil {
-		return domain.User{}, err
-	}
-
-	firstUser := len(existing) == 0
-
-	for _, u := range existing {
-		if u.Email == email {
-			return domain.User{}, domain.ErrConflict
-		}
 	}
 
 	hash, err := hashPassword(password)
@@ -73,6 +57,31 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 	return user, nil
 }
 
+// canRegister checks that registration is enabled and the email is not taken.
+// It returns whether this will be the first (admin) user.
+func (s *UserService) canRegister(ctx context.Context, email string) (firstUser bool, err error) {
+	settings, err := s.settings.Load(ctx)
+	if err != nil {
+		return false, err
+	}
+	if !settings.RegistrationEnabled {
+		return false, domain.ErrRegistrationDisabled
+	}
+
+	existing, err := s.users.List(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	for _, u := range existing {
+		if u.Email == email {
+			return false, domain.ErrConflict
+		}
+	}
+
+	return len(existing) == 0, nil
+}
+
 const (
 	argon2Memory  = 64 * 1024 // 64 MB
 	argon2Time    = 3
@@ -90,5 +99,3 @@ func hashPassword(password string) (string, error) {
 	encoded := base64.RawStdEncoding.EncodeToString(salt) + "$" + base64.RawStdEncoding.EncodeToString(key)
 	return encoded, nil
 }
-
-
