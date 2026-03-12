@@ -75,6 +75,63 @@ func (m *mockSettingsStore) Save(_ context.Context, s domain.AppSettings) error 
 	return nil
 }
 
+func TestListAllShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.ListAll(ctx, "42")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestListAllShouldReturnErrNotFoundWhenCallerDoesNotExist(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+
+	_, err := svc.ListAll(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestListAllShouldReturnErrForbiddenWhenCallerIsNotAdmin(t *testing.T) {
+	var member domain.User
+	member.ID = "42"
+	member.Role = domain.RoleMember
+
+	store := &mockUserStore{users: []domain.User{member}}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	_, err := svc.ListAll(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestListAllShouldReturnErrorWhenListFails(t *testing.T) {
+	var admin domain.User
+	admin.ID = "42"
+	admin.Role = domain.RoleAdmin
+
+	store := &mockUserStore{users: []domain.User{admin}, listErr: domain.ErrIO}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	_, err := svc.ListAll(t.Context(), "42")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestListAllShouldReturnAllUsersWhenCallerIsAdmin(t *testing.T) {
+	var admin domain.User
+	admin.ID = "1"
+	admin.Role = domain.RoleAdmin
+
+	var member domain.User
+	member.ID = "2"
+	member.Role = domain.RoleMember
+
+	store := &mockUserStore{users: []domain.User{admin, member}}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	got, err := svc.ListAll(t.Context(), "1")
+	require.NoError(t, err)
+	require.Equal(t, []domain.User{admin, member}, got)
+}
+
 func TestGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
 	ctx, cancel := context.WithCancel(t.Context())

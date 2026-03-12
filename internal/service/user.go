@@ -31,6 +31,24 @@ func (s *UserService) GetByID(ctx context.Context, id string) (domain.User, erro
 	return s.users.Get(ctx, id)
 }
 
+func (s *UserService) ListAll(ctx context.Context, callerID string) ([]domain.User, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	caller, err := s.users.Get(ctx, callerID)
+	if err != nil {
+		return nil, err
+	}
+	if caller.Role != domain.RoleAdmin {
+		return nil, domain.ErrForbidden
+	}
+	users, err := s.users.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (s *UserService) GetByEmail(ctx context.Context, email string) (domain.User, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.User{}, err
