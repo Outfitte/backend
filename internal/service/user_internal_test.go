@@ -1,6 +1,7 @@
 package service
 
 import (
+	"crypto/rand"
 	"errors"
 	"testing"
 
@@ -29,4 +30,20 @@ func TestVerifyPasswordShouldReturnErrUnauthorizedWhenSaltIsInvalidBase64(t *tes
 func TestVerifyPasswordShouldReturnErrUnauthorizedWhenKeyIsInvalidBase64(t *testing.T) {
 	err := verifyPassword("password", "dmFsaWRzYWx0$!!!invalid-base64")
 	require.ErrorIs(t, err, domain.ErrUnauthorized)
+}
+
+func TestVerifyPasswordShouldReturnErrUnauthorizedWhenPasswordIsWrong(t *testing.T) {
+	hash, err := hashPassword("correct-password", rand.Read)
+	require.NoError(t, err)
+
+	err = verifyPassword("wrong-password", hash)
+	require.ErrorIs(t, err, domain.ErrUnauthorized)
+}
+
+func TestVerifyPasswordShouldReturnNilWhenPasswordMatches(t *testing.T) {
+	hash, err := hashPassword("correct-password", rand.Read)
+	require.NoError(t, err)
+
+	err = verifyPassword("correct-password", hash)
+	require.NoError(t, err)
 }
