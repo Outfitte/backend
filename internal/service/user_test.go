@@ -1,4 +1,4 @@
-package service_test
+package service
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +76,7 @@ func (m *mockSettingsStore) Save(_ context.Context, s domain.AppSettings) error 
 }
 
 func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := service.NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -88,7 +87,7 @@ func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 func TestRegisterShouldReturnErrRegistrationDisabledWhenRegistrationIsDisabled(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrRegistrationDisabled)
@@ -101,7 +100,7 @@ func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
 
 	store := &mockUserStore{users: []domain.User{existingUser}}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrConflict)
@@ -110,7 +109,7 @@ func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
 func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
 	store := &mockUserStore{listErr: domain.ErrIO}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -119,7 +118,7 @@ func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
 func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{err: domain.ErrIO}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -128,10 +127,10 @@ func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
 func TestRegisterShouldReturnErrIOWhenRandFails(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
-	svc.SetRandRead(func(b []byte) (int, error) {
+	svc := NewUserService(store, settings)
+	svc.randRead = func(b []byte) (int, error) {
 		return 0, errors.New("entropy failure")
-	})
+	}
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -140,7 +139,7 @@ func TestRegisterShouldReturnErrIOWhenRandFails(t *testing.T) {
 func TestRegisterShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	store := &mockUserStore{saveErr: domain.ErrIO}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -149,7 +148,7 @@ func TestRegisterShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 func TestRegisterShouldCreateAdminWhenFirstUser(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	user, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.NoError(t, err)
@@ -166,7 +165,7 @@ func TestRegisterShouldCreateMemberWhenRegistrationIsEnabled(t *testing.T) {
 
 	store := &mockUserStore{users: []domain.User{existingUser}}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	svc := service.NewUserService(store, settings)
+	svc := NewUserService(store, settings)
 
 	user, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.NoError(t, err)
