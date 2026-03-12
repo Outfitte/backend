@@ -14,4 +14,5 @@ func TestEntitiesImplementPortsEntity(t *testing.T) {
 	assert.Implements(t, iface, domain.Item{})
 	assert.Implements(t, iface, domain.Location{})
 	assert.Implements(t, iface, domain.Category{})
+	assert.Implements(t, iface, domain.Session{})
 }

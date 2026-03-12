@@ -9,4 +9,6 @@ var (
 	ErrForbidden            = errors.New("forbidden")
 	ErrRegistrationDisabled = errors.New("registration disabled")
 	ErrIO                   = errors.New("io error")
+	ErrSessionNotFound      = errors.New("session not found")
+	ErrSessionExpired       = errors.New("session expired")
 )
