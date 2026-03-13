@@ -49,13 +49,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 		return "", "", err
 	}
 
-	user, err := s.findUserByEmail(ctx, email)
+	user, err := s.findAndVerifyUser(ctx, email, password)
 	if err != nil {
 		return "", "", err
-	}
-
-	if err := verifyPassword(password, user.PasswordHash); err != nil {
-		return "", "", domain.ErrUnauthorized
 	}
 
 	rawToken, err := generateRefreshToken(s.randRead)
@@ -75,13 +71,16 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 	return signed, rawToken, nil
 }
 
-func (s *AuthService) findUserByEmail(ctx context.Context, email string) (domain.User, error) {
+func (s *AuthService) findAndVerifyUser(ctx context.Context, email, password string) (domain.User, error) {
 	users, err := s.users.List(ctx)
 	if err != nil {
 		return domain.User{}, err
 	}
 	for _, u := range users {
 		if u.Email == email {
+			if err := verifyPassword(password, u.PasswordHash); err != nil {
+				return domain.User{}, domain.ErrUnauthorized
+			}
 			return u, nil
 		}
 	}
