@@ -4,6 +4,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -12,10 +13,10 @@ import (
 	"github.com/outfitte/outfitte/internal/config"
 )
 
-// New builds a configured *http.Server from cfg.
-func New(cfg *config.Config) *http.Server {
+// New builds a configured *http.Server from cfg and logger.
+func New(cfg *config.Config, logger *slog.Logger) *http.Server {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handler.Health)
+	mux.Handle("GET /health", handler.NewHealthHandler(logger))
 
 	return &http.Server{
 		Addr:    ":" + cfg.ServerPort,

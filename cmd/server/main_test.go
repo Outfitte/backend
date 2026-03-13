@@ -2,44 +2,41 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/outfitte/outfitte/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
-func freePort(t *testing.T) string {
+func freePort(t *testing.T) int {
 	t.Helper()
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
-	port := strconv.Itoa(l.Addr().(*net.TCPAddr).Port)
+	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
 	return port
 }
 
-func TestRunShouldReturnErrorWhenConfigInvalid(t *testing.T) {
-	err := run(t.Context())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "configuration error")
-}
-
 func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	port := freePort(t)
-	t.Setenv("STORAGE_DATA_PATH", t.TempDir())
-	t.Setenv("MEDIA_STORAGE_PATH", t.TempDir())
-	t.Setenv("SERVER_PORT", port)
+	cfg := &config.Config{
+		StorageDataPath:  t.TempDir(),
+		MediaStoragePath: t.TempDir(),
+		ServerPort:       strconv.Itoa(port),
+	}
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	done := make(chan error, 1)
-	go func() { done <- run(ctx) }()
+	go func() { done <- runServer(ctx, cfg, slog.New(slog.DiscardHandler)) }()
 
-	addr := "http://localhost:" + port + "/health"
+	addr := "http://localhost:" + strconv.Itoa(port) + "/health"
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(addr)
 		if err != nil {

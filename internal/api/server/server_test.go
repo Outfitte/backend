@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -17,9 +18,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func discardLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
+}
+
 func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg)
+	srv := New(cfg, discardLogger())
 	assert.Equal(t, ":8080", srv.Addr)
 
 	ts := httptest.NewServer(srv.Handler)
@@ -51,11 +56,11 @@ func (l *idleListener) Addr() net.Addr            { return &net.TCPAddr{} }
 func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
-	port := strconv.Itoa(l.Addr().(*net.TCPAddr).Port)
+	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
 
-	cfg := &config.Config{ServerPort: port}
-	srv := New(cfg)
+	cfg := &config.Config{ServerPort: strconv.Itoa(port)}
+	srv := New(cfg, discardLogger())
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -64,7 +69,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	go func() { done <- Run(ctx, srv) }()
 
 	require.Eventually(t, func() bool {
-		resp, err := http.Get("http://localhost:" + port + "/health")
+		resp, err := http.Get("http://localhost:" + strconv.Itoa(port) + "/health")
 		if err != nil {
 			return false
 		}
@@ -98,7 +103,7 @@ func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
 
 func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg)
+	srv := New(cfg, discardLogger())
 
 	l := &errorListener{done: make(chan struct{})}
 	err := serve(t.Context(), srv, l)
@@ -108,7 +113,7 @@ func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := &config.Config{ServerPort: "8080"}
-		srv := New(cfg)
+		srv := New(cfg, discardLogger())
 
 		l := &idleListener{done: make(chan struct{})}
 		ctx, cancel := context.WithCancel(t.Context())
