@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/stretchr/testify/require"
@@ -36,16 +35,14 @@ func (m *mockSessionStore) Get(_ context.Context, id string) (domain.Session, er
 
 // makeTestSession creates a session pre-seeded with a known raw refresh token.
 // The raw token format is "sessionID.rawRandom" and the hash covers only rawRandom.
-func makeTestSession(t *testing.T, sessionID, userID string) (domain.Session, string) {
+func makeTestSession(t *testing.T, sessionID, userID string, secret []byte) (domain.Session, string) {
 	t.Helper()
 	rawRandom := "testrandompart123abc"
 	rawToken := sessionID + "." + rawRandom
-	hash, err := bcrypt.GenerateFromPassword([]byte(rawRandom), bcrypt.MinCost)
-	require.NoError(t, err)
 	var s domain.Session
 	s.ID = sessionID
 	s.UserID = userID
-	s.TokenHash = string(hash)
+	s.TokenHash = hashToken(secret, rawRandom)
 	s.ExpiresAt = time.Now().UTC().Add(24 * time.Hour)
 	s.CreatedAt = time.Now().UTC()
 	return s, rawToken
@@ -129,7 +126,7 @@ func TestRefreshShouldReturnErrUnauthorizedWhenTokenFormatIsInvalid(t *testing.T
 }
 
 func TestRefreshShouldReturnErrUnauthorizedWhenTokenHashDoesNotMatch(t *testing.T) {
-	session, _ := makeTestSession(t, "session-42", "user-1")
+	session, _ := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
 
@@ -138,7 +135,7 @@ func TestRefreshShouldReturnErrUnauthorizedWhenTokenHashDoesNotMatch(t *testing.
 }
 
 func TestRefreshShouldReturnErrSessionExpiredWhenSessionIsExpired(t *testing.T) {
-	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	session.ExpiresAt = time.Now().UTC().Add(-1 * time.Hour)
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
@@ -149,7 +146,7 @@ func TestRefreshShouldReturnErrSessionExpiredWhenSessionIsExpired(t *testing.T) 
 
 func TestRefreshShouldReturnErrorWhenUserGetFails(t *testing.T) {
 	userStore := &mockUserStore{} // user-1 not in store
-	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
 
@@ -161,7 +158,7 @@ func TestRefreshShouldReturnErrorWhenDeleteFails(t *testing.T) {
 	var user domain.User
 	user.ID = "user-1"
 	userStore := &mockUserStore{users: []domain.User{user}}
-	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{
 		sessions:  []domain.Session{session},
 		deleteErr: domain.ErrIO,
@@ -176,7 +173,7 @@ func TestRefreshShouldReturnErrorWhenNewSessionSaveFails(t *testing.T) {
 	var user domain.User
 	user.ID = "user-1"
 	userStore := &mockUserStore{users: []domain.User{user}}
-	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{
 		sessions: []domain.Session{session},
 		saveErr:  domain.ErrIO,
@@ -191,7 +188,7 @@ func TestRefreshShouldReturnErrIOWhenRandFails(t *testing.T) {
 	var user domain.User
 	user.ID = "user-1"
 	userStore := &mockUserStore{users: []domain.User{user}}
-	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
 	svc.randRead = func(b []byte) (int, error) {
@@ -238,7 +235,7 @@ func TestRefreshShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
 	var user domain.User
 	user.ID = "user-1"
 	userStore := &mockUserStore{users: []domain.User{user}}
-	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
 	svc.issueToken = func(_ domain.User, _ time.Time, _ []byte) (string, error) {
@@ -370,21 +367,6 @@ func TestLoginShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestCreateSessionShouldReturnErrIOWhenGenerateHashFails(t *testing.T) {
-	userStore := &mockUserStore{}
-	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
-	userSvc := NewUserService(userStore, settings)
-	_, err := userSvc.Register(t.Context(), "alice@example.com", "correct-password")
-	require.NoError(t, err)
-
-	svc := NewAuthService(userStore, &mockSessionStore{}, []byte("secret"))
-	svc.generateHash = func(_ []byte, _ int) ([]byte, error) {
-		return nil, errors.New("bcrypt failure")
-	}
-
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
 
 func TestFullSessionCycleShouldSucceedWhenCredentialsAreValid(t *testing.T) {
 	userStore := &mockUserStore{}
@@ -437,7 +419,7 @@ func TestLoginShouldReturnTokensWhenCredentialsAreValid(t *testing.T) {
 	require.NotEmpty(t, accessToken)
 	require.NotEmpty(t, refreshToken)
 
-	// Session must be persisted with a bcrypt hash of the raw refresh token.
+	// Session must be persisted with an HMAC-SHA256 hash of the raw refresh token.
 	require.Len(t, sessionStore.sessions, 1)
 	session := sessionStore.sessions[0]
 	require.Equal(t, registered.GetID(), session.UserID)
