@@ -24,12 +24,13 @@ const (
 )
 
 type AuthService struct {
-	users      ports.StorageProvider[domain.User]
-	sessions   ports.StorageProvider[domain.Session]
-	secret     []byte
-	randRead   func([]byte) (int, error)
-	now        func() time.Time
-	issueToken func(domain.User, time.Time, []byte) (string, error)
+	users        ports.StorageProvider[domain.User]
+	sessions     ports.StorageProvider[domain.Session]
+	secret       []byte
+	randRead     func([]byte) (int, error)
+	now          func() time.Time
+	issueToken   func(domain.User, time.Time, []byte) (string, error)
+	generateHash func([]byte, int) ([]byte, error)
 }
 
 func NewAuthService(
@@ -38,12 +39,13 @@ func NewAuthService(
 	secret []byte,
 ) *AuthService {
 	return &AuthService{
-		users:      users,
-		sessions:   sessions,
-		secret:     secret,
-		randRead:   rand.Read,
-		now:        func() time.Time { return time.Now().UTC() },
-		issueToken: issueAccessToken,
+		users:        users,
+		sessions:     sessions,
+		secret:       secret,
+		randRead:     rand.Read,
+		now:          func() time.Time { return time.Now().UTC() },
+		issueToken:   issueAccessToken,
+		generateHash: bcrypt.GenerateFromPassword,
 	}
 }
 
@@ -96,7 +98,7 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	sessionID := uuid.NewString()
 	rawToken := sessionID + "." + rawRandom
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawRandom), bcryptCost)
+	tokenHash, err := s.generateHash([]byte(rawRandom), bcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}

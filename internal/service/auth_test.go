@@ -346,6 +346,22 @@ func TestLoginShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestCreateSessionShouldReturnErrIOWhenGenerateHashFails(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	_, err := userSvc.Register(t.Context(), "alice@example.com", "correct-password")
+	require.NoError(t, err)
+
+	svc := NewAuthService(userStore, &mockSessionStore{}, []byte("secret"))
+	svc.generateHash = func(_ []byte, _ int) ([]byte, error) {
+		return nil, errors.New("bcrypt failure")
+	}
+
+	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestLoginShouldReturnTokensWhenCredentialsAreValid(t *testing.T) {
 	userStore := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
