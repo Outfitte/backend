@@ -113,7 +113,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (acce
 		return "", "", err
 	}
 
-	sessionID, _, ok := strings.Cut(rawRefreshToken, ".")
+	sessionID, rawRandom, ok := strings.Cut(rawRefreshToken, ".")
 	if !ok {
 		return "", "", domain.ErrUnauthorized
 	}
@@ -123,13 +123,12 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (acce
 		return "", "", err
 	}
 
-	_, rawRandom, _ := strings.Cut(rawRefreshToken, ".")
-	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(rawRandom)); err != nil {
-		return "", "", domain.ErrUnauthorized
-	}
-
 	if s.now().After(session.ExpiresAt) {
 		return "", "", domain.ErrSessionExpired
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(rawRandom)); err != nil {
+		return "", "", domain.ErrUnauthorized
 	}
 
 	user, err := s.users.Get(ctx, session.UserID)

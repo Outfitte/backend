@@ -146,6 +146,16 @@ func TestRefreshShouldReturnErrSessionExpiredWhenSessionIsExpired(t *testing.T) 
 	require.ErrorIs(t, err, domain.ErrSessionExpired)
 }
 
+func TestRefreshShouldReturnErrorWhenUserGetFails(t *testing.T) {
+	userStore := &mockUserStore{} // user-1 not in store
+	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
+	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
+
+	_, _, err := svc.Refresh(t.Context(), rawToken)
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestRefreshShouldReturnErrorWhenDeleteFails(t *testing.T) {
 	var user domain.User
 	user.ID = "user-1"
