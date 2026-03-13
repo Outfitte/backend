@@ -2,35 +2,34 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/ports"
 )
 
 const (
 	refreshTokenBytes = 32
-	bcryptCost        = 10
 	refreshTokenTTL   = 7 * 24 * time.Hour
 	accessTokenTTL    = 15 * time.Minute
 )
 
 type AuthService struct {
-	users        ports.StorageProvider[domain.User]
-	sessions     ports.StorageProvider[domain.Session]
-	secret       []byte
-	randRead     func([]byte) (int, error)
-	now          func() time.Time
-	issueToken   func(domain.User, time.Time, []byte) (string, error)
-	generateHash func([]byte, int) ([]byte, error)
+	users      ports.StorageProvider[domain.User]
+	sessions   ports.StorageProvider[domain.Session]
+	secret     []byte
+	randRead   func([]byte) (int, error)
+	now        func() time.Time
+	issueToken func(domain.User, time.Time, []byte) (string, error)
 }
 
 func NewAuthService(
@@ -39,13 +38,12 @@ func NewAuthService(
 	secret []byte,
 ) *AuthService {
 	return &AuthService{
-		users:        users,
-		sessions:     sessions,
-		secret:       secret,
-		randRead:     rand.Read,
-		now:          func() time.Time { return time.Now().UTC() },
-		issueToken:   issueAccessToken,
-		generateHash: bcrypt.GenerateFromPassword,
+		users:      users,
+		sessions:   sessions,
+		secret:     secret,
+		randRead:   rand.Read,
+		now:        func() time.Time { return time.Now().UTC() },
+		issueToken: issueAccessToken,
 	}
 }
 
@@ -98,15 +96,11 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	sessionID := uuid.NewString()
 	rawToken := sessionID + "." + rawRandom
 
-	tokenHash, err := s.generateHash([]byte(rawRandom), bcryptCost)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
 	now := s.now()
 	var session domain.Session
 	session.ID = sessionID
 	session.UserID = userID
-	session.TokenHash = string(tokenHash)
+	session.TokenHash = hashToken(s.secret, rawRandom)
 	session.ExpiresAt = now.Add(refreshTokenTTL)
 	session.CreatedAt = now
 	return rawToken, s.sessions.Save(ctx, session)
@@ -140,7 +134,7 @@ func (s *AuthService) retrieveSession(ctx context.Context, sessionID, rawRandom 
 		return domain.Session{}, domain.ErrSessionExpired
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(rawRandom)); err != nil {
+	if !hmac.Equal([]byte(session.TokenHash), []byte(hashToken(s.secret, rawRandom))) {
 		return domain.Session{}, domain.ErrUnauthorized
 	}
 
@@ -196,4 +190,10 @@ func issueAccessToken(user domain.User, now time.Time, secret []byte) (string, e
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secret)
+}
+
+func hashToken(secret []byte, rawRandom string) string {
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte(rawRandom))
+	return hex.EncodeToString(mac.Sum(nil))
 }
