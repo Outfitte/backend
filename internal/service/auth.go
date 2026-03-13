@@ -13,7 +13,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/ports"
 )
 
@@ -24,11 +24,11 @@ const (
 )
 
 type AuthService struct {
-	users        ports.StorageProvider[domain.User]
-	sessions     ports.StorageProvider[domain.Session]
-	secret       []byte
-	randRead     func([]byte) (int, error)
-	now          func() time.Time
+	users      ports.StorageProvider[domain.User]
+	sessions   ports.StorageProvider[domain.Session]
+	secret     []byte
+	randRead   func([]byte) (int, error)
+	now        func() time.Time
 	issueToken func(domain.User, time.Time, []byte) (string, error)
 }
 
@@ -38,9 +38,9 @@ func NewAuthService(
 	secret []byte,
 ) *AuthService {
 	return &AuthService{
-		users:        users,
-		sessions:     sessions,
-		secret:       secret,
+		users:      users,
+		sessions:   sessions,
+		secret:     secret,
 		randRead:   rand.Read,
 		now:        func() time.Time { return time.Now().UTC() },
 		issueToken: issueAccessToken,

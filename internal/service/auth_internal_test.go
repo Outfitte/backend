@@ -22,3 +22,10 @@ func TestHashTokenShouldDifferWhenSecretDiffers(t *testing.T) {
 	h2 := hashToken([]byte("secret-b"), "randompart")
 	require.NotEqual(t, h1, h2)
 }
+
+func TestHashTokenShouldDifferWhenRawRandomDiffers(t *testing.T) {
+	secret := []byte("secret")
+	h1 := hashToken(secret, "randompart-a")
+	h2 := hashToken(secret, "randompart-b")
+	require.NotEqual(t, h1, h2)
+}
