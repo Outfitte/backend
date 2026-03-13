@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -9,10 +10,19 @@ type healthResponse struct {
 	Status string `json:"status"`
 }
 
-// Health handles GET /health. No auth required.
-// r.Context() is extracted here; future handlers pass it to service calls.
-func Health(w http.ResponseWriter, r *http.Request) {
-	_ = r.Context()
+// HealthHandler handles GET /health. No auth required.
+type HealthHandler struct {
+	log *slog.Logger
+}
+
+// NewHealthHandler creates a HealthHandler with a logger pre-scoped to handler=health.
+func NewHealthHandler(logger *slog.Logger) *HealthHandler {
+	return &HealthHandler{log: logger.With("handler", "health")}
+}
+
+// ServeHTTP handles the health check request.
+func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.log.InfoContext(r.Context(), "health check called")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(healthResponse{Status: "ok"})

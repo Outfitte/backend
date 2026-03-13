@@ -2,16 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log/slog"
 
 	"github.com/outfitte/outfitte/internal/api/server"
 	"github.com/outfitte/outfitte/internal/config"
 )
 
-func run(ctx context.Context) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return fmt.Errorf("configuration error: %w", err)
-	}
-	return server.Run(ctx, server.New(cfg))
+func run(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
+	return server.Run(ctx, server.New(cfg, logger))
 }

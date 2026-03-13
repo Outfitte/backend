@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,7 +31,7 @@ func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "8080", cfg.ServerPort)
 	assert.Equal(t, "dev", cfg.AppEnv)
-	assert.Equal(t, "info", cfg.LogLevel)
+	assert.Equal(t, slog.LevelInfo, cfg.LogLevel)
 }
 
 func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
@@ -66,5 +67,15 @@ func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	assert.Equal(t, "production", cfg.AppEnv)
 	assert.Equal(t, "/var/data", cfg.StorageDataPath)
 	assert.Equal(t, "/var/media", cfg.MediaStoragePath)
-	assert.Equal(t, "debug", cfg.LogLevel)
+	assert.Equal(t, slog.LevelDebug, cfg.LogLevel)
+}
+
+func TestLoadShouldErrorWhenLogLevelIsUnrecognized(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("LOG_LEVEL", "verbose")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "LOG_LEVEL")
 }

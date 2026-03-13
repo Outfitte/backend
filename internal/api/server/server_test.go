@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -17,9 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
 func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg)
+	srv := New(cfg, discardLogger())
 	assert.Equal(t, ":8080", srv.Addr)
 
 	ts := httptest.NewServer(srv.Handler)
@@ -55,7 +61,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	l.Close()
 
 	cfg := &config.Config{ServerPort: port}
-	srv := New(cfg)
+	srv := New(cfg, discardLogger())
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -98,7 +104,7 @@ func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
 
 func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg)
+	srv := New(cfg, discardLogger())
 
 	l := &errorListener{done: make(chan struct{})}
 	err := serve(t.Context(), srv, l)
@@ -108,7 +114,7 @@ func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := &config.Config{ServerPort: "8080"}
-		srv := New(cfg)
+		srv := New(cfg, discardLogger())
 
 		l := &idleListener{done: make(chan struct{})}
 		ctx, cancel := context.WithCancel(t.Context())

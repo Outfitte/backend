@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/outfitte/outfitte/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,23 +23,23 @@ func freePort(t *testing.T) string {
 	return port
 }
 
-func TestRunShouldReturnErrorWhenConfigInvalid(t *testing.T) {
-	err := run(t.Context())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "configuration error")
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	port := freePort(t)
-	t.Setenv("STORAGE_DATA_PATH", t.TempDir())
-	t.Setenv("MEDIA_STORAGE_PATH", t.TempDir())
-	t.Setenv("SERVER_PORT", port)
+	cfg := &config.Config{
+		StorageDataPath:  t.TempDir(),
+		MediaStoragePath: t.TempDir(),
+		ServerPort:       port,
+	}
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	done := make(chan error, 1)
-	go func() { done <- run(ctx) }()
+	go func() { done <- run(ctx, cfg, discardLogger()) }()
 
 	addr := "http://localhost:" + port + "/health"
 	require.Eventually(t, func() bool {

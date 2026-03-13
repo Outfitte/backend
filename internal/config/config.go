@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -16,26 +17,42 @@ type Config struct {
 	AppEnv           string
 	StorageDataPath  string
 	MediaStoragePath string
-	LogLevel         string
+	LogLevel         slog.Level
 }
 
 // Load reads configuration from environment variables, applies defaults,
 // and returns an error if any required variable is missing.
 func Load() (*Config, error) {
 	cfg := &Config{}
-	loadFromEnv(cfg)
+	if err := loadFromEnv(cfg); err != nil {
+		return nil, err
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	return cfg, nil
 }
 
-func loadFromEnv(cfg *Config) {
+func loadFromEnv(cfg *Config) error {
 	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
 	cfg.AppEnv = getEnv("APP_ENV", "dev")
 	cfg.StorageDataPath = os.Getenv("STORAGE_DATA_PATH")
 	cfg.MediaStoragePath = os.Getenv("MEDIA_STORAGE_PATH")
-	cfg.LogLevel = getEnv("LOG_LEVEL", "info")
+
+	lvl, err := parseLogLevel(getEnv("LOG_LEVEL", "info"))
+	if err != nil {
+		return err
+	}
+	cfg.LogLevel = lvl
+	return nil
+}
+
+func parseLogLevel(s string) (slog.Level, error) {
+	var lvl slog.Level
+	if err := lvl.UnmarshalText([]byte(s)); err != nil {
+		return 0, fmt.Errorf("LOG_LEVEL must be one of debug, info, warn, error, got %q", s)
+	}
+	return lvl, nil
 }
 
 func (c *Config) validate() error {

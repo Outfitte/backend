@@ -2,6 +2,8 @@ package handler_test
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,11 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHealthShouldReturn200WhenCalled(t *testing.T) {
+func TestHealthHandlerShouldReturn200WhenCalled(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := handler.NewHealthHandler(logger)
+
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
-	handler.Health(w, req)
+	h.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
