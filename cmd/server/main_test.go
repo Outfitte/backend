@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func freePort(t *testing.T) string {
+func freePort(t *testing.T) int {
 	t.Helper()
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
-	port := strconv.Itoa(l.Addr().(*net.TCPAddr).Port)
+	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
 	return port
 }
@@ -36,7 +36,7 @@ func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- runServer(ctx, cfg, slog.New(slog.DiscardHandler)) }()
 
-	addr := "http://localhost:" + port + "/health"
+	addr := "http://localhost:" + strconv.Itoa(port) + "/health"
 	require.Eventually(t, func() bool {
 		resp, err := http.Get(addr)
 		if err != nil {

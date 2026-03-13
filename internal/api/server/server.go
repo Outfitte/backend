@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/outfitte/outfitte/internal/api/handler"
@@ -19,7 +20,7 @@ func New(cfg *config.Config, logger *slog.Logger) *http.Server {
 	mux.Handle("GET /health", handler.NewHealthHandler(logger))
 
 	return &http.Server{
-		Addr:    ":" + cfg.ServerPort,
+		Addr:    ":" + strconv.Itoa(cfg.ServerPort),
 		Handler: mux,
 	}
 }

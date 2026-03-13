@@ -16,7 +16,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("configuration error: %w", err)
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
-	logger.Info("server started", "port", cfg.ServerPort)
+	logger.Info("server started", slog.Int("port", cfg.ServerPort))
 	return runServer(ctx, cfg, logger)
 }
 

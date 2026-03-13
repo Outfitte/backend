@@ -13,7 +13,7 @@ import (
 
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	ServerPort       string
+	ServerPort       int
 	AppEnv           string
 	StorageDataPath  string
 	MediaStoragePath string
@@ -34,7 +34,13 @@ func Load() (*Config, error) {
 }
 
 func loadFromEnv(cfg *Config) error {
-	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
+	portStr := getEnv("SERVER_PORT", "8080")
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("SERVER_PORT must be a valid port number (1-65535), got %q", portStr)
+	}
+	cfg.ServerPort = port
+
 	cfg.AppEnv = getEnv("APP_ENV", "dev")
 	cfg.StorageDataPath = os.Getenv("STORAGE_DATA_PATH")
 	cfg.MediaStoragePath = os.Getenv("MEDIA_STORAGE_PATH")
@@ -65,10 +71,6 @@ func (c *Config) validate() error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
-	}
-	port, err := strconv.Atoi(c.ServerPort)
-	if err != nil || port < 1 || port > 65535 {
-		return fmt.Errorf("SERVER_PORT must be a valid port number (1-65535), got %q", c.ServerPort)
 	}
 	return nil
 }
