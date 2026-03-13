@@ -54,12 +54,8 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 		return "", "", err
 	}
 
-	rawToken, err := generateRefreshToken(s.randRead)
+	rawToken, err := s.createSession(ctx, user.GetID())
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	if err := s.saveSession(ctx, user.GetID(), rawToken); err != nil {
 		return "", "", err
 	}
 
@@ -87,10 +83,16 @@ func (s *AuthService) findAndVerifyUser(ctx context.Context, email, password str
 	return domain.User{}, domain.ErrUnauthorized
 }
 
-func (s *AuthService) saveSession(ctx context.Context, userID, rawToken string) error {
+func (s *AuthService) createSession(ctx context.Context, userID string) (string, error) {
+	buf := make([]byte, refreshTokenBytes)
+	if _, err := s.randRead(buf); err != nil {
+		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	rawToken := base64.RawURLEncoding.EncodeToString(buf)
+
 	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcryptCost)
 	if err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	now := s.now()
 	var session domain.Session
@@ -99,15 +101,7 @@ func (s *AuthService) saveSession(ctx context.Context, userID, rawToken string) 
 	session.TokenHash = string(tokenHash)
 	session.ExpiresAt = now.Add(refreshTokenTTL)
 	session.CreatedAt = now
-	return s.sessions.Save(ctx, session)
-}
-
-func generateRefreshToken(randRead func([]byte) (int, error)) (string, error) {
-	buf := make([]byte, refreshTokenBytes)
-	if _, err := randRead(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
+	return rawToken, s.sessions.Save(ctx, session)
 }
 
 func issueAccessToken(user domain.User, now time.Time, secret []byte) (string, error) {
