@@ -177,11 +177,22 @@ func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
 	return s.sessions.Delete(ctx, sessionID)
 }
 
+type accessTokenClaims struct {
+	jwt.RegisteredClaims
+	Role string `json:"role"`
+}
+
 func issueAccessToken(user domain.User, now time.Time, secret []byte) (string, error) {
-	claims := jwt.MapClaims{
-		"sub":  user.GetID(),
-		"role": string(user.Role),
-		"exp":  now.Add(accessTokenTTL).Unix(),
+	claims := accessTokenClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   user.GetID(),
+			Issuer:    "outfitte",
+			Audience:  jwt.ClaimStrings{"outfitte-api"},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(accessTokenTTL)),
+			ID:        uuid.NewString(),
+		},
+		Role: string(user.Role),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secret)
