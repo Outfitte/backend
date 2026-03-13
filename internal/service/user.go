@@ -78,7 +78,7 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 
 	hash, err := hashPassword(password, s.randRead)
 	if err != nil {
-		return domain.User{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return domain.User{}, err
 	}
 
 	role, err := s.defineRole(ctx, email)
@@ -162,7 +162,7 @@ const (
 func hashPassword(password string, randRead func([]byte) (int, error)) (string, error) {
 	salt := make([]byte, argon2SaltLen)
 	if _, err := randRead(salt); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	key := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
 	encoded := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
@@ -175,6 +175,8 @@ func hashPassword(password string, randRead func([]byte) (int, error)) (string, 
 
 // verifyPassword checks password against a PHC-format argon2id hash produced by hashPassword.
 // Returns domain.ErrUnauthorized if the password does not match or the hash is malformed.
+// Malformed-hash failures are intentionally reported as ErrUnauthorized (not ErrIO) to avoid
+// leaking structural information about the stored hash to callers.
 func verifyPassword(password, hash string) error {
 	// PHC format: $argon2id$v=19$m=...,t=...,p=...$<salt_b64>$<key_b64>
 	// Split produces: ["", "argon2id", "v=19", "m=...", salt, key] → 6 parts.
