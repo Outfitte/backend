@@ -244,7 +244,7 @@ func TestRefreshShouldReturnNewTokensWhenRefreshTokenIsValid(t *testing.T) {
 func TestRefreshShouldReturnErrNotFoundWhenSessionDoesNotExist(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "nonexistent-session.sometoken")
+	_, _, err := svc.Refresh(t.Context(), "nonexistent-opaque-token")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
