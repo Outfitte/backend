@@ -74,10 +74,10 @@ func (s *AuthService) findAndVerifyUser(ctx context.Context, email, password str
 	}
 	for _, u := range users {
 		if u.Email == email {
-			if err := verifyPassword(password, u.PasswordHash); err != nil {
-				return domain.User{}, domain.ErrUnauthorized
+			if verifyPassword(password, u.PasswordHash) == nil {
+				return u, nil
 			}
-			return u, nil
+			return domain.User{}, domain.ErrUnauthorized
 		}
 	}
 	return domain.User{}, domain.ErrUnauthorized
