@@ -362,6 +362,42 @@ func TestCreateSessionShouldReturnErrIOWhenGenerateHashFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestFullSessionCycleShouldSucceedWhenCredentialsAreValid(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	_, err := userSvc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	sessionStore := &mockSessionStore{}
+	svc := NewAuthService(userStore, sessionStore, []byte("jwt-secret"))
+
+	// Login.
+	accessToken1, refreshToken1, err := svc.Login(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+	require.NotEmpty(t, accessToken1)
+	require.NotEmpty(t, refreshToken1)
+	require.Len(t, sessionStore.sessions, 1)
+
+	// Refresh: old session is replaced by a new one.
+	accessToken2, refreshToken2, err := svc.Refresh(t.Context(), refreshToken1)
+	require.NoError(t, err)
+	require.NotEmpty(t, accessToken2)
+	require.NotEmpty(t, refreshToken2)
+	require.NotEqual(t, refreshToken1, refreshToken2)
+	require.Len(t, sessionStore.sessions, 1)
+
+	// Logout: delete the session created by the last refresh.
+	sessionID2 := strings.SplitN(refreshToken2, ".", 2)[0]
+	err = svc.Logout(t.Context(), sessionID2)
+	require.NoError(t, err)
+	require.Empty(t, sessionStore.sessions)
+
+	// Refreshing with the old token must now fail.
+	_, _, err = svc.Refresh(t.Context(), refreshToken1)
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestLoginShouldReturnTokensWhenCredentialsAreValid(t *testing.T) {
 	userStore := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
