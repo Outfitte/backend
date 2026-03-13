@@ -280,12 +280,26 @@ func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 }
 
 func TestRegisterShouldReturnErrRegistrationDisabledWhenRegistrationIsDisabled(t *testing.T) {
-	store := &mockUserStore{}
+	var existingUser domain.User
+	existingUser.ID = "1"
+	existingUser.Email = "bob@example.com"
+
+	store := &mockUserStore{users: []domain.User{existingUser}}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
 	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrRegistrationDisabled)
+}
+
+func TestRegisterShouldSucceedWithAdminRoleWhenFirstUserAndRegistrationIsDisabled(t *testing.T) {
+	store := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: false}}
+	svc := NewUserService(store, settings)
+
+	user, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+	require.Equal(t, domain.RoleAdmin, user.Role)
 }
 
 func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
@@ -311,7 +325,11 @@ func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
 }
 
 func TestRegisterShouldReturnErrorWhenSettingsLoadFails(t *testing.T) {
-	store := &mockUserStore{}
+	var existingUser domain.User
+	existingUser.ID = "1"
+	existingUser.Email = "bob@example.com"
+
+	store := &mockUserStore{users: []domain.User{existingUser}}
 	settings := &mockSettingsStore{err: domain.ErrIO}
 	svc := NewUserService(store, settings)
 

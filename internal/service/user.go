@@ -119,8 +119,16 @@ func (s *UserService) UpdateRegistrationEnabled(ctx context.Context, callerID st
 	return s.settings.Save(ctx, settings)
 }
 
-// canRegister checks that registration is enabled.
+// canRegister checks that registration is allowed.
+// If no users exist yet, registration is always allowed (first-user bootstrap).
 func (s *UserService) canRegister(ctx context.Context) error {
+	users, err := s.users.List(ctx)
+	if err != nil {
+		return err
+	}
+	if len(users) == 0 {
+		return nil
+	}
 	settings, err := s.settings.Load(ctx)
 	if err != nil {
 		return err
