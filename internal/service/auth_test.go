@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 type mockSessionStore struct {
 	sessions  []domain.Session
 	getErr    error
+	listErr   error
 	saveErr   error
 	deleteErr error
 }
@@ -49,6 +51,9 @@ func makeTestSession(t *testing.T, sessionID, userID string, secret []byte) (dom
 }
 
 func (m *mockSessionStore) List(_ context.Context) ([]domain.Session, error) {
+	if m.listErr != nil {
+		return nil, m.listErr
+	}
 	return m.sessions, nil
 }
 
@@ -402,6 +407,70 @@ func TestFullSessionCycleShouldSucceedWhenCredentialsAreValid(t *testing.T) {
 	// Refreshing with the old token must now fail.
 	_, _, err = svc.Refresh(t.Context(), refreshToken1)
 	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCreateSessionShouldEvictOldestWhenUserExceeds10Sessions(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	_, err := userSvc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	userID := userStore.users[0].GetID()
+
+	// Pre-seed 10 sessions with distinct CreatedAt values so eviction order is deterministic.
+	sessions := make([]domain.Session, 10)
+	for i := range sessions {
+		sessions[i].ID = fmt.Sprintf("existing-session-%d", i)
+		sessions[i].UserID = userID
+		sessions[i].CreatedAt = time.Now().UTC().Add(-time.Duration(10-i) * time.Hour)
+	}
+	oldestID := sessions[0].ID
+	sessionStore := &mockSessionStore{sessions: sessions}
+	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
+
+	// Login creates the 11th session, triggering eviction of the oldest.
+	_, _, err = svc.Login(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+	require.Len(t, sessionStore.sessions, 10)
+	for _, s := range sessionStore.sessions {
+		require.NotEqual(t, oldestID, s.ID, "oldest session must have been evicted")
+	}
+}
+
+func TestCreateSessionShouldReturnErrorWhenEvictOldestDeleteFails(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	_, err := userSvc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	// Pre-seed 10 sessions so the next login triggers eviction.
+	sessions := make([]domain.Session, 10)
+	for i := range sessions {
+		sessions[i].ID = fmt.Sprintf("existing-session-%d", i)
+		sessions[i].UserID = userStore.users[0].GetID()
+		sessions[i].CreatedAt = time.Now().UTC().Add(-time.Duration(10-i) * time.Hour)
+	}
+	sessionStore := &mockSessionStore{sessions: sessions, deleteErr: domain.ErrIO}
+	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
+
+	_, _, err = svc.Login(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestCreateSessionShouldReturnErrorWhenSessionListFails(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	_, err := userSvc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	sessionStore := &mockSessionStore{listErr: domain.ErrIO}
+	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
+
+	_, _, err = svc.Login(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestLoginShouldReturnTokensWhenCredentialsAreValid(t *testing.T) {
