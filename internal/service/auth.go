@@ -118,19 +118,32 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (acce
 		return "", "", domain.ErrUnauthorized
 	}
 
-	session, err := s.sessions.Get(ctx, sessionID)
+	session, err := s.retrieveSession(ctx, sessionID, rawRandom)
 	if err != nil {
 		return "", "", err
 	}
 
+	return s.refreshSession(ctx, session)
+}
+
+func (s *AuthService) retrieveSession(ctx context.Context, sessionID, rawRandom string) (domain.Session, error) {
+	session, err := s.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return domain.Session{}, err
+	}
+
 	if s.now().After(session.ExpiresAt) {
-		return "", "", domain.ErrSessionExpired
+		return domain.Session{}, domain.ErrSessionExpired
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(rawRandom)); err != nil {
-		return "", "", domain.ErrUnauthorized
+		return domain.Session{}, domain.ErrUnauthorized
 	}
 
+	return session, nil
+}
+
+func (s *AuthService) refreshSession(ctx context.Context, session domain.Session) (accessToken, refreshToken string, err error) {
 	user, err := s.users.Get(ctx, session.UserID)
 	if err != nil {
 		return "", "", err
