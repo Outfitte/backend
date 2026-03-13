@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -88,20 +89,69 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	if _, err := s.randRead(buf); err != nil {
 		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	rawToken := base64.RawURLEncoding.EncodeToString(buf)
+	rawRandom := base64.RawURLEncoding.EncodeToString(buf)
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcryptCost)
+	sessionID := uuid.NewString()
+	rawToken := sessionID + "." + rawRandom
+
+	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawRandom), bcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	now := s.now()
 	var session domain.Session
-	session.ID = uuid.NewString()
+	session.ID = sessionID
 	session.UserID = userID
 	session.TokenHash = string(tokenHash)
 	session.ExpiresAt = now.Add(refreshTokenTTL)
 	session.CreatedAt = now
 	return rawToken, s.sessions.Save(ctx, session)
+}
+
+func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (accessToken, refreshToken string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
+
+	sessionID, _, ok := strings.Cut(rawRefreshToken, ".")
+	if !ok {
+		return "", "", domain.ErrUnauthorized
+	}
+
+	session, err := s.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return "", "", err
+	}
+
+	_, rawRandom, _ := strings.Cut(rawRefreshToken, ".")
+	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(rawRandom)); err != nil {
+		return "", "", domain.ErrUnauthorized
+	}
+
+	if s.now().After(session.ExpiresAt) {
+		return "", "", domain.ErrSessionExpired
+	}
+
+	user, err := s.users.Get(ctx, session.UserID)
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := s.sessions.Delete(ctx, session.GetID()); err != nil {
+		return "", "", err
+	}
+
+	newRawToken, err := s.createSession(ctx, user.GetID())
+	if err != nil {
+		return "", "", err
+	}
+
+	signed, err := issueAccessToken(user, s.now(), s.secret)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return signed, newRawToken, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
