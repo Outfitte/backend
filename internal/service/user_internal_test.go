@@ -3,11 +3,18 @@ package service
 import (
 	"crypto/rand"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHashPasswordShouldProducePHCFormatWhenSuccessful(t *testing.T) {
+	hash, err := hashPassword("password", rand.Read)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(hash, "$argon2id$v=19$"), "expected PHC prefix, got: %s", hash)
+}
 
 func TestHashPasswordShouldReturnErrWhenRandReadFails(t *testing.T) {
 	failingRand := func(b []byte) (int, error) {
@@ -23,12 +30,12 @@ func TestVerifyPasswordShouldReturnErrUnauthorizedWhenHashHasNoSeparator(t *test
 }
 
 func TestVerifyPasswordShouldReturnErrUnauthorizedWhenSaltIsInvalidBase64(t *testing.T) {
-	err := verifyPassword("password", "!!!invalid-base64$validpart")
+	err := verifyPassword("password", "$argon2id$v=19$m=65536,t=3,p=2$!!!invalid-base64$dmFsaWRzYWx0")
 	require.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 
 func TestVerifyPasswordShouldReturnErrUnauthorizedWhenKeyIsInvalidBase64(t *testing.T) {
-	err := verifyPassword("password", "dmFsaWRzYWx0$!!!invalid-base64")
+	err := verifyPassword("password", "$argon2id$v=19$m=65536,t=3,p=2$dmFsaWRzYWx0$!!!invalid-base64")
 	require.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 

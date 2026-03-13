@@ -165,22 +165,28 @@ func hashPassword(password string, randRead func([]byte) (int, error)) (string, 
 		return "", err
 	}
 	key := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
-	encoded := base64.RawStdEncoding.EncodeToString(salt) + "$" + base64.RawStdEncoding.EncodeToString(key)
+	encoded := fmt.Sprintf("$argon2id$v=19$m=%d,t=%d,p=%d$%s$%s",
+		argon2Memory, argon2Time, argon2Threads,
+		base64.RawStdEncoding.EncodeToString(salt),
+		base64.RawStdEncoding.EncodeToString(key),
+	)
 	return encoded, nil
 }
 
-// verifyPassword checks password against an argon2 hash produced by hashPassword.
-// Returns domain.ErrUnauthorized if the password does not match.
+// verifyPassword checks password against a PHC-format argon2id hash produced by hashPassword.
+// Returns domain.ErrUnauthorized if the password does not match or the hash is malformed.
 func verifyPassword(password, hash string) error {
-	parts := strings.SplitN(hash, "$", 2)
-	if len(parts) != 2 {
+	// PHC format: $argon2id$v=19$m=...,t=...,p=...$<salt_b64>$<key_b64>
+	// Split produces: ["", "argon2id", "v=19", "m=...", salt, key] → 6 parts.
+	parts := strings.Split(hash, "$")
+	if len(parts) != 6 {
 		return domain.ErrUnauthorized
 	}
-	salt, err := base64.RawStdEncoding.DecodeString(parts[0])
+	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return domain.ErrUnauthorized
 	}
-	expectedKey, err := base64.RawStdEncoding.DecodeString(parts[1])
+	expectedKey, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return domain.ErrUnauthorized
 	}
