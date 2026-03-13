@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/outfitte/outfitte/internal/domain"
@@ -257,6 +258,29 @@ func TestIssueAccessTokenShouldReturnSignedTokenWhenUserIsValid(t *testing.T) {
 	signed, err := issueAccessToken(user, now, []byte("secret"))
 	require.NoError(t, err)
 	require.NotEmpty(t, signed)
+}
+
+func TestIssueAccessTokenShouldIncludeRegisteredClaimsWhenUserIsValid(t *testing.T) {
+	var user domain.User
+	user.ID = "42"
+	user.Role = domain.RoleMember
+
+	now := time.Now().UTC().Truncate(time.Second)
+	signed, err := issueAccessToken(user, now, []byte("secret"))
+	require.NoError(t, err)
+
+	token, _, err := new(jwt.Parser).ParseUnverified(signed, jwt.MapClaims{})
+	require.NoError(t, err)
+
+	claims := token.Claims.(jwt.MapClaims)
+	require.Equal(t, "outfitte", claims["iss"])
+	aud, ok := claims["aud"].([]interface{})
+	require.True(t, ok)
+	require.Contains(t, aud, "outfitte-api")
+	require.NotEmpty(t, claims["jti"])
+	require.NotNil(t, claims["iat"])
+	require.Equal(t, "42", claims["sub"])
+	require.Equal(t, string(domain.RoleMember), claims["role"])
 }
 
 func TestLoginShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
