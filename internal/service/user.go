@@ -182,6 +182,14 @@ func verifyPassword(password, hash string) error {
 	if len(parts) != 6 {
 		return domain.ErrUnauthorized
 	}
+	if parts[1] != "argon2id" || parts[2] != "v=19" {
+		return domain.ErrUnauthorized
+	}
+	var memory, time uint32
+	var threads uint8
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
+		return domain.ErrUnauthorized
+	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return domain.ErrUnauthorized
@@ -190,7 +198,7 @@ func verifyPassword(password, hash string) error {
 	if err != nil {
 		return domain.ErrUnauthorized
 	}
-	actualKey := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	actualKey := argon2.IDKey([]byte(password), salt, time, memory, threads, uint32(len(expectedKey)))
 	if !bytes.Equal(actualKey, expectedKey) {
 		return domain.ErrUnauthorized
 	}
