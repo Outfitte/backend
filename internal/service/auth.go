@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -19,7 +18,7 @@ import (
 )
 
 const (
-	refreshTokenBytes = 32
+	refreshTokenBytes = 48
 	refreshTokenTTL   = 7 * 24 * time.Hour
 	accessTokenTTL    = 15 * time.Minute
 )
@@ -92,16 +91,13 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	if _, err := s.randRead(buf); err != nil {
 		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	rawRandom := base64.RawURLEncoding.EncodeToString(buf)
-
-	sessionID := uuid.NewString()
-	rawToken := sessionID + "." + rawRandom
+	rawToken := base64.RawURLEncoding.EncodeToString(buf)
 
 	now := s.now()
 	var session domain.Session
-	session.ID = sessionID
+	session.ID = uuid.NewString()
 	session.UserID = userID
-	session.TokenHash = hashToken(s.secret, rawRandom)
+	session.TokenHash = hashToken(s.secret, rawToken)
 	session.ExpiresAt = now.Add(refreshTokenTTL)
 	session.CreatedAt = now
 	if err := s.sessions.Save(ctx, session); err != nil {
@@ -143,12 +139,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (acce
 		return "", "", err
 	}
 
-	sessionID, rawRandom, ok := strings.Cut(rawRefreshToken, ".")
-	if !ok {
-		return "", "", domain.ErrUnauthorized
-	}
-
-	session, err := s.retrieveSession(ctx, sessionID, rawRandom)
+	session, err := s.retrieveSession(ctx, rawRefreshToken)
 	if err != nil {
 		return "", "", err
 	}
@@ -156,18 +147,14 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (acce
 	return s.refreshSession(ctx, session)
 }
 
-func (s *AuthService) retrieveSession(ctx context.Context, sessionID, rawRandom string) (domain.Session, error) {
-	session, err := s.sessions.Get(ctx, sessionID)
+func (s *AuthService) retrieveSession(ctx context.Context, rawToken string) (domain.Session, error) {
+	session, err := s.findSessionByToken(ctx, rawToken)
 	if err != nil {
 		return domain.Session{}, err
 	}
 
 	if s.now().After(session.ExpiresAt) {
 		return domain.Session{}, domain.ErrSessionExpired
-	}
-
-	if !hmac.Equal([]byte(session.TokenHash), []byte(hashToken(s.secret, rawRandom))) {
-		return domain.Session{}, domain.ErrUnauthorized
 	}
 
 	return session, nil
@@ -196,11 +183,29 @@ func (s *AuthService) refreshSession(ctx context.Context, session domain.Session
 	return signed, newRawToken, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
+func (s *AuthService) findSessionByToken(ctx context.Context, rawToken string) (domain.Session, error) {
+	all, err := s.sessions.List(ctx)
+	if err != nil {
+		return domain.Session{}, err
+	}
+	hash := hashToken(s.secret, rawToken)
+	for _, sess := range all {
+		if hmac.Equal([]byte(sess.TokenHash), []byte(hash)) {
+			return sess, nil
+		}
+	}
+	return domain.Session{}, domain.ErrNotFound
+}
+
+func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.sessions.Delete(ctx, sessionID)
+	session, err := s.findSessionByToken(ctx, rawRefreshToken)
+	if err != nil {
+		return err
+	}
+	return s.sessions.Delete(ctx, session.GetID())
 }
 
 type accessTokenClaims struct {
