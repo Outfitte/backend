@@ -1,10 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -165,4 +167,26 @@ func hashPassword(password string, randRead func([]byte) (int, error)) (string, 
 	key := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
 	encoded := base64.RawStdEncoding.EncodeToString(salt) + "$" + base64.RawStdEncoding.EncodeToString(key)
 	return encoded, nil
+}
+
+// verifyPassword checks password against an argon2 hash produced by hashPassword.
+// Returns domain.ErrUnauthorized if the password does not match.
+func verifyPassword(password, hash string) error {
+	parts := strings.SplitN(hash, "$", 2)
+	if len(parts) != 2 {
+		return domain.ErrUnauthorized
+	}
+	salt, err := base64.RawStdEncoding.DecodeString(parts[0])
+	if err != nil {
+		return domain.ErrUnauthorized
+	}
+	expectedKey, err := base64.RawStdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return domain.ErrUnauthorized
+	}
+	actualKey := argon2.IDKey([]byte(password), salt, argon2Time, argon2Memory, argon2Threads, argon2KeyLen)
+	if !bytes.Equal(actualKey, expectedKey) {
+		return domain.ErrUnauthorized
+	}
+	return nil
 }
