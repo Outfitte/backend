@@ -24,11 +24,12 @@ const (
 )
 
 type AuthService struct {
-	users    ports.StorageProvider[domain.User]
-	sessions ports.StorageProvider[domain.Session]
-	secret   []byte
-	randRead func([]byte) (int, error)
-	now      func() time.Time
+	users      ports.StorageProvider[domain.User]
+	sessions   ports.StorageProvider[domain.Session]
+	secret     []byte
+	randRead   func([]byte) (int, error)
+	now        func() time.Time
+	issueToken func(domain.User, time.Time, []byte) (string, error)
 }
 
 func NewAuthService(
@@ -37,11 +38,12 @@ func NewAuthService(
 	secret []byte,
 ) *AuthService {
 	return &AuthService{
-		users:    users,
-		sessions: sessions,
-		secret:   secret,
-		randRead: rand.Read,
-		now:      func() time.Time { return time.Now().UTC() },
+		users:      users,
+		sessions:   sessions,
+		secret:     secret,
+		randRead:   rand.Read,
+		now:        func() time.Time { return time.Now().UTC() },
+		issueToken: issueAccessToken,
 	}
 }
 
@@ -60,7 +62,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 		return "", "", err
 	}
 
-	signed, err := issueAccessToken(user, s.now(), s.secret)
+	signed, err := s.issueToken(user, s.now(), s.secret)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
@@ -158,7 +160,7 @@ func (s *AuthService) refreshSession(ctx context.Context, session domain.Session
 		return "", "", err
 	}
 
-	signed, err := issueAccessToken(user, s.now(), s.secret)
+	signed, err := s.issueToken(user, s.now(), s.secret)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}

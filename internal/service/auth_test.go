@@ -233,6 +233,32 @@ func TestRefreshShouldReturnErrNotFoundWhenSessionDoesNotExist(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestRefreshShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
+	var user domain.User
+	user.ID = "user-1"
+	userStore := &mockUserStore{users: []domain.User{user}}
+	session, rawToken := makeTestSession(t, "session-42", "user-1")
+	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
+	svc := NewAuthService(userStore, sessionStore, []byte("secret"))
+	svc.issueToken = func(_ domain.User, _ time.Time, _ []byte) (string, error) {
+		return "", errors.New("signing failure")
+	}
+
+	_, _, err := svc.Refresh(t.Context(), rawToken)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestIssueAccessTokenShouldReturnSignedTokenWhenUserIsValid(t *testing.T) {
+	var user domain.User
+	user.ID = "42"
+	user.Role = domain.RoleMember
+
+	now := time.Now().UTC()
+	signed, err := issueAccessToken(user, now, []byte("secret"))
+	require.NoError(t, err)
+	require.NotEmpty(t, signed)
+}
+
 func TestLoginShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
 	ctx, cancel := context.WithCancel(t.Context())
@@ -298,6 +324,22 @@ func TestLoginShouldReturnErrIOWhenRandFails(t *testing.T) {
 	svc := NewAuthService(userStore, &mockSessionStore{}, []byte("secret"))
 	svc.randRead = func(b []byte) (int, error) {
 		return 0, errors.New("entropy failure")
+	}
+
+	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLoginShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	_, err := userSvc.Register(t.Context(), "alice@example.com", "correct-password")
+	require.NoError(t, err)
+
+	svc := NewAuthService(userStore, &mockSessionStore{}, []byte("secret"))
+	svc.issueToken = func(_ domain.User, _ time.Time, _ []byte) (string, error) {
+		return "", errors.New("signing failure")
 	}
 
 	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
