@@ -104,6 +104,13 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	return rawToken, s.sessions.Save(ctx, session)
 }
 
+func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.sessions.Delete(ctx, sessionID)
+}
+
 func issueAccessToken(user domain.User, now time.Time, secret []byte) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":  user.GetID(),
