@@ -18,6 +18,14 @@ func TestHashPasswordShouldReturnErrWhenRandReadFails(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestHashPasswordShouldWrapErrIOWhenRandReadFails(t *testing.T) {
+	failingRand := func(b []byte) (int, error) {
+		return 0, errors.New("entropy failure")
+	}
+	_, err := hashPassword("password", failingRand)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestHashPasswordShouldProducePHCFormatWhenSuccessful(t *testing.T) {
 	hash, err := hashPassword("password", rand.Read)
 	require.NoError(t, err)

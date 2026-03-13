@@ -1,3 +1,8 @@
+// Package domain defines sentinel errors used across the service layer.
+//
+// Wrapping convention: infrastructure errors (os, encoding, crypto/rand, etc.) must be
+// wrapped with ErrIO at the point they first cross a boundary into service code, using
+// fmt.Errorf("%w: %w", ErrIO, err). Raw stdlib errors must never propagate to callers.
 package domain
 
 import "errors"
