@@ -11,8 +11,9 @@ import (
 
 // mockSessionStore is an in-memory StorageProvider[domain.Session] for tests.
 type mockSessionStore struct {
-	sessions []domain.Session
-	saveErr  error
+	sessions  []domain.Session
+	saveErr   error
+	deleteErr error
 }
 
 func (m *mockSessionStore) Get(_ context.Context, id string) (domain.Session, error) {
@@ -37,7 +38,52 @@ func (m *mockSessionStore) Save(_ context.Context, s domain.Session) error {
 }
 
 func (m *mockSessionStore) Delete(_ context.Context, id string) error {
-	return errors.New("not implemented")
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
+	for i, s := range m.sessions {
+		if s.GetID() == id {
+			m.sessions = append(m.sessions[:i], m.sessions[i+1:]...)
+			return nil
+		}
+	}
+	return domain.ErrNotFound
+}
+
+func TestLogoutShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.Logout(ctx, "session-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLogoutShouldReturnErrNotFoundWhenSessionDoesNotExist(t *testing.T) {
+	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
+
+	err := svc.Logout(t.Context(), "nonexistent-session")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestLogoutShouldReturnErrorWhenDeleteFails(t *testing.T) {
+	sessionStore := &mockSessionStore{deleteErr: domain.ErrIO}
+	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+
+	err := svc.Logout(t.Context(), "session-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLogoutShouldSucceedWhenSessionExists(t *testing.T) {
+	var session domain.Session
+	session.ID = "session-42"
+	session.UserID = "user-1"
+	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
+	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+
+	err := svc.Logout(t.Context(), "session-42")
+	require.NoError(t, err)
+	require.Empty(t, sessionStore.sessions)
 }
 
 func TestLoginShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
