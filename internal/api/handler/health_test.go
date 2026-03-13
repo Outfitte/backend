@@ -2,7 +2,6 @@ package handler_test
 
 import (
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +12,7 @@ import (
 )
 
 func TestHealthHandlerShouldReturn200WhenCalled(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	h := handler.NewHealthHandler(logger)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
