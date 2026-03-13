@@ -23,7 +23,7 @@ func discardLogger() *slog.Logger {
 }
 
 func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
-	cfg := &config.Config{ServerPort: 8080}
+	cfg := &config.Config{ServerPort: "8080"}
 	srv := New(cfg, discardLogger())
 	assert.Equal(t, ":8080", srv.Addr)
 
@@ -59,7 +59,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	port := l.Addr().(*net.TCPAddr).Port
 	l.Close()
 
-	cfg := &config.Config{ServerPort: port}
+	cfg := &config.Config{ServerPort: strconv.Itoa(port)}
 	srv := New(cfg, discardLogger())
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -102,7 +102,7 @@ func (l *errorListener) Close() error  { return nil }
 func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
 
 func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
-	cfg := &config.Config{ServerPort: 8080}
+	cfg := &config.Config{ServerPort: "8080"}
 	srv := New(cfg, discardLogger())
 
 	l := &errorListener{done: make(chan struct{})}
@@ -112,7 +112,7 @@ func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 
 func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		cfg := &config.Config{ServerPort: 8080}
+		cfg := &config.Config{ServerPort: "8080"}
 		srv := New(cfg, discardLogger())
 
 		l := &idleListener{done: make(chan struct{})}

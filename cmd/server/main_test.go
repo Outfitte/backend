@@ -27,7 +27,7 @@ func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	cfg := &config.Config{
 		StorageDataPath:  t.TempDir(),
 		MediaStoragePath: t.TempDir(),
-		ServerPort:       port,
+		ServerPort:       strconv.Itoa(port),
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())

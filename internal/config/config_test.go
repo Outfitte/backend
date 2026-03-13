@@ -29,7 +29,7 @@ func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	assert.Equal(t, 8080, cfg.ServerPort)
+	assert.Equal(t, "8080", cfg.ServerPort)
 	assert.Equal(t, "dev", cfg.AppEnv)
 	assert.Equal(t, slog.LevelInfo, cfg.LogLevel)
 }
@@ -63,7 +63,7 @@ func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
-	assert.Equal(t, 9090, cfg.ServerPort)
+	assert.Equal(t, "9090", cfg.ServerPort)
 	assert.Equal(t, "production", cfg.AppEnv)
 	assert.Equal(t, "/var/data", cfg.StorageDataPath)
 	assert.Equal(t, "/var/media", cfg.MediaStoragePath)
