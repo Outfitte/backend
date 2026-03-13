@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -23,10 +22,6 @@ func freePort(t *testing.T) string {
 	return port
 }
 
-func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
-
 func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	port := freePort(t)
 	cfg := &config.Config{
@@ -39,7 +34,7 @@ func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	defer cancel()
 
 	done := make(chan error, 1)
-	go func() { done <- run(ctx, cfg, discardLogger()) }()
+	go func() { done <- runServer(ctx, cfg, slog.New(slog.DiscardHandler)) }()
 
 	addr := "http://localhost:" + port + "/health"
 	require.Eventually(t, func() bool {
