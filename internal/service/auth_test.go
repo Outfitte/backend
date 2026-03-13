@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,16 +34,15 @@ func (m *mockSessionStore) Get(_ context.Context, id string) (domain.Session, er
 	return domain.Session{}, domain.ErrNotFound
 }
 
-// makeTestSession creates a session pre-seeded with a known raw refresh token.
-// The raw token format is "sessionID.rawRandom" and the hash covers only rawRandom.
+// makeTestSession creates a session pre-seeded with a known opaque raw refresh token.
+// The token is a single random-looking blob; the hash covers the full token.
 func makeTestSession(t *testing.T, sessionID, userID string, secret []byte) (domain.Session, string) {
 	t.Helper()
-	rawRandom := "testrandompart123abc"
-	rawToken := sessionID + "." + rawRandom
+	rawToken := "opaquetesttoken48bytesbase64urlpadding123456789012"
 	var s domain.Session
 	s.ID = sessionID
 	s.UserID = userID
-	s.TokenHash = hashToken(secret, rawRandom)
+	s.TokenHash = hashToken(secret, rawToken)
 	s.ExpiresAt = time.Now().UTC().Add(24 * time.Hour)
 	s.CreatedAt = time.Now().UTC()
 	return s, rawToken
@@ -78,40 +76,55 @@ func (m *mockSessionStore) Delete(_ context.Context, id string) error {
 	return domain.ErrNotFound
 }
 
+func TestLogoutShouldReturnErrorWhenListFails(t *testing.T) {
+	sessionStore := &mockSessionStore{listErr: domain.ErrIO}
+	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+
+	err := svc.Logout(t.Context(), "any-opaque-token")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestLogoutShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	err := svc.Logout(ctx, "session-1")
+	err := svc.Logout(ctx, "any-opaque-token")
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestLogoutShouldReturnErrNotFoundWhenSessionDoesNotExist(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
 
-	err := svc.Logout(t.Context(), "nonexistent-session")
+	err := svc.Logout(t.Context(), "nonexistent-opaque-token")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestLogoutShouldReturnErrorWhenDeleteFails(t *testing.T) {
-	sessionStore := &mockSessionStore{deleteErr: domain.ErrIO}
+	session, rawToken := makeTestSession(t, "session-1", "user-1", []byte("secret"))
+	sessionStore := &mockSessionStore{sessions: []domain.Session{session}, deleteErr: domain.ErrIO}
 	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
 
-	err := svc.Logout(t.Context(), "session-1")
+	err := svc.Logout(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestLogoutShouldSucceedWhenSessionExists(t *testing.T) {
-	var session domain.Session
-	session.ID = "session-42"
-	session.UserID = "user-1"
+	session, rawToken := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
 
-	err := svc.Logout(t.Context(), "session-42")
+	err := svc.Logout(t.Context(), rawToken)
 	require.NoError(t, err)
 	require.Empty(t, sessionStore.sessions)
+}
+
+func TestRefreshShouldReturnErrorWhenListFails(t *testing.T) {
+	sessionStore := &mockSessionStore{listErr: domain.ErrIO}
+	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+
+	_, _, err := svc.Refresh(t.Context(), "any-opaque-token")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestRefreshShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -123,20 +136,20 @@ func TestRefreshShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestRefreshShouldReturnErrUnauthorizedWhenTokenFormatIsInvalid(t *testing.T) {
+func TestRefreshShouldReturnErrNotFoundWhenTokenDoesNotMatchAnySession(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "nodotintoken")
-	require.ErrorIs(t, err, domain.ErrUnauthorized)
+	_, _, err := svc.Refresh(t.Context(), "unknownOpaqueToken")
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
-func TestRefreshShouldReturnErrUnauthorizedWhenTokenHashDoesNotMatch(t *testing.T) {
+func TestRefreshShouldReturnErrNotFoundWhenTokenHashDoesNotMatch(t *testing.T) {
 	session, _ := makeTestSession(t, "session-42", "user-1", []byte("secret"))
 	sessionStore := &mockSessionStore{sessions: []domain.Session{session}}
 	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "session-42.wrongrandompart")
-	require.ErrorIs(t, err, domain.ErrUnauthorized)
+	_, _, err := svc.Refresh(t.Context(), "wrong-opaque-token")
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestRefreshShouldReturnErrSessionExpiredWhenSessionIsExpired(t *testing.T) {
@@ -226,7 +239,6 @@ func TestRefreshShouldReturnNewTokensWhenRefreshTokenIsValid(t *testing.T) {
 
 	// Old session replaced by new one.
 	require.Len(t, sessionStore.sessions, 1)
-	require.NotEqual(t, sessionStore.sessions[0].ID, strings.SplitN(refreshToken, ".", 2)[0])
 }
 
 func TestRefreshShouldReturnErrNotFoundWhenSessionDoesNotExist(t *testing.T) {
@@ -399,8 +411,7 @@ func TestFullSessionCycleShouldSucceedWhenCredentialsAreValid(t *testing.T) {
 	require.Len(t, sessionStore.sessions, 1)
 
 	// Logout: delete the session created by the last refresh.
-	sessionID2 := strings.SplitN(refreshToken2, ".", 2)[0]
-	err = svc.Logout(t.Context(), sessionID2)
+	err = svc.Logout(t.Context(), refreshToken2)
 	require.NoError(t, err)
 	require.Empty(t, sessionStore.sessions)
 
