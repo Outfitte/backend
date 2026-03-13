@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -23,11 +24,13 @@ const (
 )
 
 type AuthService struct {
-	users    ports.StorageProvider[domain.User]
-	sessions ports.StorageProvider[domain.Session]
-	secret   []byte
-	randRead func([]byte) (int, error)
-	now      func() time.Time
+	users        ports.StorageProvider[domain.User]
+	sessions     ports.StorageProvider[domain.Session]
+	secret       []byte
+	randRead     func([]byte) (int, error)
+	now          func() time.Time
+	issueToken   func(domain.User, time.Time, []byte) (string, error)
+	generateHash func([]byte, int) ([]byte, error)
 }
 
 func NewAuthService(
@@ -36,11 +39,13 @@ func NewAuthService(
 	secret []byte,
 ) *AuthService {
 	return &AuthService{
-		users:    users,
-		sessions: sessions,
-		secret:   secret,
-		randRead: rand.Read,
-		now:      func() time.Time { return time.Now().UTC() },
+		users:        users,
+		sessions:     sessions,
+		secret:       secret,
+		randRead:     rand.Read,
+		now:          func() time.Time { return time.Now().UTC() },
+		issueToken:   issueAccessToken,
+		generateHash: bcrypt.GenerateFromPassword,
 	}
 }
 
@@ -59,7 +64,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 		return "", "", err
 	}
 
-	signed, err := issueAccessToken(user, s.now(), s.secret)
+	signed, err := s.issueToken(user, s.now(), s.secret)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
@@ -88,20 +93,81 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	if _, err := s.randRead(buf); err != nil {
 		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	rawToken := base64.RawURLEncoding.EncodeToString(buf)
+	rawRandom := base64.RawURLEncoding.EncodeToString(buf)
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcryptCost)
+	sessionID := uuid.NewString()
+	rawToken := sessionID + "." + rawRandom
+
+	tokenHash, err := s.generateHash([]byte(rawRandom), bcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	now := s.now()
 	var session domain.Session
-	session.ID = uuid.NewString()
+	session.ID = sessionID
 	session.UserID = userID
 	session.TokenHash = string(tokenHash)
 	session.ExpiresAt = now.Add(refreshTokenTTL)
 	session.CreatedAt = now
 	return rawToken, s.sessions.Save(ctx, session)
+}
+
+func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (accessToken, refreshToken string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
+
+	sessionID, rawRandom, ok := strings.Cut(rawRefreshToken, ".")
+	if !ok {
+		return "", "", domain.ErrUnauthorized
+	}
+
+	session, err := s.retrieveSession(ctx, sessionID, rawRandom)
+	if err != nil {
+		return "", "", err
+	}
+
+	return s.refreshSession(ctx, session)
+}
+
+func (s *AuthService) retrieveSession(ctx context.Context, sessionID, rawRandom string) (domain.Session, error) {
+	session, err := s.sessions.Get(ctx, sessionID)
+	if err != nil {
+		return domain.Session{}, err
+	}
+
+	if s.now().After(session.ExpiresAt) {
+		return domain.Session{}, domain.ErrSessionExpired
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(rawRandom)); err != nil {
+		return domain.Session{}, domain.ErrUnauthorized
+	}
+
+	return session, nil
+}
+
+func (s *AuthService) refreshSession(ctx context.Context, session domain.Session) (accessToken, refreshToken string, err error) {
+	user, err := s.users.Get(ctx, session.UserID)
+	if err != nil {
+		return "", "", err
+	}
+
+	if err := s.sessions.Delete(ctx, session.GetID()); err != nil {
+		return "", "", err
+	}
+
+	newRawToken, err := s.createSession(ctx, user.GetID())
+	if err != nil {
+		return "", "", err
+	}
+
+	signed, err := s.issueToken(user, s.now(), s.secret)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return signed, newRawToken, nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
