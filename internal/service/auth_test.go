@@ -278,7 +278,7 @@ func TestIssueAccessTokenShouldIncludeRegisteredClaimsWhenUserIsValid(t *testing
 	require.True(t, ok)
 	require.Contains(t, aud, "outfitte-api")
 	require.NotEmpty(t, claims["jti"])
-	require.NotNil(t, claims["iat"])
+	require.Equal(t, float64(now.Unix()), claims["iat"])
 	require.Equal(t, "42", claims["sub"])
 	require.Equal(t, string(domain.RoleMember), claims["role"])
 }
