@@ -49,21 +49,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 		return "", "", err
 	}
 
-	users, err := s.users.List(ctx)
+	user, err := s.findUserByEmail(ctx, email)
 	if err != nil {
 		return "", "", err
-	}
-	var user domain.User
-	found := false
-	for _, u := range users {
-		if u.Email == email {
-			user = u
-			found = true
-			break
-		}
-	}
-	if !found {
-		return "", "", domain.ErrUnauthorized
 	}
 
 	if err := verifyPassword(password, user.PasswordHash); err != nil {
@@ -75,29 +63,44 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcryptCost)
-	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	now := s.now()
-	var session domain.Session
-	session.ID = uuid.NewString()
-	session.UserID = user.GetID()
-	session.TokenHash = string(tokenHash)
-	session.ExpiresAt = now.Add(refreshTokenTTL)
-	session.CreatedAt = now
-
-	if err := s.sessions.Save(ctx, session); err != nil {
+	if err := s.saveSession(ctx, user.GetID(), rawToken); err != nil {
 		return "", "", err
 	}
 
-	signed, err := issueAccessToken(user, now, s.secret)
+	signed, err := issueAccessToken(user, s.now(), s.secret)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
 	return signed, rawToken, nil
+}
+
+func (s *AuthService) findUserByEmail(ctx context.Context, email string) (domain.User, error) {
+	users, err := s.users.List(ctx)
+	if err != nil {
+		return domain.User{}, err
+	}
+	for _, u := range users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return domain.User{}, domain.ErrUnauthorized
+}
+
+func (s *AuthService) saveSession(ctx context.Context, userID, rawToken string) error {
+	tokenHash, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcryptCost)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	now := s.now()
+	var session domain.Session
+	session.ID = uuid.NewString()
+	session.UserID = userID
+	session.TokenHash = string(tokenHash)
+	session.ExpiresAt = now.Add(refreshTokenTTL)
+	session.CreatedAt = now
+	return s.sessions.Save(ctx, session)
 }
 
 func generateRefreshToken(randRead func([]byte) (int, error)) (string, error) {
