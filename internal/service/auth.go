@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -103,7 +104,38 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 	session.TokenHash = hashToken(s.secret, rawRandom)
 	session.ExpiresAt = now.Add(refreshTokenTTL)
 	session.CreatedAt = now
-	return rawToken, s.sessions.Save(ctx, session)
+	if err := s.sessions.Save(ctx, session); err != nil {
+		return "", err
+	}
+
+	all, err := s.sessions.List(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	if err := s.evictOldestIfOverLimit(ctx, userID, all); err != nil {
+		return "", err
+	}
+
+	return rawToken, nil
+}
+
+const maxSessionsPerUser = 10
+
+func (s *AuthService) evictOldestIfOverLimit(ctx context.Context, userID string, all []domain.Session) error {
+	var userSessions []domain.Session
+	for _, sess := range all {
+		if sess.UserID == userID {
+			userSessions = append(userSessions, sess)
+		}
+	}
+	if len(userSessions) <= maxSessionsPerUser {
+		return nil
+	}
+	sort.Slice(userSessions, func(i, j int) bool {
+		return userSessions[i].CreatedAt.Before(userSessions[j].CreatedAt)
+	})
+	return s.sessions.Delete(ctx, userSessions[0].GetID())
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (accessToken, refreshToken string, err error) {
