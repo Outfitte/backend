@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -125,6 +126,25 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 		return domain.Item{}, err
 	}
 	return item, nil
+}
+
+func (s *ItemService) UploadPhoto(ctx context.Context, callerID, itemID string, r io.Reader, filename string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item, err := s.items.Get(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if item.OwnerID != callerID {
+		return domain.ErrForbidden
+	}
+	key := "items/" + itemID + "/" + uuid.NewString() + "/" + filename
+	if err := s.media.Upload(ctx, key, r); err != nil {
+		return err
+	}
+	item.PhotoKeys = append(item.PhotoKeys, key)
+	return s.items.Save(ctx, item)
 }
 
 func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error {
