@@ -26,6 +26,7 @@ See `.env.example` for all available variables.
 | `STORAGE_DATA_PATH` | *(required)* | Directory for JSON storage data |
 | `MEDIA_STORAGE_PATH` | *(required)* | Directory for media files |
 | `LOG_LEVEL` | `info` | Log verbosity |
+| `JWT_SECRET` | *(required)* | Secret key for signing JWTs; min 32 chars (`openssl rand -hex 32`) |
 
 ## Linting
 
