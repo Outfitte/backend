@@ -11,6 +11,10 @@ import (
 	"github.com/outfitte/outfitte/internal/domain"
 )
 
+type tokenLogout interface {
+	Logout(ctx context.Context, refreshToken string) error
+}
+
 type userRegistrar interface {
 	Register(ctx context.Context, username, password string) (domain.User, error)
 }
@@ -28,12 +32,13 @@ type AuthHandler struct {
 	users   userRegistrar
 	auth    tokenIssuer
 	refresh tokenRefresher
+	logout  tokenLogout
 	log     *slog.Logger
 }
 
 // NewAuthHandler creates an AuthHandler with a logger pre-scoped to handler=auth.
-func NewAuthHandler(users userRegistrar, auth tokenIssuer, refresh tokenRefresher, log *slog.Logger) *AuthHandler {
-	return &AuthHandler{users: users, auth: auth, refresh: refresh, log: log.With("handler", "auth")}
+func NewAuthHandler(users userRegistrar, auth tokenIssuer, refresh tokenRefresher, logout tokenLogout, log *slog.Logger) *AuthHandler {
+	return &AuthHandler{users: users, auth: auth, refresh: refresh, logout: logout, log: log.With("handler", "auth")}
 }
 
 type registerRequest struct {
@@ -174,6 +179,36 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	})
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+// Logout handles POST /auth/logout.
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Logout")
+	log.InfoContext(ctx, "started")
+
+	var req logoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.logout.Logout(ctx, req.RefreshToken); err != nil {
+		if errors.Is(err, domain.ErrUnauthorized) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			return
+		}
+		log.ErrorContext(ctx, "logout failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
