@@ -56,7 +56,10 @@ func (h *MediaHandler) Download(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", ct)
 	}
 
-	log.InfoContext(ctx, "succeeded", "key", key)
 	w.WriteHeader(http.StatusOK)
-	_, _ = io.Copy(w, rc)
+	if _, err := io.Copy(w, rc); err != nil {
+		log.ErrorContext(ctx, "copy failed", "error", err)
+		return
+	}
+	log.InfoContext(ctx, "succeeded", "key", key)
 }
