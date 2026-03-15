@@ -33,6 +33,11 @@ func (h *MediaHandler) Download(w http.ResponseWriter, r *http.Request) {
 	log := h.log.With("call", "Download")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	key := r.PathValue("key")
 
 	rc, err := h.media.Download(ctx, key)

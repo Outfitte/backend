@@ -107,11 +107,10 @@ func TestMediaDownloadShouldNotSetContentTypeWhenExtensionIsUnknown(t *testing.T
 	require.Empty(t, w.Header().Get("Content-Type"))
 }
 
-func TestMediaDownloadShouldReturn500WhenProviderReturnsWrappedError(t *testing.T) {
-	wrapped := errors.New("some internal error")
+func TestMediaDownloadShouldReturn500WhenProviderReturnsUnexpectedError(t *testing.T) {
 	mp := &fakeMediaProvider{
 		downloadFn: func(_ context.Context, _ string) (io.ReadCloser, error) {
-			return nil, wrapped
+			return nil, errors.New("some internal error")
 		},
 	}
 	h := handler.NewMediaHandler(mp, slog.New(slog.DiscardHandler))
@@ -119,4 +118,23 @@ func TestMediaDownloadShouldReturn500WhenProviderReturnsWrappedError(t *testing.
 	w := getMedia(t, h, "abc123")
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMediaDownloadShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	mp := &fakeMediaProvider{
+		downloadFn: func(_ context.Context, _ string) (io.ReadCloser, error) {
+			return nil, nil
+		},
+	}
+	h := handler.NewMediaHandler(mp, slog.New(slog.DiscardHandler))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/media/abc123", nil)
+	req.SetPathValue("key", "abc123")
+	w := httptest.NewRecorder()
+	h.Download(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
