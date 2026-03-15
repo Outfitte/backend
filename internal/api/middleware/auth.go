@@ -10,11 +10,12 @@ import (
 	"github.com/outfitte/outfitte/internal/domain"
 )
 
-type contextKey int
+type contextKeyUserIDType struct{}
+type contextKeyRoleType struct{}
 
-const (
-	contextKeyUserID contextKey = iota
-	contextKeyRole
+var (
+	contextKeyUserID = contextKeyUserIDType{}
+	contextKeyRole   = contextKeyRoleType{}
 )
 
 // AuthMiddleware validates Bearer JWTs on incoming requests.
