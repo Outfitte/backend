@@ -30,6 +30,20 @@ func (f *fakeSettingsService) UpdateRegistrationEnabled(ctx context.Context, cal
 	return f.updateRegistrationEnabledFn(ctx, callerID, enabled)
 }
 
+// statefulSettingsService is an in-memory settings service for cycle tests.
+type statefulSettingsService struct {
+	settings domain.AppSettings
+}
+
+func (s *statefulSettingsService) GetSettings(ctx context.Context) (domain.AppSettings, error) {
+	return s.settings, nil
+}
+
+func (s *statefulSettingsService) UpdateRegistrationEnabled(ctx context.Context, _ string, enabled bool) error {
+	s.settings.RegistrationEnabled = enabled
+	return nil
+}
+
 // --- helpers ---
 
 func getAdminSettings(t *testing.T, h *handler.SettingsHandler) *httptest.ResponseRecorder {
@@ -142,4 +156,30 @@ func TestUpdateSettingsHandlerShouldReturn200WithUpdatedSettingsWhenSucceeds(t *
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, false, body["registration_enabled"])
+}
+
+func TestSettingsCycleShouldReflectUpdateWhenReadUpdateRead(t *testing.T) {
+	svc := &statefulSettingsService{settings: domain.AppSettings{RegistrationEnabled: true}}
+	h := handler.NewSettingsHandler(svc, slog.New(slog.DiscardHandler))
+
+	// Step 1: Read initial settings — registration enabled.
+	w := getAdminSettings(t, h)
+	require.Equal(t, http.StatusOK, w.Code)
+	var initial map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&initial))
+	require.Equal(t, true, initial["registration_enabled"])
+
+	// Step 2: Update — disable registration.
+	w = patchAdminSettings(t, h, "admin-1", `{"registration_enabled":false}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	var patch map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&patch))
+	require.Equal(t, false, patch["registration_enabled"])
+
+	// Step 3: Read again — registration should now be disabled.
+	w = getAdminSettings(t, h)
+	require.Equal(t, http.StatusOK, w.Code)
+	var updated map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&updated))
+	require.Equal(t, false, updated["registration_enabled"])
 }
