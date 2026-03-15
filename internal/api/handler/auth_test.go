@@ -224,6 +224,20 @@ func TestLoginHandlerShouldReturn200WhenLoginSucceeds(t *testing.T) {
 	require.Equal(t, "refresh-tok", body["refresh_token"])
 }
 
+func TestRefreshHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{}
+	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `not-json`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "invalid request body", body["error"])
+}
+
 func TestRefreshHandlerShouldReturn401WhenTokenIsInvalidOrExpired(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
@@ -240,20 +254,6 @@ func TestRefreshHandlerShouldReturn401WhenTokenIsInvalidOrExpired(t *testing.T) 
 	var body map[string]string
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "invalid or expired refresh token", body["error"])
-}
-
-func TestRefreshHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
-	users := &fakeUserRegistrar{}
-	auth := &fakeTokenIssuer{}
-	refresher := &fakeTokenRefresher{}
-	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
-
-	w := postRefresh(t, h, `not-json`)
-
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	var body map[string]string
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
-	require.Equal(t, "invalid request body", body["error"])
 }
 
 func TestRefreshHandlerShouldReturn500WhenServiceFails(t *testing.T) {
