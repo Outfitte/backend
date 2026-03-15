@@ -66,11 +66,17 @@ func (m *mockItemStore) Delete(_ context.Context, id string) error {
 
 // mockMediaProvider is an in-memory MediaProvider for tests.
 type mockMediaProvider struct {
-	deleteErr   error
-	deletedKeys []string
+	uploadErr    error
+	uploadedKey  string
+	deleteErr    error
+	deletedKeys  []string
 }
 
-func (m *mockMediaProvider) Upload(_ context.Context, _ string, _ io.Reader) error {
+func (m *mockMediaProvider) Upload(_ context.Context, key string, _ io.Reader) error {
+	if m.uploadErr != nil {
+		return m.uploadErr
+	}
+	m.uploadedKey = key
 	return nil
 }
 
@@ -321,6 +327,95 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	require.Equal(t, "Blue", got.Color)
 	require.Equal(t, "L", got.Size)
 	require.Equal(t, []string{"new-photo.jpg"}, got.PhotoKeys)
+}
+
+// ── UploadPhoto ───────────────────────────────────────────────────────────────
+
+func TestItemServiceUploadPhotoShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.UploadPhoto(ctx, "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemServiceUploadPhotoShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{})
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestItemServiceUploadPhotoShouldReturnErrorWhenStoreGetFails(t *testing.T) {
+	store := &mockItemStore{getErr: domain.ErrIO}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceUploadPhotoShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.UploadPhoto(t.Context(), "owner-2", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestItemServiceUploadPhotoShouldReturnErrorWhenUploadFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	media := &mockMediaProvider{uploadErr: domain.ErrIO}
+	svc := NewItemService(store, media)
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceUploadPhotoShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	store := &mockItemStore{items: []domain.Item{item}, saveErr: domain.ErrIO}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceUploadPhotoShouldAppendKeyAndSaveItemWhenSuccessful(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.PhotoKeys = []string{"existing.jpg"}
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	media := &mockMediaProvider{}
+	svc := NewItemService(store, media)
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "new.jpg")
+	require.NoError(t, err)
+
+	// Key must follow the pattern items/<itemID>/<uuid>/<filename>
+	require.NotEmpty(t, media.uploadedKey)
+	require.Equal(t, "items/item-1/", media.uploadedKey[:13])
+	require.Equal(t, "/new.jpg", media.uploadedKey[len(media.uploadedKey)-8:])
+
+	// Item must be updated in the store
+	saved, err := store.Get(t.Context(), "item-1")
+	require.NoError(t, err)
+	require.Len(t, saved.PhotoKeys, 2)
+	require.Equal(t, "existing.jpg", saved.PhotoKeys[0])
+	require.Equal(t, media.uploadedKey, saved.PhotoKeys[1])
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
