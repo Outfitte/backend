@@ -418,6 +418,91 @@ func TestItemServiceUploadPhotoShouldAppendKeyAndSaveItemWhenSuccessful(t *testi
 	require.Equal(t, media.uploadedKey, saved.PhotoKeys[1])
 }
 
+// ── DeletePhoto ───────────────────────────────────────────────────────────────
+
+func TestItemServiceDeletePhotoShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.DeletePhoto(ctx, "owner-1", "item-1", "photo.jpg")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemServiceDeletePhotoShouldReturnErrorWhenStoreGetFails(t *testing.T) {
+	store := &mockItemStore{getErr: domain.ErrIO}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDeletePhotoShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{})
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestItemServiceDeletePhotoShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.DeletePhoto(t.Context(), "owner-2", "item-1", "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestItemServiceDeletePhotoShouldReturnErrorWhenMediaDeleteFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.PhotoKeys = []string{"photo.jpg"}
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	media := &mockMediaProvider{deleteErr: domain.ErrIO}
+	svc := NewItemService(store, media)
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDeletePhotoShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.PhotoKeys = []string{"photo.jpg"}
+
+	store := &mockItemStore{items: []domain.Item{item}, saveErr: domain.ErrIO}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDeletePhotoShouldRemoveKeyAndSaveItemWhenSuccessful(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.PhotoKeys = []string{"keep.jpg", "remove.jpg", "also-keep.jpg"}
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	media := &mockMediaProvider{}
+	svc := NewItemService(store, media)
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "remove.jpg")
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"remove.jpg"}, media.deletedKeys)
+
+	saved, err := store.Get(t.Context(), "item-1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"keep.jpg", "also-keep.jpg"}, saved.PhotoKeys)
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 func TestItemServiceDeleteShouldReturnErrorWhenContextIsCancelled(t *testing.T) {

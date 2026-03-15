@@ -147,6 +147,30 @@ func (s *ItemService) UploadPhoto(ctx context.Context, callerID, itemID string, 
 	return s.items.Save(ctx, item)
 }
 
+func (s *ItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKey string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item, err := s.items.Get(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if item.OwnerID != callerID {
+		return domain.ErrForbidden
+	}
+	if err := s.media.Delete(ctx, photoKey); err != nil {
+		return err
+	}
+	filtered := make([]string, 0, len(item.PhotoKeys))
+	for _, k := range item.PhotoKeys {
+		if k != photoKey {
+			filtered = append(filtered, k)
+		}
+	}
+	item.PhotoKeys = filtered
+	return s.items.Save(ctx, item)
+}
+
 func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error {
 	if err := ctx.Err(); err != nil {
 		return err
