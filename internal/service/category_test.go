@@ -1,0 +1,41 @@
+package service_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/outfitte/internal/service"
+)
+
+func TestCategoryListAllShouldFailWhenContextIsCancelled(t *testing.T) {
+	svc := service.NewCategoryService()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.ListAll(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestCategoryListAllShouldReturnAllPresetsWhenContextIsActive(t *testing.T) {
+	svc := service.NewCategoryService()
+
+	categories, err := svc.ListAll(t.Context())
+	require.NoError(t, err)
+
+	labels := make([]string, len(categories))
+	for i, c := range categories {
+		labels[i] = c.Label
+	}
+
+	require.ElementsMatch(t, []string{
+		"Tops", "Bottoms", "Outerwear", "Footwear", "Accessories",
+		"Underwear", "Sportswear", "Formalwear", "Bags",
+	}, labels)
+	for _, c := range categories {
+		require.True(t, c.IsPreset)
+		require.NotEmpty(t, c.ID)
+	}
+}
