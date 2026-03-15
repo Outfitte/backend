@@ -40,10 +40,27 @@ func (f *fakeTokenRefresher) Refresh(ctx context.Context, refreshToken string) (
 	return f.refreshFn(ctx, refreshToken)
 }
 
+type fakeTokenLogout struct {
+	logoutFn func(ctx context.Context, refreshToken string) error
+}
+
+func (f *fakeTokenLogout) Logout(ctx context.Context, refreshToken string) error {
+	return f.logoutFn(ctx, refreshToken)
+}
+
 // --- helpers ---
 
 func newAuthHandler(users *fakeUserRegistrar, auth *fakeTokenIssuer) *handler.AuthHandler {
-	return handler.NewAuthHandler(users, auth, &fakeTokenRefresher{}, slog.New(slog.DiscardHandler))
+	return handler.NewAuthHandler(users, auth, &fakeTokenRefresher{}, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
+}
+
+func postLogout(t *testing.T, h *handler.AuthHandler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/logout", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.Logout(w, req)
+	return w
 }
 
 func postRefresh(t *testing.T, h *handler.AuthHandler, body string) *httptest.ResponseRecorder {
@@ -228,7 +245,7 @@ func TestRefreshHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
 	refresher := &fakeTokenRefresher{}
-	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
 
 	w := postRefresh(t, h, `not-json`)
 
@@ -246,7 +263,7 @@ func TestRefreshHandlerShouldReturn401WhenTokenIsInvalidOrExpired(t *testing.T) 
 			return "", "", domain.ErrUnauthorized
 		},
 	}
-	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
 
 	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
 
@@ -264,7 +281,7 @@ func TestRefreshHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 			return "", "", domain.ErrIO
 		},
 	}
-	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
 
 	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
 
@@ -282,7 +299,7 @@ func TestRefreshHandlerShouldReturn200WhenRefreshSucceeds(t *testing.T) {
 			return "new-access-tok", "new-refresh-tok", nil
 		},
 	}
-	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
 
 	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
 
@@ -293,6 +310,63 @@ func TestRefreshHandlerShouldReturn200WhenRefreshSucceeds(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "new-access-tok", body["access_token"])
 	require.Equal(t, "new-refresh-tok", body["refresh_token"])
+}
+
+func TestLogoutHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, &fakeTokenIssuer{}, &fakeTokenRefresher{}, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
+
+	w := postLogout(t, h, `not-json`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "invalid request body", body["error"])
+}
+
+func TestLogoutHandlerShouldReturn401WhenServiceReturnsUnauthorized(t *testing.T) {
+	logout := &fakeTokenLogout{
+		logoutFn: func(_ context.Context, _ string) error {
+			return domain.ErrUnauthorized
+		},
+	}
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, &fakeTokenIssuer{}, &fakeTokenRefresher{}, logout, slog.New(slog.DiscardHandler))
+
+	w := postLogout(t, h, `{"refresh_token":"tok"}`)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "unauthorized", body["error"])
+}
+
+func TestLogoutHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	logout := &fakeTokenLogout{
+		logoutFn: func(_ context.Context, _ string) error {
+			return domain.ErrIO
+		},
+	}
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, &fakeTokenIssuer{}, &fakeTokenRefresher{}, logout, slog.New(slog.DiscardHandler))
+
+	w := postLogout(t, h, `{"refresh_token":"tok"}`)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "internal server error", body["error"])
+}
+
+func TestLogoutHandlerShouldReturn204WhenLogoutSucceeds(t *testing.T) {
+	logout := &fakeTokenLogout{
+		logoutFn: func(_ context.Context, _ string) error {
+			return nil
+		},
+	}
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, &fakeTokenIssuer{}, &fakeTokenRefresher{}, logout, slog.New(slog.DiscardHandler))
+
+	w := postLogout(t, h, `{"refresh_token":"tok"}`)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Empty(t, w.Body.String())
 }
 
 func TestRegisterHandlerShouldReturn500WhenTokenIssuanceFails(t *testing.T) {
