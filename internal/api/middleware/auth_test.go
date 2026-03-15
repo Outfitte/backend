@@ -161,6 +161,15 @@ func TestAuthenticateShouldInjectClaimsWhenTokenIsValid(t *testing.T) {
 	assert.Equal(t, "admin", capture.role)
 }
 
+// --- WithUserID ---
+
+func TestWithUserIDShouldStoreUserIDInContext(t *testing.T) {
+	ctx := middleware.WithUserID(t.Context(), "user-42")
+	id, ok := middleware.UserIDFromContext(ctx)
+	assert.True(t, ok)
+	assert.Equal(t, "user-42", id)
+}
+
 // --- RequireAdmin failure cases ---
 
 func TestRequireAdminShouldReturn403WhenRoleIsMissingFromContext(t *testing.T) {

@@ -61,6 +61,12 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 	return v, ok
 }
 
+// WithUserID returns a new context with the given user ID stored under the same key
+// used by Authenticate. Intended for use in tests.
+func WithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, contextKeyUserID, userID)
+}
+
 // RoleFromContext returns the role injected by Authenticate.
 func RoleFromContext(ctx context.Context) (domain.Role, bool) {
 	v, ok := ctx.Value(contextKeyRole).(domain.Role)

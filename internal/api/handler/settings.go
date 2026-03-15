@@ -2,29 +2,65 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
+	"github.com/outfitte/outfitte/internal/api/middleware"
 	"github.com/outfitte/outfitte/internal/domain"
 )
 
-type settingsGetter interface {
+type settingsService interface {
 	GetSettings(ctx context.Context) (domain.AppSettings, error)
+	UpdateRegistrationEnabled(ctx context.Context, callerID string, enabled bool) error
 }
 
-// SettingsHandler handles GET /admin/settings.
+// SettingsHandler handles GET and PATCH /admin/settings.
 type SettingsHandler struct {
-	settings settingsGetter
+	settings settingsService
 	log      *slog.Logger
 }
 
 // NewSettingsHandler creates a SettingsHandler with a logger pre-scoped to handler=settings.
-func NewSettingsHandler(settings settingsGetter, log *slog.Logger) *SettingsHandler {
+func NewSettingsHandler(settings settingsService, log *slog.Logger) *SettingsHandler {
 	return &SettingsHandler{settings: settings, log: log.With("handler", "settings")}
 }
 
 type settingsResponse struct {
 	RegistrationEnabled bool `json:"registration_enabled"`
+}
+
+type updateSettingsRequest struct {
+	RegistrationEnabled bool `json:"registration_enabled"`
+}
+
+// UpdateSettings handles PATCH /admin/settings.
+func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "UpdateSettings")
+	log.InfoContext(ctx, "started")
+
+	var req updateSettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	if err := h.settings.UpdateRegistrationEnabled(ctx, callerID, req.RegistrationEnabled); err != nil {
+		log.ErrorContext(ctx, "update settings failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded")
+	writeJSON(w, http.StatusOK, settingsResponse{RegistrationEnabled: req.RegistrationEnabled})
 }
 
 // GetSettings handles GET /admin/settings.
