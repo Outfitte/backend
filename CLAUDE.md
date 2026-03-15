@@ -46,6 +46,12 @@ Decisions:
 - Config: env vars only (no config file)
 - No domain errors defined yet
 
+## Handler Guidelines
+
+Every HTTP handler must emit two `slog` log lines via `InfoContext`:
+1. **On entry** — `"<action> called"` (e.g. `"register called"`)
+2. **On success** — `"<action> succeeded"` with relevant context fields (e.g. `"user_id"`)
+
 ## Task Guidelines
 
 **Branch naming:** `username/tasknr-short-name`

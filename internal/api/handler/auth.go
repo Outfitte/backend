@@ -52,6 +52,7 @@ type registerResponse struct {
 // Register handles POST /auth/register.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.log.InfoContext(ctx, "register called")
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -77,6 +78,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.log.InfoContext(ctx, "register succeeded", "user_id", user.GetID())
 	writeJSON(w, http.StatusCreated, registerResponse{
 		User: userResponse{
 			ID:        user.GetID(),
