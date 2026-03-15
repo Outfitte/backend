@@ -105,8 +105,11 @@ func parseToken(tokenStr string, secret []byte) (*accessTokenClaims, error) {
 		jwt.WithAudience("outfitte-api"),
 		jwt.WithExpirationRequired(),
 	)
-	if err != nil || !token.Valid {
+	if err != nil {
 		return nil, err
+	}
+	if !token.Valid {
+		return nil, jwt.ErrTokenSignatureInvalid
 	}
 	return &claims, nil
 }

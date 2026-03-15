@@ -58,11 +58,16 @@ func newMiddleware() *middleware.AuthMiddleware {
 	return middleware.NewAuthMiddleware([]byte(testSecret))
 }
 
+func newRequest(t *testing.T, method, target string) *http.Request {
+	t.Helper()
+	return httptest.NewRequest(method, target, nil).WithContext(t.Context())
+}
+
 // --- Authenticate failure cases ---
 
 func TestAuthenticateShouldReturn401WhenAuthorizationHeaderIsMissing(t *testing.T) {
 	m := newMiddleware()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
@@ -70,7 +75,7 @@ func TestAuthenticateShouldReturn401WhenAuthorizationHeaderIsMissing(t *testing.
 
 func TestAuthenticateShouldReturn401WhenAuthorizationSchemeIsNotBearer(t *testing.T) {
 	m := newMiddleware()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
@@ -80,7 +85,7 @@ func TestAuthenticateShouldReturn401WhenAuthorizationSchemeIsNotBearer(t *testin
 func TestAuthenticateShouldReturn401WhenTokenIsExpired(t *testing.T) {
 	m := newMiddleware()
 	token := makeToken([]byte(testSecret), "user-1", "member", "outfitte", "outfitte-api", time.Now().Add(-time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
@@ -90,7 +95,7 @@ func TestAuthenticateShouldReturn401WhenTokenIsExpired(t *testing.T) {
 func TestAuthenticateShouldReturn401WhenIssuerIsWrong(t *testing.T) {
 	m := newMiddleware()
 	token := makeToken([]byte(testSecret), "user-1", "member", "wrong-issuer", "outfitte-api", time.Now().Add(time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
@@ -100,7 +105,7 @@ func TestAuthenticateShouldReturn401WhenIssuerIsWrong(t *testing.T) {
 func TestAuthenticateShouldReturn401WhenAudienceIsWrong(t *testing.T) {
 	m := newMiddleware()
 	token := makeToken([]byte(testSecret), "user-1", "member", "outfitte", "wrong-audience", time.Now().Add(time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
@@ -123,7 +128,7 @@ func TestAuthenticateShouldReturn401WhenAlgorithmIsNotHS256(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+signed)
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
@@ -134,7 +139,7 @@ func TestAuthenticateShouldReturn401WhenTokenSignatureIsInvalid(t *testing.T) {
 	m := newMiddleware()
 	wrongSecret := []byte("wrong-secret-also-long-enough-for-jwt-32chars!!")
 	token := makeToken(wrongSecret, "user-1", "member", "outfitte", "outfitte-api", time.Now().Add(time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	m.Authenticate(okHandler).ServeHTTP(rr, req)
@@ -146,7 +151,7 @@ func TestAuthenticateShouldReturn401WhenTokenSignatureIsInvalid(t *testing.T) {
 func TestAuthenticateShouldInjectClaimsWhenTokenIsValid(t *testing.T) {
 	m := newMiddleware()
 	token := makeToken([]byte(testSecret), "user-42", "admin", "outfitte", "outfitte-api", time.Now().Add(time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	capture := &captureHandler{}
@@ -159,7 +164,7 @@ func TestAuthenticateShouldInjectClaimsWhenTokenIsValid(t *testing.T) {
 // --- RequireAdmin failure cases ---
 
 func TestRequireAdminShouldReturn403WhenRoleIsMissingFromContext(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	rr := httptest.NewRecorder()
 	middleware.RequireAdmin(okHandler).ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusForbidden, rr.Code)
@@ -168,7 +173,7 @@ func TestRequireAdminShouldReturn403WhenRoleIsMissingFromContext(t *testing.T) {
 func TestRequireAdminShouldReturn403WhenRoleIsMember(t *testing.T) {
 	m := newMiddleware()
 	memberToken := makeToken([]byte(testSecret), "user-1", "member", "outfitte", "outfitte-api", time.Now().Add(time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+memberToken)
 	rr := httptest.NewRecorder()
 	m.Authenticate(middleware.RequireAdmin(okHandler)).ServeHTTP(rr, req)
@@ -180,7 +185,7 @@ func TestRequireAdminShouldReturn403WhenRoleIsMember(t *testing.T) {
 func TestRequireAdminShouldCallNextWhenRoleIsAdmin(t *testing.T) {
 	m := newMiddleware()
 	adminToken := makeToken([]byte(testSecret), "user-42", "admin", "outfitte", "outfitte-api", time.Now().Add(time.Hour))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := newRequest(t, http.MethodGet, "/")
 	req.Header.Set("Authorization", "Bearer "+adminToken)
 	rr := httptest.NewRecorder()
 	m.Authenticate(middleware.RequireAdmin(okHandler)).ServeHTTP(rr, req)
