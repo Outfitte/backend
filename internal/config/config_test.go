@@ -13,6 +13,7 @@ import (
 func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -38,6 +39,7 @@ func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 
 	_, err := config.Load()
 	require.Error(t, err)
