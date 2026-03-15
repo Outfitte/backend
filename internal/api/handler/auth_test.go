@@ -143,7 +143,7 @@ func postLogin(t *testing.T, h *handler.AuthHandler, body string) *httptest.Resp
 func TestLoginHandlerShouldReturn401WhenCredentialsAreInvalid(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{
-		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFn: func(ctx context.Context, _, _ string) (string, string, error) {
 			return "", "", domain.ErrUnauthorized
 		},
 	}
@@ -155,26 +155,6 @@ func TestLoginHandlerShouldReturn401WhenCredentialsAreInvalid(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "invalid credentials", body["error"])
-}
-
-func TestLoginHandlerShouldReturn200WhenLoginSucceeds(t *testing.T) {
-	users := &fakeUserRegistrar{}
-	auth := &fakeTokenIssuer{
-		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
-			return "access-tok", "refresh-tok", nil
-		},
-	}
-	h := newAuthHandler(users, auth)
-
-	w := postLogin(t, h, `{"username":"alice","password":"secret"}`)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
-
-	var body map[string]string
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
-	require.Equal(t, "access-tok", body["access_token"])
-	require.Equal(t, "refresh-tok", body["refresh_token"])
 }
 
 func TestLoginHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
@@ -193,7 +173,7 @@ func TestLoginHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 func TestLoginHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{
-		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
+		loginFn: func(ctx context.Context, _, _ string) (string, string, error) {
 			return "", "", domain.ErrIO
 		},
 	}
@@ -205,6 +185,26 @@ func TestLoginHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "internal server error", body["error"])
+}
+
+func TestLoginHandlerShouldReturn200WhenLoginSucceeds(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{
+		loginFn: func(ctx context.Context, _, _ string) (string, string, error) {
+			return "access-tok", "refresh-tok", nil
+		},
+	}
+	h := newAuthHandler(users, auth)
+
+	w := postLogin(t, h, `{"username":"alice","password":"secret"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "access-tok", body["access_token"])
+	require.Equal(t, "refresh-tok", body["refresh_token"])
 }
 
 func TestRegisterHandlerShouldReturn500WhenTokenIssuanceFails(t *testing.T) {
