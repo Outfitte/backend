@@ -38,8 +38,9 @@ func newAuthHandler(users *fakeUserRegistrar, auth *fakeTokenIssuer) *handler.Au
 	return handler.NewAuthHandler(users, auth, slog.New(slog.DiscardHandler))
 }
 
-func postRegister(h *handler.AuthHandler, body string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(body))
+func postRegister(t *testing.T, h *handler.AuthHandler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/register", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	h.Register(w, req)
@@ -57,7 +58,7 @@ func TestRegisterHandlerShouldReturn409WhenUsernameAlreadyTaken(t *testing.T) {
 	auth := &fakeTokenIssuer{}
 	h := newAuthHandler(users, auth)
 
-	w := postRegister(h, `{"username":"alice@example.com","password":"secret"}`)
+	w := postRegister(t, h, `{"username":"alice@example.com","password":"secret"}`)
 
 	require.Equal(t, http.StatusConflict, w.Code)
 	var body map[string]string
@@ -74,7 +75,7 @@ func TestRegisterHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	auth := &fakeTokenIssuer{}
 	h := newAuthHandler(users, auth)
 
-	w := postRegister(h, `{"username":"alice@example.com","password":"secret"}`)
+	w := postRegister(t, h, `{"username":"alice@example.com","password":"secret"}`)
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 	var body map[string]string
@@ -87,7 +88,7 @@ func TestRegisterHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	auth := &fakeTokenIssuer{}
 	h := newAuthHandler(users, auth)
 
-	w := postRegister(h, `not-json`)
+	w := postRegister(t, h, `not-json`)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	var body map[string]string
@@ -113,7 +114,7 @@ func TestRegisterHandlerShouldReturn201WhenRegistrationSucceeds(t *testing.T) {
 	}
 	h := newAuthHandler(users, auth)
 
-	w := postRegister(h, `{"username":"alice@example.com","password":"secret"}`)
+	w := postRegister(t, h, `{"username":"alice@example.com","password":"secret"}`)
 
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
@@ -148,7 +149,7 @@ func TestRegisterHandlerShouldReturn500WhenTokenIssuanceFails(t *testing.T) {
 	}
 	h := newAuthHandler(users, auth)
 
-	w := postRegister(h, `{"username":"alice@example.com","password":"secret"}`)
+	w := postRegister(t, h, `{"username":"alice@example.com","password":"secret"}`)
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 	var body map[string]string
