@@ -48,8 +48,10 @@ Decisions:
 
 ## Handler Guidelines
 
+Every HTTP handler constructor must pre-scope the logger with a `"handler"` key set to the handler name (e.g. `logger.With("handler", "auth")`).
+
 Every HTTP handler must emit two `slog` log lines via `InfoContext`:
-1. **On entry** — `"<action> called"` (e.g. `"register called"`)
+1. **On entry** — `"<action> started"` (e.g. `"register started"`)
 2. **On success** — `"<action> succeeded"` with relevant context fields (e.g. `"user_id"`)
 
 Error log calls must use `"error"` as the key for the error value (e.g. `h.log.ErrorContext(ctx, "...", "error", err)`).

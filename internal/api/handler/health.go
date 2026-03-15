@@ -22,7 +22,7 @@ func NewHealthHandler(logger *slog.Logger) *HealthHandler {
 
 // ServeHTTP handles the health check request.
 func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.log.InfoContext(r.Context(), "health check called")
+	h.log.InfoContext(r.Context(), "health check started")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(healthResponse{Status: "ok"})

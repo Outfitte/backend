@@ -31,9 +31,9 @@ type AuthHandler struct {
 	log     *slog.Logger
 }
 
-// NewAuthHandler creates an AuthHandler.
+// NewAuthHandler creates an AuthHandler with a logger pre-scoped to handler=auth.
 func NewAuthHandler(users userRegistrar, auth tokenIssuer, refresh tokenRefresher, log *slog.Logger) *AuthHandler {
-	return &AuthHandler{users: users, auth: auth, refresh: refresh, log: log}
+	return &AuthHandler{users: users, auth: auth, refresh: refresh, log: log.With("handler", "auth")}
 }
 
 type registerRequest struct {
@@ -57,7 +57,7 @@ type registerResponse struct {
 // Register handles POST /auth/register.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.log.InfoContext(ctx, "register called")
+	h.log.InfoContext(ctx, "register started")
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -109,7 +109,7 @@ type loginResponse struct {
 // Login handles POST /auth/login.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.log.InfoContext(ctx, "login called")
+	h.log.InfoContext(ctx, "login started")
 
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -147,7 +147,7 @@ type refreshResponse struct {
 // Refresh handles POST /auth/refresh.
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.log.InfoContext(ctx, "refresh called")
+	h.log.InfoContext(ctx, "refresh started")
 
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
