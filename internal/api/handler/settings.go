@@ -59,15 +59,8 @@ func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s, err := h.settings.GetSettings(ctx)
-	if err != nil {
-		log.ErrorContext(ctx, "get settings after update failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		return
-	}
-
 	log.InfoContext(ctx, "succeeded")
-	writeJSON(w, http.StatusOK, settingsResponse{RegistrationEnabled: s.RegistrationEnabled})
+	writeJSON(w, http.StatusOK, settingsResponse{RegistrationEnabled: req.RegistrationEnabled})
 }
 
 // GetSettings handles GET /admin/settings.

@@ -111,20 +111,6 @@ func TestUpdateSettingsHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdateSettingsHandlerShouldReturn500WhenGetSettingsFailsAfterUpdate(t *testing.T) {
-	svc := &fakeSettingsService{
-		getSettingsFn: func(_ context.Context) (domain.AppSettings, error) {
-			return domain.AppSettings{}, domain.ErrIO
-		},
-		updateRegistrationEnabledFn: func(_ context.Context, _ string, _ bool) error { return nil },
-	}
-	h := handler.NewSettingsHandler(svc, slog.New(slog.DiscardHandler))
-
-	w := patchAdminSettings(t, h, "user-1", `{"registration_enabled":true}`)
-
-	require.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
 func TestUpdateSettingsHandlerShouldReturn500WhenUpdateFails(t *testing.T) {
 	svc := &fakeSettingsService{
 		getSettingsFn: func(_ context.Context) (domain.AppSettings, error) { return domain.AppSettings{}, nil },
