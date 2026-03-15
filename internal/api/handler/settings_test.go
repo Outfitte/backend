@@ -143,3 +143,40 @@ func TestUpdateSettingsHandlerShouldReturn200WithUpdatedSettingsWhenSucceeds(t *
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, false, body["registration_enabled"])
 }
+
+// statefulSettingsService is an in-memory settings service for cycle tests.
+type statefulSettingsService struct {
+	settings domain.AppSettings
+}
+
+func (s *statefulSettingsService) GetSettings(_ context.Context) (domain.AppSettings, error) {
+	return s.settings, nil
+}
+
+func (s *statefulSettingsService) UpdateRegistrationEnabled(_ context.Context, _ string, enabled bool) error {
+	s.settings.RegistrationEnabled = enabled
+	return nil
+}
+
+func TestSettingsCycleShouldReflectUpdateWhenReadUpdateRead(t *testing.T) {
+	svc := &statefulSettingsService{settings: domain.AppSettings{RegistrationEnabled: true}}
+	h := handler.NewSettingsHandler(svc, slog.New(slog.DiscardHandler))
+
+	// Step 1: Read initial settings — registration enabled.
+	w := getAdminSettings(t, h)
+	require.Equal(t, http.StatusOK, w.Code)
+	var initial map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&initial))
+	require.Equal(t, true, initial["registration_enabled"])
+
+	// Step 2: Update — disable registration.
+	w = patchAdminSettings(t, h, "admin-1", `{"registration_enabled":false}`)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Step 3: Read again — registration should now be disabled.
+	w = getAdminSettings(t, h)
+	require.Equal(t, http.StatusOK, w.Code)
+	var updated map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&updated))
+	require.Equal(t, false, updated["registration_enabled"])
+}
