@@ -66,14 +66,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "username already taken"})
 			return
 		}
-		h.log.ErrorContext(ctx, "register failed", "err", err)
+		h.log.ErrorContext(ctx, "register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
 	accessToken, refreshToken, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		h.log.ErrorContext(ctx, "login after register failed", "err", err)
+		h.log.ErrorContext(ctx, "login after register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -118,7 +118,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 			return
 		}
-		h.log.ErrorContext(ctx, "login failed", "err", err)
+		h.log.ErrorContext(ctx, "login failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
