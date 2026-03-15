@@ -19,16 +19,21 @@ type tokenIssuer interface {
 	Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error)
 }
 
-// AuthHandler handles POST /auth/register.
-type AuthHandler struct {
-	users userRegistrar
-	auth  tokenIssuer
-	log   *slog.Logger
+type tokenRefresher interface {
+	Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
 }
 
-// NewAuthHandler creates an AuthHandler.
-func NewAuthHandler(users userRegistrar, auth tokenIssuer, log *slog.Logger) *AuthHandler {
-	return &AuthHandler{users: users, auth: auth, log: log}
+// AuthHandler handles POST /auth/register.
+type AuthHandler struct {
+	users   userRegistrar
+	auth    tokenIssuer
+	refresh tokenRefresher
+	log     *slog.Logger
+}
+
+// NewAuthHandler creates an AuthHandler with a logger pre-scoped to handler=auth.
+func NewAuthHandler(users userRegistrar, auth tokenIssuer, refresh tokenRefresher, log *slog.Logger) *AuthHandler {
+	return &AuthHandler{users: users, auth: auth, refresh: refresh, log: log.With("handler", "auth")}
 }
 
 type registerRequest struct {
@@ -52,7 +57,8 @@ type registerResponse struct {
 // Register handles POST /auth/register.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.log.InfoContext(ctx, "register called")
+	log := h.log.With("call", "Register")
+	log.InfoContext(ctx, "started")
 
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,19 +72,19 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "username already taken"})
 			return
 		}
-		h.log.ErrorContext(ctx, "register failed", "error", err)
+		log.ErrorContext(ctx, "register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
 	accessToken, refreshToken, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		h.log.ErrorContext(ctx, "login after register failed", "error", err)
+		log.ErrorContext(ctx, "login after register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
-	h.log.InfoContext(ctx, "register succeeded", "user_id", user.GetID())
+	log.InfoContext(ctx, "succeeded", "user_id", user.GetID())
 	writeJSON(w, http.StatusCreated, registerResponse{
 		User: userResponse{
 			ID:        user.GetID(),
@@ -104,7 +110,8 @@ type loginResponse struct {
 // Login handles POST /auth/login.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.log.InfoContext(ctx, "login called")
+	log := h.log.With("call", "Login")
+	log.InfoContext(ctx, "started")
 
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -118,15 +125,54 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 			return
 		}
-		h.log.ErrorContext(ctx, "login failed", "error", err)
+		log.ErrorContext(ctx, "login failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
-	h.log.InfoContext(ctx, "login succeeded")
+	log.InfoContext(ctx, "succeeded")
 	writeJSON(w, http.StatusOK, loginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+	})
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type refreshResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// Refresh handles POST /auth/refresh.
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Refresh")
+	log.InfoContext(ctx, "started")
+
+	var req refreshRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	accessToken, newRefreshToken, err := h.refresh.Refresh(ctx, req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorized) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired refresh token"})
+			return
+		}
+		log.ErrorContext(ctx, "refresh failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded")
+	writeJSON(w, http.StatusOK, refreshResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
 	})
 }
 

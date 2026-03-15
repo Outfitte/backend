@@ -32,10 +32,27 @@ func (f *fakeTokenIssuer) Login(ctx context.Context, username, password string) 
 	return f.loginFn(ctx, username, password)
 }
 
+type fakeTokenRefresher struct {
+	refreshFn func(ctx context.Context, refreshToken string) (string, string, error)
+}
+
+func (f *fakeTokenRefresher) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
+	return f.refreshFn(ctx, refreshToken)
+}
+
 // --- helpers ---
 
 func newAuthHandler(users *fakeUserRegistrar, auth *fakeTokenIssuer) *handler.AuthHandler {
-	return handler.NewAuthHandler(users, auth, slog.New(slog.DiscardHandler))
+	return handler.NewAuthHandler(users, auth, &fakeTokenRefresher{}, slog.New(slog.DiscardHandler))
+}
+
+func postRefresh(t *testing.T, h *handler.AuthHandler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/refresh", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.Refresh(w, req)
+	return w
 }
 
 func postRegister(t *testing.T, h *handler.AuthHandler, body string) *httptest.ResponseRecorder {
@@ -205,6 +222,77 @@ func TestLoginHandlerShouldReturn200WhenLoginSucceeds(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "access-tok", body["access_token"])
 	require.Equal(t, "refresh-tok", body["refresh_token"])
+}
+
+func TestRefreshHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{}
+	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `not-json`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "invalid request body", body["error"])
+}
+
+func TestRefreshHandlerShouldReturn401WhenTokenIsInvalidOrExpired(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
+			return "", "", domain.ErrUnauthorized
+		},
+	}
+	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "invalid or expired refresh token", body["error"])
+}
+
+func TestRefreshHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
+			return "", "", domain.ErrIO
+		},
+	}
+	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "internal server error", body["error"])
+}
+
+func TestRefreshHandlerShouldReturn200WhenRefreshSucceeds(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
+			return "new-access-tok", "new-refresh-tok", nil
+		},
+	}
+	h := handler.NewAuthHandler(users, auth, refresher, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "new-access-tok", body["access_token"])
+	require.Equal(t, "new-refresh-tok", body["refresh_token"])
 }
 
 func TestRegisterHandlerShouldReturn500WhenTokenIssuanceFails(t *testing.T) {
