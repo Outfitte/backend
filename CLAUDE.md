@@ -50,11 +50,13 @@ Decisions:
 
 Every HTTP handler constructor must pre-scope the logger with a `"handler"` key set to the handler name (e.g. `logger.With("handler", "auth")`).
 
-Every HTTP handler must emit two `slog` log lines via `InfoContext`:
-1. **On entry** — `"<action> started"` (e.g. `"register started"`)
-2. **On success** — `"<action> succeeded"` with relevant context fields (e.g. `"user_id"`)
+Every HTTP handler method must create a per-call scoped logger at the top with a `"call"` key set to the method name (e.g. `log := h.log.With("call", "Register")`), then use that logger for all log calls within the method.
 
-Error log calls must use `"error"` as the key for the error value (e.g. `h.log.ErrorContext(ctx, "...", "error", err)`).
+Every HTTP handler must emit two `slog` log lines via `InfoContext`:
+1. **On entry** — `"started"` (e.g. `log.InfoContext(ctx, "started")`)
+2. **On success** — `"succeeded"` with relevant context fields (e.g. `log.InfoContext(ctx, "succeeded", "user_id", id)`)
+
+Error log calls must use `"error"` as the key for the error value (e.g. `log.ErrorContext(ctx, "...", "error", err)`).
 
 ## Task Guidelines
 
