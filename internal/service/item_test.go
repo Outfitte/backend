@@ -456,6 +456,19 @@ func TestItemServiceDeletePhotoShouldReturnErrForbiddenWhenCallerIsNotOwner(t *t
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
+func TestItemServiceDeletePhotoShouldReturnErrNotFoundWhenPhotoKeyIsNotInItem(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.PhotoKeys = []string{"other.jpg"}
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	svc := NewItemService(store, &mockMediaProvider{})
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "missing.jpg")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestItemServiceDeletePhotoShouldReturnErrorWhenMediaDeleteFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"

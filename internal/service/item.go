@@ -158,6 +158,16 @@ func (s *ItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKe
 	if item.OwnerID != callerID {
 		return domain.ErrForbidden
 	}
+	found := false
+	for _, k := range item.PhotoKeys {
+		if k == photoKey {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return domain.ErrNotFound
+	}
 	if err := s.media.Delete(ctx, photoKey); err != nil {
 		return err
 	}
