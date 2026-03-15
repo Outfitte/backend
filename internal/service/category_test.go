@@ -39,3 +39,18 @@ func TestCategoryListAllShouldReturnAllPresetsWhenContextIsActive(t *testing.T) 
 		require.NotEmpty(t, c.ID)
 	}
 }
+
+func TestCategoryListAllShouldReturnStableIDsWhenCalledMultipleTimes(t *testing.T) {
+	svc := service.NewCategoryService()
+
+	first, err := svc.ListAll(t.Context())
+	require.NoError(t, err)
+
+	second, err := svc.ListAll(t.Context())
+	require.NoError(t, err)
+
+	require.Equal(t, len(first), len(second))
+	for i := range first {
+		require.Equal(t, first[i].ID, second[i].ID)
+	}
+}
