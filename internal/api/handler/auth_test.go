@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -367,6 +368,50 @@ func TestLogoutHandlerShouldReturn204WhenLogoutSucceeds(t *testing.T) {
 
 	require.Equal(t, http.StatusNoContent, w.Code)
 	require.Empty(t, w.Body.String())
+}
+
+func TestAuthCycleShouldSucceedWhenLoginRefreshAndLogout(t *testing.T) {
+	var logoutReceivedToken string
+
+	auth := &fakeTokenIssuer{
+		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
+			return "access-tok-1", "refresh-tok-1", nil
+		},
+	}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(_ context.Context, refreshToken string) (string, string, error) {
+			require.Equal(t, "refresh-tok-1", refreshToken)
+			return "access-tok-2", "refresh-tok-2", nil
+		},
+	}
+	logout := &fakeTokenLogout{
+		logoutFn: func(_ context.Context, refreshToken string) error {
+			logoutReceivedToken = refreshToken
+			return nil
+		},
+	}
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, auth, refresher, logout, slog.New(slog.DiscardHandler))
+
+	// Step 1: Login
+	w := postLogin(t, h, `{"username":"alice","password":"secret"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	var loginBody map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&loginBody))
+	require.Equal(t, "access-tok-1", loginBody["access_token"])
+	require.Equal(t, "refresh-tok-1", loginBody["refresh_token"])
+
+	// Step 2: Refresh using the token from login
+	w = postRefresh(t, h, fmt.Sprintf(`{"refresh_token":%q}`, loginBody["refresh_token"]))
+	require.Equal(t, http.StatusOK, w.Code)
+	var refreshBody map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&refreshBody))
+	require.Equal(t, "access-tok-2", refreshBody["access_token"])
+	require.Equal(t, "refresh-tok-2", refreshBody["refresh_token"])
+
+	// Step 3: Logout using the rotated token from refresh
+	w = postLogout(t, h, fmt.Sprintf(`{"refresh_token":%q}`, refreshBody["refresh_token"]))
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "refresh-tok-2", logoutReceivedToken)
 }
 
 func TestRegisterHandlerShouldReturn500WhenTokenIssuanceFails(t *testing.T) {
