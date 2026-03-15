@@ -18,6 +18,7 @@ type Config struct {
 	StorageDataPath  string
 	MediaStoragePath string
 	LogLevel         slog.Level
+	JWTSecret        string
 }
 
 // Load reads configuration from environment variables, applies defaults,
@@ -38,6 +39,7 @@ func loadFromEnv(cfg *Config) error {
 	cfg.AppEnv = getEnv("APP_ENV", "dev")
 	cfg.StorageDataPath = os.Getenv("STORAGE_DATA_PATH")
 	cfg.MediaStoragePath = os.Getenv("MEDIA_STORAGE_PATH")
+	cfg.JWTSecret = os.Getenv("JWT_SECRET")
 
 	lvl, err := parseLogLevel(getEnv("LOG_LEVEL", "info"))
 	if err != nil {
@@ -63,8 +65,14 @@ func (c *Config) validate() error {
 	if c.MediaStoragePath == "" {
 		missing = append(missing, "MEDIA_STORAGE_PATH")
 	}
+	if c.JWTSecret == "" {
+		missing = append(missing, "JWT_SECRET")
+	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 characters (got %d); generate one with: openssl rand -hex 32", len(c.JWTSecret))
 	}
 	port, err := strconv.Atoi(c.ServerPort)
 	if err != nil || port < 1 || port > 65535 {

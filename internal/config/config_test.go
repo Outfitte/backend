@@ -13,6 +13,7 @@ import (
 func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -23,6 +24,7 @@ func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
 func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("SERVER_PORT", "")
 	t.Setenv("APP_ENV", "")
 	t.Setenv("LOG_LEVEL", "")
@@ -37,6 +39,7 @@ func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -47,6 +50,7 @@ func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
 func TestLoadShouldErrorWhenServerPortIsInvalid(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("SERVER_PORT", "notaport")
 
 	_, err := config.Load()
@@ -60,6 +64,7 @@ func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/var/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/var/media")
 	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -68,14 +73,46 @@ func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	assert.Equal(t, "/var/data", cfg.StorageDataPath)
 	assert.Equal(t, "/var/media", cfg.MediaStoragePath)
 	assert.Equal(t, slog.LevelDebug, cfg.LogLevel)
+	assert.Equal(t, "a-secure-random-string-that-is-32-chars!!", cfg.JWTSecret)
 }
 
 func TestLoadShouldErrorWhenLogLevelIsUnrecognized(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("LOG_LEVEL", "verbose")
 
 	_, err := config.Load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "LOG_LEVEL")
+}
+
+func TestLoadShouldReadJWTSecretWhenSetAndLongEnough(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "a-secure-random-string-that-is-32-chars!!", cfg.JWTSecret)
+}
+
+func TestLoadShouldErrorWhenJWTSecretIsTooShort(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "tooshort")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "JWT_SECRET")
+}
+
+func TestLoadShouldErrorWhenJWTSecretIsMissing(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "JWT_SECRET")
 }
