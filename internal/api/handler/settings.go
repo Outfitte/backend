@@ -46,7 +46,12 @@ func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	callerID, _ := middleware.UserIDFromContext(ctx)
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
 
 	if err := h.settings.UpdateRegistrationEnabled(ctx, callerID, req.RegistrationEnabled); err != nil {
 		log.ErrorContext(ctx, "update settings failed", "error", err)

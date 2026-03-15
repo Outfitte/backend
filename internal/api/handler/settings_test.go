@@ -84,6 +84,21 @@ func TestGetSettingsHandlerShouldReturn200WithSettingsWhenServiceSucceeds(t *tes
 	require.Equal(t, true, body["registration_enabled"])
 }
 
+func TestUpdateSettingsHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	svc := &fakeSettingsService{
+		getSettingsFn:               func(_ context.Context) (domain.AppSettings, error) { return domain.AppSettings{}, nil },
+		updateRegistrationEnabledFn: func(_ context.Context, _ string, _ bool) error { return nil },
+	}
+	h := handler.NewSettingsHandler(svc, slog.New(slog.DiscardHandler))
+
+	// No user ID injected into context — simulates missing auth middleware.
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/admin/settings", strings.NewReader(`{"registration_enabled":true}`))
+	w := httptest.NewRecorder()
+	h.UpdateSettings(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestUpdateSettingsHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	svc := &fakeSettingsService{
 		getSettingsFn:               func(_ context.Context) (domain.AppSettings, error) { return domain.AppSettings{}, nil },
