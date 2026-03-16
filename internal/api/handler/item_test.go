@@ -327,6 +327,58 @@ func TestAssignLocationHandlerShouldReturn204WhenLocationAssignedSuccessfully(t 
 	require.Equal(t, locID, *gotLocationID)
 }
 
+// ── List ──────────────────────────────────────────────────────────────────────
+
+func TestListHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/items", http.NoBody)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestListHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		listByOwnerFn: func(_ context.Context, _ string) ([]domain.Item, error) {
+			return nil, domain.ErrIO
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := listItems(t, h, "user-1")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T) {
+	var item1, item2 domain.Item
+	item1.ID = "item-1"
+	item1.OwnerID = "user-1"
+	item1.Name = "Blue Shirt"
+	item2.ID = "item-2"
+	item2.OwnerID = "user-1"
+	item2.Name = "Black Jeans"
+
+	svc := &fakeItemService{
+		listByOwnerFn: func(_ context.Context, callerID string) ([]domain.Item, error) {
+			require.Equal(t, "user-1", callerID)
+			return []domain.Item{item1, item2}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := listItems(t, h, "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got []domain.Item
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Len(t, got, 2)
+	require.Equal(t, "item-1", got[0].ID)
+	require.Equal(t, "item-2", got[1].ID)
+}
+
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
 	var gotLocationID *string
 	called := false
