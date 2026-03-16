@@ -34,6 +34,7 @@ func (s *LocationService) validateParent(ctx context.Context, callerID string, p
 	return nil
 }
 
+// GetByID returns the location identified by locationID if it belongs to callerID.
 func (s *LocationService) GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err
