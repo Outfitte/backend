@@ -20,6 +20,17 @@ func NewLocationService(locations ports.StorageProvider[domain.Location]) *Locat
 	return &LocationService{locations: locations}
 }
 
+func (s *LocationService) getOwnedLocation(ctx context.Context, callerID, locationID string) (domain.Location, error) {
+	loc, err := s.locations.Get(ctx, locationID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	if loc.OwnerID != callerID {
+		return domain.Location{}, domain.ErrForbidden
+	}
+	return loc, nil
+}
+
 func (s *LocationService) validateParent(ctx context.Context, callerID string, parentID *string) error {
 	if parentID == nil {
 		return nil
@@ -39,14 +50,7 @@ func (s *LocationService) GetByID(ctx context.Context, callerID, locationID stri
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err
 	}
-	loc, err := s.locations.Get(ctx, locationID)
-	if err != nil {
-		return domain.Location{}, err
-	}
-	if loc.OwnerID != callerID {
-		return domain.Location{}, domain.ErrForbidden
-	}
-	return loc, nil
+	return s.getOwnedLocation(ctx, callerID, locationID)
 }
 
 // ListByOwner returns all locations belonging to callerID.
@@ -65,6 +69,22 @@ func (s *LocationService) ListByOwner(ctx context.Context, callerID string) ([]d
 		}
 	}
 	return result, nil
+}
+
+// Update changes the label of the location identified by locationID if it belongs to callerID.
+func (s *LocationService) Update(ctx context.Context, callerID, locationID, label string) (domain.Location, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Location{}, err
+	}
+	loc, err := s.getOwnedLocation(ctx, callerID, locationID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	loc.Label = label
+	if err := s.locations.Save(ctx, loc); err != nil {
+		return domain.Location{}, err
+	}
+	return loc, nil
 }
 
 func (s *LocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {

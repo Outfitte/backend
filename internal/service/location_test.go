@@ -151,6 +151,73 @@ func TestLocationServiceListByOwnerShouldReturnOnlyCallerLocations(t *testing.T)
 	require.ElementsMatch(t, []domain.Location{loc1, loc3}, got)
 }
 
+// ── Update ────────────────────────────────────────────────────────────────────
+
+func TestLocationServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewLocationService(&mockLocationStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.Update(ctx, "owner-1", "loc-1", "New Label")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLocationServiceUpdateShouldReturnErrorWhenStoreGetFails(t *testing.T) {
+	store := &mockLocationStore{getErr: domain.ErrIO}
+	svc := NewLocationService(store)
+
+	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLocationServiceUpdateShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
+	svc := NewLocationService(&mockLocationStore{})
+
+	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestLocationServiceUpdateShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-2"
+
+	store := &mockLocationStore{locations: []domain.Location{loc}}
+	svc := NewLocationService(store)
+
+	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestLocationServiceUpdateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	store := &mockLocationStore{locations: []domain.Location{loc}, saveErr: domain.ErrIO}
+	svc := NewLocationService(store)
+
+	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLocationServiceUpdateShouldReturnUpdatedLocationWhenCallerIsOwner(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+	loc.Label = "Old Label"
+
+	store := &mockLocationStore{locations: []domain.Location{loc}}
+	svc := NewLocationService(store)
+
+	got, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
+	require.NoError(t, err)
+	require.Equal(t, "loc-1", got.GetID())
+	require.Equal(t, "owner-1", got.OwnerID)
+	require.Equal(t, "New Label", got.Label)
+	require.Equal(t, "New Label", store.locations[0].Label)
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
