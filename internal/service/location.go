@@ -34,6 +34,20 @@ func (s *LocationService) validateParent(ctx context.Context, callerID string, p
 	return nil
 }
 
+func (s *LocationService) GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Location{}, err
+	}
+	loc, err := s.locations.Get(ctx, locationID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	if loc.OwnerID != callerID {
+		return domain.Location{}, domain.ErrForbidden
+	}
+	return loc, nil
+}
+
 func (s *LocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err

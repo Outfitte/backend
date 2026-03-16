@@ -63,6 +63,58 @@ func (m *mockLocationStore) Delete(_ context.Context, id string) error {
 	return domain.ErrNotFound
 }
 
+// ── GetByID ───────────────────────────────────────────────────────────────────
+
+func TestLocationServiceGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewLocationService(&mockLocationStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.GetByID(ctx, "owner-1", "loc-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLocationServiceGetByIDShouldReturnErrorWhenStoreGetFails(t *testing.T) {
+	store := &mockLocationStore{getErr: domain.ErrIO}
+	svc := NewLocationService(store)
+
+	_, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLocationServiceGetByIDShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	store := &mockLocationStore{locations: []domain.Location{loc}}
+	svc := NewLocationService(store)
+
+	_, err := svc.GetByID(t.Context(), "owner-2", "loc-1")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestLocationServiceGetByIDShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
+	svc := NewLocationService(&mockLocationStore{})
+
+	_, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestLocationServiceGetByIDShouldReturnLocationWhenCallerIsOwner(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+	loc.Label = "Closet"
+
+	store := &mockLocationStore{locations: []domain.Location{loc}}
+	svc := NewLocationService(store)
+
+	got, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
+	require.NoError(t, err)
+	require.Equal(t, loc, got)
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
