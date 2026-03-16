@@ -103,3 +103,29 @@ func TestCreateLocationHandlerShouldReturn201WithLocationWhenCreatedSuccessfully
 	require.Equal(t, "loc-42", got.ID)
 	require.Equal(t, "Wardrobe", got.Label)
 }
+
+func TestCreateLocationHandlerShouldReturn404WhenParentLocationNotFound(t *testing.T) {
+	svc := &fakeLocationService{
+		createFn: func(_ context.Context, _, _ string, _ *string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrNotFound
+		},
+	}
+	h := newLocationHandler(svc)
+
+	w := postLocation(t, h, "user-1", `{"label":"Shelf","parent_id":"ghost-id"}`)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestCreateLocationHandlerShouldReturn403WhenParentLocationForbidden(t *testing.T) {
+	svc := &fakeLocationService{
+		createFn: func(_ context.Context, _, _ string, _ *string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrForbidden
+		},
+	}
+	h := newLocationHandler(svc)
+
+	w := postLocation(t, h, "user-1", `{"label":"Shelf","parent_id":"other-user-loc"}`)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
