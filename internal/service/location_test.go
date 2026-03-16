@@ -115,6 +115,42 @@ func TestLocationServiceGetByIDShouldReturnLocationWhenCallerIsOwner(t *testing.
 	require.Equal(t, loc, got)
 }
 
+// ── ListByOwner ───────────────────────────────────────────────────────────────
+
+func TestLocationServiceListByOwnerShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewLocationService(&mockLocationStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.ListByOwner(ctx, "owner-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLocationServiceListByOwnerShouldReturnErrorWhenStoreListFails(t *testing.T) {
+	store := &mockLocationStore{listErr: domain.ErrIO}
+	svc := NewLocationService(store)
+
+	_, err := svc.ListByOwner(t.Context(), "owner-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLocationServiceListByOwnerShouldReturnOnlyCallerLocations(t *testing.T) {
+	var loc1, loc2, loc3 domain.Location
+	loc1.ID = "loc-1"
+	loc1.OwnerID = "owner-1"
+	loc2.ID = "loc-2"
+	loc2.OwnerID = "owner-2"
+	loc3.ID = "loc-3"
+	loc3.OwnerID = "owner-1"
+
+	store := &mockLocationStore{locations: []domain.Location{loc1, loc2, loc3}}
+	svc := NewLocationService(store)
+
+	got, err := svc.ListByOwner(t.Context(), "owner-1")
+	require.NoError(t, err)
+	require.ElementsMatch(t, []domain.Location{loc1, loc3}, got)
+}
+
 // ── Create ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {

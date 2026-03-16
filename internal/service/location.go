@@ -49,6 +49,24 @@ func (s *LocationService) GetByID(ctx context.Context, callerID, locationID stri
 	return loc, nil
 }
 
+// ListByOwner returns all locations belonging to callerID.
+func (s *LocationService) ListByOwner(ctx context.Context, callerID string) ([]domain.Location, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	locs, err := s.locations.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var result []domain.Location
+	for _, loc := range locs {
+		if loc.OwnerID == callerID {
+			result = append(result, loc)
+		}
+	}
+	return result, nil
+}
+
 func (s *LocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err
