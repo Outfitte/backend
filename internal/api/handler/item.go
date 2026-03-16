@@ -277,6 +277,41 @@ func (h *ItemHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // UploadPhoto handles POST /items/{id}/photos.
 func (h *ItemHandler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "UploadPhoto")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	itemID := r.PathValue("id")
+	file, header, err := r.FormFile("photo")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing or invalid photo"})
+		return
+	}
+	defer file.Close()
+
+	if err := h.items.UploadPhoto(ctx, callerID, itemID, file, header.Filename); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		log.ErrorContext(ctx, "upload photo failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "item_id", itemID)
+	w.WriteHeader(http.StatusCreated)
 }
 
 // DeletePhoto handles DELETE /items/{id}/photos/{key}.

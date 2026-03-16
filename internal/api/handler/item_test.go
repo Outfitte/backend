@@ -612,6 +612,98 @@ func TestDeleteHandlerShouldReturn204WhenItemDeletedSuccessfully(t *testing.T) {
 	require.Equal(t, "item-42", gotItemID)
 }
 
+// ── UploadPhoto ───────────────────────────────────────────────────────────────
+
+func TestUploadPhotoHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.Close())
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/items/item-1/photos", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.SetPathValue("id", "item-1")
+	w := httptest.NewRecorder()
+	h.UploadPhoto(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUploadPhotoHandlerShouldReturn400WhenPhotoFieldIsMissing(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.Close())
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/items/item-1/photos", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.SetPathValue("id", "item-1")
+	w := httptest.NewRecorder()
+	h.UploadPhoto(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUploadPhotoHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
+	svc := &fakeItemService{
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
+			return domain.ErrNotFound
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := uploadPhoto(t, h, "item-1", "user-1", "photo.jpg", "data")
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUploadPhotoHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
+	svc := &fakeItemService{
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
+			return domain.ErrForbidden
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := uploadPhoto(t, h, "item-1", "user-2", "photo.jpg", "data")
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestUploadPhotoHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
+			return domain.ErrIO
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := uploadPhoto(t, h, "item-1", "user-1", "photo.jpg", "data")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUploadPhotoHandlerShouldReturn201WhenPhotoUploadedSuccessfully(t *testing.T) {
+	var gotCallerID, gotItemID, gotFilename string
+	svc := &fakeItemService{
+		uploadPhotoFn: func(_ context.Context, callerID, itemID string, _ io.Reader, filename string) error {
+			gotCallerID = callerID
+			gotItemID = itemID
+			gotFilename = filename
+			return nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := uploadPhoto(t, h, "item-42", "user-1", "photo.jpg", "image data")
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.Equal(t, "user-1", gotCallerID)
+	require.Equal(t, "item-42", gotItemID)
+	require.Equal(t, "photo.jpg", gotFilename)
+}
+
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
 	var gotLocationID *string
 	called := false
