@@ -20,18 +20,26 @@ func NewLocationService(locations ports.StorageProvider[domain.Location]) *Locat
 	return &LocationService{locations: locations}
 }
 
+func (s *LocationService) validateParent(ctx context.Context, callerID string, parentID *string) error {
+	if parentID == nil {
+		return nil
+	}
+	parent, err := s.locations.Get(ctx, *parentID)
+	if err != nil {
+		return err
+	}
+	if parent.OwnerID != callerID {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+
 func (s *LocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err
 	}
-	if parentID != nil {
-		parent, err := s.locations.Get(ctx, *parentID)
-		if err != nil {
-			return domain.Location{}, err
-		}
-		if parent.OwnerID != callerID {
-			return domain.Location{}, domain.ErrForbidden
-		}
+	if err := s.validateParent(ctx, callerID, parentID); err != nil {
+		return domain.Location{}, err
 	}
 	var loc domain.Location
 	loc.ID = uuid.NewString()
