@@ -13,7 +13,6 @@ jobs:
   claude-response:
     runs-on: claude-runner
     steps:
-      - uses: oven-sh/setup-bun@v2
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
