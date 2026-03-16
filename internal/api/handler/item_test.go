@@ -704,6 +704,79 @@ func TestUploadPhotoHandlerShouldReturn201WhenPhotoUploadedSuccessfully(t *testi
 	require.Equal(t, "photo.jpg", gotFilename)
 }
 
+// ── DeletePhoto ───────────────────────────────────────────────────────────────
+
+func TestDeletePhotoHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/items/item-1/photos/key-1", http.NoBody)
+	req.SetPathValue("id", "item-1")
+	req.SetPathValue("key", "key-1")
+	w := httptest.NewRecorder()
+	h.DeletePhoto(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeletePhotoHandlerShouldReturn404WhenPhotoDoesNotExist(t *testing.T) {
+	svc := &fakeItemService{
+		deletePhotoFn: func(_ context.Context, _, _, _ string) error {
+			return domain.ErrNotFound
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deletePhoto(t, h, "item-1", "user-1", "key-1")
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDeletePhotoHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
+	svc := &fakeItemService{
+		deletePhotoFn: func(_ context.Context, _, _, _ string) error {
+			return domain.ErrForbidden
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deletePhoto(t, h, "item-1", "user-2", "key-1")
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDeletePhotoHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		deletePhotoFn: func(_ context.Context, _, _, _ string) error {
+			return domain.ErrIO
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deletePhoto(t, h, "item-1", "user-1", "key-1")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeletePhotoHandlerShouldReturn204WhenPhotoDeletedSuccessfully(t *testing.T) {
+	var gotCallerID, gotItemID, gotPhotoKey string
+	svc := &fakeItemService{
+		deletePhotoFn: func(_ context.Context, callerID, itemID, photoKey string) error {
+			gotCallerID = callerID
+			gotItemID = itemID
+			gotPhotoKey = photoKey
+			return nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deletePhoto(t, h, "item-42", "user-1", "key-99")
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "user-1", gotCallerID)
+	require.Equal(t, "item-42", gotItemID)
+	require.Equal(t, "key-99", gotPhotoKey)
+}
+
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
 	var gotLocationID *string
 	called := false
