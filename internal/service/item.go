@@ -39,13 +39,54 @@ type UpdateItemInput struct {
 
 // ItemService manages wardrobe items.
 type ItemService struct {
-	items ports.StorageProvider[domain.Item]
-	media ports.MediaProvider
+	items     ports.StorageProvider[domain.Item]
+	locations ports.StorageProvider[domain.Location]
+	media     ports.MediaProvider
 }
 
 // NewItemService constructs an ItemService backed by the given storage and media providers.
-func NewItemService(items ports.StorageProvider[domain.Item], media ports.MediaProvider) *ItemService {
-	return &ItemService{items: items, media: media}
+func NewItemService(items ports.StorageProvider[domain.Item], media ports.MediaProvider, locations ports.StorageProvider[domain.Location]) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media}
+}
+
+func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item, err := s.getOwnedItem(ctx, callerID, itemID)
+	if err != nil {
+		return err
+	}
+	if err := s.validateLocationOwnership(ctx, callerID, locationID); err != nil {
+		return err
+	}
+	item.LocationID = locationID
+	return s.items.Save(ctx, item)
+}
+
+func (s *ItemService) getOwnedItem(ctx context.Context, callerID, itemID string) (domain.Item, error) {
+	item, err := s.items.Get(ctx, itemID)
+	if err != nil {
+		return domain.Item{}, err
+	}
+	if item.OwnerID != callerID {
+		return domain.Item{}, domain.ErrForbidden
+	}
+	return item, nil
+}
+
+func (s *ItemService) validateLocationOwnership(ctx context.Context, callerID string, locationID *string) error {
+	if locationID == nil {
+		return nil
+	}
+	loc, err := s.locations.Get(ctx, *locationID)
+	if err != nil {
+		return err
+	}
+	if loc.OwnerID != callerID {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
 func (s *ItemService) Create(ctx context.Context, callerID string, input CreateItemInput) (domain.Item, error) {

@@ -15,7 +15,8 @@ import (
 func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T) {
 	store := jsonstore.NewProvider[domain.Item](t.TempDir(), "items.json")
 	media := local.NewProvider(t.TempDir())
-	svc := service.NewItemService(store, media)
+	locStore := jsonstore.NewProvider[domain.Location](t.TempDir(), "locations.json")
+	svc := service.NewItemService(store, media, locStore)
 
 	ctx := t.Context()
 
