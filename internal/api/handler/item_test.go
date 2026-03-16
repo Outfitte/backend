@@ -379,6 +379,82 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	require.Equal(t, "item-2", got[1].ID)
 }
 
+// ── GetByID ───────────────────────────────────────────────────────────────────
+
+func TestGetByIDHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/items/item-1", http.NoBody)
+	req.SetPathValue("id", "item-1")
+	w := httptest.NewRecorder()
+	h.GetByID(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGetByIDHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return domain.Item{}, domain.ErrNotFound
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-1", "user-1")
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetByIDHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return domain.Item{}, domain.ErrForbidden
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-1", "user-2")
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestGetByIDHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return domain.Item{}, domain.ErrIO
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-1", "user-1")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, callerID, itemID string) (domain.Item, error) {
+			require.Equal(t, "user-1", callerID)
+			require.Equal(t, "item-42", itemID)
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got domain.Item
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "item-42", got.ID)
+	require.Equal(t, "Blue Shirt", got.Name)
+}
+
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
 	var gotLocationID *string
 	called := false
