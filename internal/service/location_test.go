@@ -501,51 +501,6 @@ func TestLocationServiceUpdateShouldReturnUpdatedLocationWhenCallerIsOwner(t *te
 	require.Equal(t, "New Label", store.locations[0].Label)
 }
 
-// ── Full cycle ────────────────────────────────────────────────────────────────
-
-func TestLocationServiceShouldSucceedWhenRunningFullCreateUpdateListMoveDeleteCycle(t *testing.T) {
-	locStore := &mockLocationStore{}
-	svc := NewLocationService(locStore, &mockItemStore{})
-	ctx := t.Context()
-
-	// Create root location.
-	root, err := svc.Create(ctx, "owner-1", "Wardrobe", nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, root.GetID())
-
-	// Create child location under root.
-	child, err := svc.Create(ctx, "owner-1", "Shelf", &[]string{root.GetID()}[0])
-	require.NoError(t, err)
-	require.NotEmpty(t, child.GetID())
-	require.Equal(t, root.GetID(), *child.ParentID)
-
-	// Update child label.
-	updated, err := svc.Update(ctx, "owner-1", child.GetID(), "Top Shelf")
-	require.NoError(t, err)
-	require.Equal(t, "Top Shelf", updated.Label)
-
-	// List — both locations belong to owner-1.
-	locs, err := svc.ListByOwner(ctx, "owner-1")
-	require.NoError(t, err)
-	require.Len(t, locs, 2)
-
-	// Move child to root (nil parent).
-	moved, err := svc.Move(ctx, "owner-1", child.GetID(), nil)
-	require.NoError(t, err)
-	require.Nil(t, moved.ParentID)
-
-	// Delete child first (now at root, no children, no items).
-	err = svc.Delete(ctx, "owner-1", child.GetID())
-	require.NoError(t, err)
-
-	// Delete root.
-	err = svc.Delete(ctx, "owner-1", root.GetID())
-	require.NoError(t, err)
-
-	// Store must be empty.
-	require.Empty(t, locStore.locations)
-}
-
 // ── Create ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -628,4 +583,50 @@ func TestLocationServiceCreateShouldCreateChildLocationWhenParentExists(t *testi
 	require.Equal(t, "parent-1", *loc.ParentID)
 	require.False(t, loc.CreatedAt.IsZero())
 	require.Len(t, store.locations, 2)
+}
+
+// ── Full cycle ────────────────────────────────────────────────────────────────
+
+func TestLocationServiceShouldSucceedWhenRunningFullCreateUpdateListMoveDeleteCycle(t *testing.T) {
+	locStore := &mockLocationStore{}
+	svc := NewLocationService(locStore, &mockItemStore{})
+	ctx := t.Context()
+
+	// Create root location.
+	root, err := svc.Create(ctx, "owner-1", "Wardrobe", nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, root.GetID())
+
+	// Create child location under root.
+	rootID := root.GetID()
+	child, err := svc.Create(ctx, "owner-1", "Shelf", &rootID)
+	require.NoError(t, err)
+	require.NotEmpty(t, child.GetID())
+	require.Equal(t, rootID, *child.ParentID)
+
+	// Update child label.
+	updated, err := svc.Update(ctx, "owner-1", child.GetID(), "Top Shelf")
+	require.NoError(t, err)
+	require.Equal(t, "Top Shelf", updated.Label)
+
+	// List — both locations belong to owner-1.
+	locs, err := svc.ListByOwner(ctx, "owner-1")
+	require.NoError(t, err)
+	require.Len(t, locs, 2)
+
+	// Move child to root (nil parent).
+	moved, err := svc.Move(ctx, "owner-1", child.GetID(), nil)
+	require.NoError(t, err)
+	require.Nil(t, moved.ParentID)
+
+	// Delete child first (now at root, no children, no items).
+	err = svc.Delete(ctx, "owner-1", child.GetID())
+	require.NoError(t, err)
+
+	// Delete root.
+	err = svc.Delete(ctx, "owner-1", root.GetID())
+	require.NoError(t, err)
+
+	// Store must be empty.
+	require.Empty(t, locStore.locations)
 }
