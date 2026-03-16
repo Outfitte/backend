@@ -13,11 +13,12 @@ import (
 // LocationService manages wardrobe locations.
 type LocationService struct {
 	locations ports.StorageProvider[domain.Location]
+	items     ports.StorageProvider[domain.Item]
 }
 
-// NewLocationService constructs a LocationService backed by the given storage provider.
-func NewLocationService(locations ports.StorageProvider[domain.Location]) *LocationService {
-	return &LocationService{locations: locations}
+// NewLocationService constructs a LocationService backed by the given storage and items providers.
+func NewLocationService(locations ports.StorageProvider[domain.Location], items ports.StorageProvider[domain.Item]) *LocationService {
+	return &LocationService{locations: locations, items: items}
 }
 
 func (s *LocationService) getOwnedLocation(ctx context.Context, callerID, locationID string) (domain.Location, error) {
@@ -85,6 +86,50 @@ func (s *LocationService) Update(ctx context.Context, callerID, locationID, labe
 		return domain.Location{}, err
 	}
 	return loc, nil
+}
+
+// Delete removes the location identified by locationID if it belongs to callerID
+// and has no children or items assigned.
+func (s *LocationService) Delete(ctx context.Context, callerID, locationID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if _, err := s.getOwnedLocation(ctx, callerID, locationID); err != nil {
+		return err
+	}
+	if err := s.checkNoChildLocations(ctx, locationID); err != nil {
+		return err
+	}
+	if err := s.checkNoAssignedItems(ctx, locationID); err != nil {
+		return err
+	}
+	return s.locations.Delete(ctx, locationID)
+}
+
+func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID string) error {
+	locs, err := s.locations.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, loc := range locs {
+		if loc.ParentID != nil && *loc.ParentID == locationID {
+			return domain.ErrConflict
+		}
+	}
+	return nil
+}
+
+func (s *LocationService) checkNoAssignedItems(ctx context.Context, locationID string) error {
+	items, err := s.items.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if item.LocationID != nil && *item.LocationID == locationID {
+			return domain.ErrConflict
+		}
+	}
+	return nil
 }
 
 func (s *LocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
