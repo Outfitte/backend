@@ -132,6 +132,53 @@ func (s *LocationService) checkNoAssignedItems(ctx context.Context, locationID s
 	return nil
 }
 
+// Move reparents the location identified by locationID to newParentID (nil = root).
+func (s *LocationService) Move(ctx context.Context, callerID, locationID string, newParentID *string) (domain.Location, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Location{}, err
+	}
+	loc, err := s.getOwnedLocation(ctx, callerID, locationID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	if err := s.validateParent(ctx, callerID, newParentID); err != nil {
+		return domain.Location{}, err
+	}
+	if newParentID != nil {
+		if err := s.checkNoCircularReference(ctx, locationID, *newParentID); err != nil {
+			return domain.Location{}, err
+		}
+	}
+	loc.ParentID = newParentID
+	if err := s.locations.Save(ctx, loc); err != nil {
+		return domain.Location{}, err
+	}
+	return loc, nil
+}
+
+func (s *LocationService) checkNoCircularReference(ctx context.Context, locationID, candidateID string) error {
+	locs, err := s.locations.List(ctx)
+	if err != nil {
+		return err
+	}
+	index := make(map[string]domain.Location, len(locs))
+	for _, l := range locs {
+		index[l.GetID()] = l
+	}
+	current := candidateID
+	for current != "" {
+		if current == locationID {
+			return domain.ErrConflict
+		}
+		l, ok := index[current]
+		if !ok || l.ParentID == nil {
+			break
+		}
+		current = *l.ParentID
+	}
+	return nil
+}
+
 func (s *LocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err
