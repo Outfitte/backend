@@ -455,6 +455,91 @@ func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T
 	require.Equal(t, "Blue Shirt", got.Name)
 }
 
+// ── Update ────────────────────────────────────────────────────────────────────
+
+func TestUpdateHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/items/item-1", strings.NewReader(`{}`))
+	req.SetPathValue("id", "item-1")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	w := patchItem(t, h, "item-1", "user-1", "not-json")
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrNotFound
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt"}`)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrForbidden
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-2", `{"name":"shirt"}`)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrIO
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt"}`)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T) {
+	var updated domain.Item
+	updated.ID = "item-42"
+	updated.OwnerID = "user-1"
+	updated.Name = "Red Jacket"
+
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error) {
+			require.Equal(t, "user-1", callerID)
+			require.Equal(t, "item-42", itemID)
+			require.Equal(t, "Red Jacket", input.Name)
+			return updated, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-42", "user-1", `{"name":"Red Jacket"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got domain.Item
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "item-42", got.ID)
+	require.Equal(t, "Red Jacket", got.Name)
+}
+
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
 	var gotLocationID *string
 	called := false
