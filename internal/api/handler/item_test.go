@@ -542,6 +542,76 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 	require.Equal(t, "Red Jacket", got.Name)
 }
 
+// ── Delete ────────────────────────────────────────────────────────────────────
+
+func TestDeleteHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/items/item-1", http.NoBody)
+	req.SetPathValue("id", "item-1")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeleteHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
+	svc := &fakeItemService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrNotFound
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deleteItem(t, h, "item-1", "user-1")
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDeleteHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
+	svc := &fakeItemService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrForbidden
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deleteItem(t, h, "item-1", "user-2")
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDeleteHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrIO
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deleteItem(t, h, "item-1", "user-1")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeleteHandlerShouldReturn204WhenItemDeletedSuccessfully(t *testing.T) {
+	var gotCallerID, gotItemID string
+	svc := &fakeItemService{
+		deleteFn: func(_ context.Context, callerID, itemID string) error {
+			gotCallerID = callerID
+			gotItemID = itemID
+			return nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deleteItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "user-1", gotCallerID)
+	require.Equal(t, "item-42", gotItemID)
+}
+
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
 	var gotLocationID *string
 	called := false
