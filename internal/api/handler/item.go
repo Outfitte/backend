@@ -129,6 +129,26 @@ func (h *ItemHandler) AssignLocation(w http.ResponseWriter, r *http.Request) {
 
 // List handles GET /items.
 func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "List")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	items, err := h.items.ListByOwner(ctx, callerID)
+	if err != nil {
+		log.ErrorContext(ctx, "list items failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "count", len(items))
+	writeJSON(w, http.StatusOK, items)
 }
 
 // GetByID handles GET /items/{id}.
