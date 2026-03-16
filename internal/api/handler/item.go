@@ -153,6 +153,35 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // GetByID handles GET /items/{id}.
 func (h *ItemHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "GetByID")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	itemID := r.PathValue("id")
+	item, err := h.items.GetByID(ctx, callerID, itemID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		log.ErrorContext(ctx, "get item failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "item_id", item.ID)
+	writeJSON(w, http.StatusOK, item)
 }
 
 // Update handles PATCH /items/{id}.
