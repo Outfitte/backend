@@ -245,6 +245,34 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /items/{id}.
 func (h *ItemHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Delete")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	itemID := r.PathValue("id")
+	if err := h.items.Delete(ctx, callerID, itemID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		log.ErrorContext(ctx, "delete item failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "item_id", itemID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // UploadPhoto handles POST /items/{id}/photos.
