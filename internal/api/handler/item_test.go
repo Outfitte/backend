@@ -856,6 +856,13 @@ func (s *statefulFakeItemService) Update(ctx context.Context, callerID, itemID s
 	}
 	item.Name = input.Name
 	item.Brand = input.Brand
+	item.CategoryID = input.CategoryID
+	item.Color = input.Color
+	item.Size = input.Size
+	item.PhotoKeys = input.PhotoKeys
+	item.LocationID = input.LocationID
+	item.PurchasePrice = input.PurchasePrice
+	item.PurchaseDate = input.PurchaseDate
 	s.items[itemID] = item
 	return item, nil
 }
@@ -877,15 +884,24 @@ func (s *statefulFakeItemService) Delete(ctx context.Context, callerID, itemID s
 	return nil
 }
 
-func (s *statefulFakeItemService) UploadPhoto(_ context.Context, _, _ string, _ io.Reader, _ string) error {
+func (s *statefulFakeItemService) UploadPhoto(ctx context.Context, _, _ string, _ io.Reader, _ string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (s *statefulFakeItemService) DeletePhoto(_ context.Context, _, _, _ string) error {
+func (s *statefulFakeItemService) DeletePhoto(ctx context.Context, _, _, _ string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (s *statefulFakeItemService) AssignLocation(_ context.Context, _, _ string, _ *string) error {
+func (s *statefulFakeItemService) AssignLocation(ctx context.Context, _, _ string, _ *string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -913,20 +929,27 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	client := ts.Client()
 
 	// 1. POST /items — create an item, assert 201 and returned item fields.
-	resp, err := client.Post(ts.URL+"/items", "application/json", strings.NewReader(`{"name":"Blue Shirt","brand":"Acme"}`))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, ts.URL+"/items", strings.NewReader(`{"name":"Blue Shirt","brand":"Acme","color":"Blue"}`))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 	var created domain.Item
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&created))
 	require.NotEmpty(t, created.ID)
+	require.Equal(t, callerID, created.OwnerID)
 	require.Equal(t, "Blue Shirt", created.Name)
 	require.Equal(t, "Acme", created.Brand)
+	require.Equal(t, "Blue", created.Color)
 
 	itemID := created.ID
 
 	// 2. GET /items — list all items, assert the created item is present.
-	resp, err = client.Get(ts.URL + "/items")
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, ts.URL+"/items", http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -934,19 +957,24 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&listed))
 	require.Len(t, listed, 1)
 	require.Equal(t, itemID, listed[0].ID)
+	require.Equal(t, callerID, listed[0].OwnerID)
 
 	// 3. GET /items/{id} — fetch the item by ID, assert fields match.
-	resp, err = client.Get(ts.URL + "/items/" + itemID)
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, ts.URL+"/items/"+itemID, http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	var fetched domain.Item
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&fetched))
 	require.Equal(t, itemID, fetched.ID)
+	require.Equal(t, callerID, fetched.OwnerID)
 	require.Equal(t, "Blue Shirt", fetched.Name)
+	require.Equal(t, "Blue", fetched.Color)
 
 	// 4. PATCH /items/{id} — update the item, assert 200 and updated fields.
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPatch, ts.URL+"/items/"+itemID, strings.NewReader(`{"name":"Red Jacket","brand":"Acme"}`))
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPatch, ts.URL+"/items/"+itemID, strings.NewReader(`{"name":"Red Jacket","brand":"Acme","color":"Red"}`))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err = client.Do(req)
@@ -957,6 +985,7 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&updated))
 	require.Equal(t, itemID, updated.ID)
 	require.Equal(t, "Red Jacket", updated.Name)
+	require.Equal(t, "Red", updated.Color)
 
 	// 5. DELETE /items/{id} — delete the item, assert 204.
 	req, err = http.NewRequestWithContext(t.Context(), http.MethodDelete, ts.URL+"/items/"+itemID, http.NoBody)
@@ -967,7 +996,9 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 	// 6. GET /items/{id} — confirm item is gone, assert 404.
-	resp, err = client.Get(ts.URL + "/items/" + itemID)
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodGet, ts.URL+"/items/"+itemID, http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
