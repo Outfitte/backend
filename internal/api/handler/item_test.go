@@ -516,6 +516,7 @@ func TestUpdateHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 }
 
 func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T) {
+	price := "49.99"
 	var updated domain.Item
 	updated.ID = "item-42"
 	updated.OwnerID = "user-1"
@@ -526,12 +527,13 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 			require.Equal(t, "user-1", callerID)
 			require.Equal(t, "item-42", itemID)
 			require.Equal(t, "Red Jacket", input.Name)
+			require.Equal(t, &price, input.PurchasePrice)
 			return updated, nil
 		},
 	}
 	h := newItemHandler(svc)
 
-	w := patchItem(t, h, "item-42", "user-1", `{"name":"Red Jacket"}`)
+	w := patchItem(t, h, "item-42", "user-1", `{"name":"Red Jacket","purchase_price":"49.99"}`)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var got domain.Item
