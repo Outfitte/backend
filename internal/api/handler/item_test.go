@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/api/handler"
@@ -775,6 +777,200 @@ func TestDeletePhotoHandlerShouldReturn204WhenPhotoDeletedSuccessfully(t *testin
 	require.Equal(t, "user-1", gotCallerID)
 	require.Equal(t, "item-42", gotItemID)
 	require.Equal(t, "key-99", gotPhotoKey)
+}
+
+// ── Full lifecycle integration ────────────────────────────────────────────────
+
+// statefulFakeItemService is an in-memory item store used in the lifecycle integration test.
+type statefulFakeItemService struct {
+	mu     sync.Mutex
+	items  map[string]domain.Item
+	nextID int
+}
+
+func newStatefulFakeItemService() *statefulFakeItemService {
+	return &statefulFakeItemService{items: make(map[string]domain.Item)}
+}
+
+func (s *statefulFakeItemService) Create(ctx context.Context, callerID string, input service.CreateItemInput) (domain.Item, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Item{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextID++
+	var item domain.Item
+	item.ID = fmt.Sprintf("item-%d", s.nextID)
+	item.OwnerID = callerID
+	item.Name = input.Name
+	item.Brand = input.Brand
+	item.Color = input.Color
+	item.Size = input.Size
+	s.items[item.ID] = item
+	return item, nil
+}
+
+func (s *statefulFakeItemService) ListByOwner(ctx context.Context, callerID string) ([]domain.Item, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var result []domain.Item
+	for _, item := range s.items {
+		if item.OwnerID == callerID {
+			result = append(result, item)
+		}
+	}
+	return result, nil
+}
+
+func (s *statefulFakeItemService) GetByID(ctx context.Context, callerID, itemID string) (domain.Item, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Item{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.items[itemID]
+	if !ok {
+		return domain.Item{}, domain.ErrNotFound
+	}
+	if item.OwnerID != callerID {
+		return domain.Item{}, domain.ErrForbidden
+	}
+	return item, nil
+}
+
+func (s *statefulFakeItemService) Update(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Item{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.items[itemID]
+	if !ok {
+		return domain.Item{}, domain.ErrNotFound
+	}
+	if item.OwnerID != callerID {
+		return domain.Item{}, domain.ErrForbidden
+	}
+	item.Name = input.Name
+	item.Brand = input.Brand
+	s.items[itemID] = item
+	return item, nil
+}
+
+func (s *statefulFakeItemService) Delete(ctx context.Context, callerID, itemID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.items[itemID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if item.OwnerID != callerID {
+		return domain.ErrForbidden
+	}
+	delete(s.items, itemID)
+	return nil
+}
+
+func (s *statefulFakeItemService) UploadPhoto(_ context.Context, _, _ string, _ io.Reader, _ string) error {
+	return nil
+}
+
+func (s *statefulFakeItemService) DeletePhoto(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
+func (s *statefulFakeItemService) AssignLocation(_ context.Context, _, _ string, _ *string) error {
+	return nil
+}
+
+func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
+	const callerID = "user-1"
+	svc := newStatefulFakeItemService()
+	h := handler.NewItemHandler(svc, slog.New(slog.DiscardHandler))
+
+	withUser := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := middleware.WithUserID(r.Context(), callerID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /items", withUser(http.HandlerFunc(h.Create)))
+	mux.Handle("GET /items", withUser(http.HandlerFunc(h.List)))
+	mux.Handle("GET /items/{id}", withUser(http.HandlerFunc(h.GetByID)))
+	mux.Handle("PATCH /items/{id}", withUser(http.HandlerFunc(h.Update)))
+	mux.Handle("DELETE /items/{id}", withUser(http.HandlerFunc(h.Delete)))
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	client := ts.Client()
+
+	// 1. POST /items — create an item, assert 201 and returned item fields.
+	resp, err := client.Post(ts.URL+"/items", "application/json", strings.NewReader(`{"name":"Blue Shirt","brand":"Acme"}`))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var created domain.Item
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&created))
+	require.NotEmpty(t, created.ID)
+	require.Equal(t, "Blue Shirt", created.Name)
+	require.Equal(t, "Acme", created.Brand)
+
+	itemID := created.ID
+
+	// 2. GET /items — list all items, assert the created item is present.
+	resp, err = client.Get(ts.URL + "/items")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var listed []domain.Item
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&listed))
+	require.Len(t, listed, 1)
+	require.Equal(t, itemID, listed[0].ID)
+
+	// 3. GET /items/{id} — fetch the item by ID, assert fields match.
+	resp, err = client.Get(ts.URL + "/items/" + itemID)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var fetched domain.Item
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&fetched))
+	require.Equal(t, itemID, fetched.ID)
+	require.Equal(t, "Blue Shirt", fetched.Name)
+
+	// 4. PATCH /items/{id} — update the item, assert 200 and updated fields.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPatch, ts.URL+"/items/"+itemID, strings.NewReader(`{"name":"Red Jacket","brand":"Acme"}`))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var updated domain.Item
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&updated))
+	require.Equal(t, itemID, updated.ID)
+	require.Equal(t, "Red Jacket", updated.Name)
+
+	// 5. DELETE /items/{id} — delete the item, assert 204.
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodDelete, ts.URL+"/items/"+itemID, http.NoBody)
+	require.NoError(t, err)
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	// 6. GET /items/{id} — confirm item is gone, assert 404.
+	resp, err = client.Get(ts.URL + "/items/" + itemID)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {
