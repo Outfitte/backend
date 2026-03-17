@@ -241,12 +241,15 @@ func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 	store := &mockItemStore{}
 	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
 
+	brand := "Patagonia"
+	catID := "cat-1"
+	color := "Black"
 	input := CreateItemInput{
 		Name:       "Jacket",
-		Brand:      "Patagonia",
-		CategoryID: "cat-1",
-		Color:      "Black",
-		Size:       "M",
+		Brand:      &brand,
+		CategoryID: &catID,
+		Color:      &color,
+		Metadata:   domain.ItemMetadata{Fields: map[string]string{"size": "M"}},
 		PhotoKeys:  []string{"photo-1.jpg"},
 	}
 
@@ -255,10 +258,10 @@ func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 	require.NotEmpty(t, item.GetID())
 	require.Equal(t, "owner-1", item.OwnerID)
 	require.Equal(t, "Jacket", item.Name)
-	require.Equal(t, "Patagonia", item.Brand)
-	require.Equal(t, "cat-1", item.CategoryID)
-	require.Equal(t, "Black", item.Color)
-	require.Equal(t, "M", item.Size)
+	require.Equal(t, &brand, item.Brand)
+	require.Equal(t, &catID, item.CategoryID)
+	require.Equal(t, &color, item.Color)
+	require.Equal(t, "M", item.Metadata.Fields["size"])
 	require.Equal(t, []string{"photo-1.jpg"}, item.PhotoKeys)
 	require.False(t, item.CreatedAt.IsZero())
 	require.Len(t, store.items, 1)
@@ -430,12 +433,15 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	store := &mockItemStore{items: []domain.Item{item}}
 	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
 
+	brand := "New Brand"
+	catID := "cat-2"
+	color := "Blue"
 	input := UpdateItemInput{
 		Name:       "New Name",
-		Brand:      "New Brand",
-		CategoryID: "cat-2",
-		Color:      "Blue",
-		Size:       "L",
+		Brand:      &brand,
+		CategoryID: &catID,
+		Color:      &color,
+		Metadata:   domain.ItemMetadata{Fields: map[string]string{"size": "L"}},
 		PhotoKeys:  []string{"new-photo.jpg"},
 	}
 
@@ -444,10 +450,10 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	require.Equal(t, "item-1", got.GetID())
 	require.Equal(t, "owner-1", got.OwnerID)
 	require.Equal(t, "New Name", got.Name)
-	require.Equal(t, "New Brand", got.Brand)
-	require.Equal(t, "cat-2", got.CategoryID)
-	require.Equal(t, "Blue", got.Color)
-	require.Equal(t, "L", got.Size)
+	require.Equal(t, &brand, got.Brand)
+	require.Equal(t, &catID, got.CategoryID)
+	require.Equal(t, &color, got.Color)
+	require.Equal(t, "L", got.Metadata.Fields["size"])
 	require.Equal(t, []string{"new-photo.jpg"}, got.PhotoKeys)
 }
 

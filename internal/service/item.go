@@ -14,10 +14,10 @@ import (
 // CreateItemInput holds the fields required to create a new Item.
 type CreateItemInput struct {
 	Name          string
-	Brand         string
-	CategoryID    string
-	Color         string
-	Size          string
+	Brand         *string
+	CategoryID    *string
+	Color         *string
+	Metadata      domain.ItemMetadata
 	PhotoKeys     []string
 	LocationID    *string
 	PurchasePrice *string
@@ -27,10 +27,10 @@ type CreateItemInput struct {
 // UpdateItemInput holds the fields that can be updated on an existing Item.
 type UpdateItemInput struct {
 	Name          string
-	Brand         string
-	CategoryID    string
-	Color         string
-	Size          string
+	Brand         *string
+	CategoryID    *string
+	Color         *string
+	Metadata      domain.ItemMetadata
 	PhotoKeys     []string
 	LocationID    *string
 	PurchasePrice *string
@@ -100,7 +100,7 @@ func (s *ItemService) Create(ctx context.Context, callerID string, input CreateI
 	item.Brand = input.Brand
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
-	item.Size = input.Size
+	item.Metadata = input.Metadata
 	item.PhotoKeys = input.PhotoKeys
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
@@ -158,7 +158,7 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	item.Brand = input.Brand
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
-	item.Size = input.Size
+	item.Metadata = input.Metadata
 	item.PhotoKeys = input.PhotoKeys
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice

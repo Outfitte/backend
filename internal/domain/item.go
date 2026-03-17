@@ -6,10 +6,10 @@ type Item struct {
 	uniqueEntity
 	OwnerID       string
 	Name          string
-	Brand         string
-	CategoryID    string
-	Color         string
-	Size          string
+	Brand         *string    // optional
+	CategoryID    *string    // optional; nil = uncategorised
+	Color         *string    // optional
+	Metadata      ItemMetadata
 	PhotoKeys     []string
 	LocationID    *string    // optional
 	PurchasePrice *string    // optional, deferred to M4+; string to avoid decimal dep

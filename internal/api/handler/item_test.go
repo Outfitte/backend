@@ -805,7 +805,7 @@ func (s *statefulFakeItemService) Create(ctx context.Context, callerID string, i
 	item.Name = input.Name
 	item.Brand = input.Brand
 	item.Color = input.Color
-	item.Size = input.Size
+	item.Metadata = input.Metadata
 	s.items[item.ID] = item
 	return item, nil
 }
@@ -858,7 +858,7 @@ func (s *statefulFakeItemService) Update(ctx context.Context, callerID, itemID s
 	item.Brand = input.Brand
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
-	item.Size = input.Size
+	item.Metadata = input.Metadata
 	item.PhotoKeys = input.PhotoKeys
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
@@ -941,8 +941,10 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NotEmpty(t, created.ID)
 	require.Equal(t, callerID, created.OwnerID)
 	require.Equal(t, "Blue Shirt", created.Name)
-	require.Equal(t, "Acme", created.Brand)
-	require.Equal(t, "Blue", created.Color)
+	require.NotNil(t, created.Brand)
+	require.Equal(t, "Acme", *created.Brand)
+	require.NotNil(t, created.Color)
+	require.Equal(t, "Blue", *created.Color)
 
 	itemID := created.ID
 
@@ -971,7 +973,8 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.Equal(t, itemID, fetched.ID)
 	require.Equal(t, callerID, fetched.OwnerID)
 	require.Equal(t, "Blue Shirt", fetched.Name)
-	require.Equal(t, "Blue", fetched.Color)
+	require.NotNil(t, fetched.Color)
+	require.Equal(t, "Blue", *fetched.Color)
 
 	// 4. PATCH /items/{id} — update the item, assert 200 and updated fields.
 	req, err = http.NewRequestWithContext(t.Context(), http.MethodPatch, ts.URL+"/items/"+itemID, strings.NewReader(`{"name":"Red Jacket","brand":"Acme","color":"Red"}`))
@@ -985,7 +988,8 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&updated))
 	require.Equal(t, itemID, updated.ID)
 	require.Equal(t, "Red Jacket", updated.Name)
-	require.Equal(t, "Red", updated.Color)
+	require.NotNil(t, updated.Color)
+	require.Equal(t, "Red", *updated.Color)
 
 	// 5. DELETE /items/{id} — delete the item, assert 204.
 	req, err = http.NewRequestWithContext(t.Context(), http.MethodDelete, ts.URL+"/items/"+itemID, http.NoBody)
