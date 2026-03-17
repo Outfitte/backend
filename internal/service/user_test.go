@@ -389,6 +389,39 @@ func TestRegisterShouldCreateMemberWhenRegistrationIsEnabled(t *testing.T) {
 	require.False(t, user.CreatedAt.IsZero())
 }
 
+func TestGetSettingsShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.GetSettings(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestGetSettingsShouldReturnDefaultSettingsWhenNotFound(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{notFound: true})
+
+	got, err := svc.GetSettings(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, domain.AppSettings{}, got)
+}
+
+func TestGetSettingsShouldReturnErrorWhenStoreFails(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{err: domain.ErrIO})
+
+	_, err := svc.GetSettings(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetSettingsShouldReturnSettingsWhenFound(t *testing.T) {
+	settings := domain.AppSettings{RegistrationEnabled: true}
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{settings: settings})
+
+	got, err := svc.GetSettings(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, settings, got)
+}
+
 func TestUserServiceShouldCompleteFullCycleWhenOperationsAreValid(t *testing.T) {
 	store := &mockUserStore{}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}

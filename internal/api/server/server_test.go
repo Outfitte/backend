@@ -24,7 +24,7 @@ func discardLogger() *slog.Logger {
 
 func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg, discardLogger())
+	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 	assert.Equal(t, ":8080", srv.Addr)
 
 	ts := httptest.NewServer(srv.Handler)
@@ -60,7 +60,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	l.Close()
 
 	cfg := &config.Config{ServerPort: strconv.Itoa(port)}
-	srv := New(cfg, discardLogger())
+	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -103,7 +103,7 @@ func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
 
 func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg, discardLogger())
+	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 
 	l := &errorListener{done: make(chan struct{})}
 	err := serve(t.Context(), srv, l)
@@ -113,7 +113,7 @@ func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := &config.Config{ServerPort: "8080"}
-		srv := New(cfg, discardLogger())
+		srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 
 		l := &idleListener{done: make(chan struct{})}
 		ctx, cancel := context.WithCancel(t.Context())
