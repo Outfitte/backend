@@ -131,6 +131,91 @@ func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	})
 }
 
+func getURL(t *testing.T, srv *httptest.Server, path string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func patchJSON(t *testing.T, srv *httptest.Server, path, body string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPatch, srv.URL+path, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func deleteURL(t *testing.T, srv *httptest.Server, path string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodDelete, srv.URL+path, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func TestNewShouldReturn401WhenGetLocationsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/locations")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPostLocationsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/locations", `{"label":"closet"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetLocationByIDCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/locations/loc-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPatchLocationCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := patchJSON(t, ts, "/locations/loc-1", `{"label":"shelf"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteLocationCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/locations/loc-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenMoveLocationCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := patchJSON(t, ts, "/locations/loc-1/move", `{"parent_id":null}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
 func postJSON(t *testing.T, srv *httptest.Server, path, body string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+path, strings.NewReader(body))
