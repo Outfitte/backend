@@ -1,3 +1,5 @@
+[![Go](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml)
+
 # Outfitte
 
 Self-hosted wardrobe management application built in Go.
