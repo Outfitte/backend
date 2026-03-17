@@ -18,6 +18,7 @@ type locationService interface {
 	GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error)
 	Update(ctx context.Context, callerID, locationID, label string) (domain.Location, error)
 	Delete(ctx context.Context, callerID, locationID string) error
+	Move(ctx context.Context, callerID, locationID string, newParentID *string) (domain.Location, error)
 }
 
 // LocationHandler handles location-related HTTP endpoints.
@@ -222,4 +223,57 @@ func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	log.InfoContext(ctx, "succeeded", "count", len(locs))
 	writeJSON(w, http.StatusOK, locs)
+}
+
+type moveLocationRequest struct {
+	ParentID *string `json:"parent_id"`
+}
+
+// Move handles PATCH /locations/{id}/move.
+func (h *LocationHandler) Move(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Move")
+	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	locationID := r.PathValue("id")
+
+	var req moveLocationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	loc, err := h.locations.Move(ctx, callerID, locationID, req.ParentID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrConflict) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "conflict"})
+			return
+		}
+		log.ErrorContext(ctx, "move location failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
+	writeJSON(w, http.StatusOK, loc)
 }

@@ -22,6 +22,7 @@ type fakeLocationService struct {
 	getByIDFn     func(ctx context.Context, callerID, locationID string) (domain.Location, error)
 	updateFn      func(ctx context.Context, callerID, locationID, label string) (domain.Location, error)
 	deleteFn      func(ctx context.Context, callerID, locationID string) error
+	moveFn        func(ctx context.Context, callerID, locationID string, newParentID *string) (domain.Location, error)
 }
 
 func (f *fakeLocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
@@ -57,6 +58,13 @@ func (f *fakeLocationService) Delete(ctx context.Context, callerID, locationID s
 		return f.deleteFn(ctx, callerID, locationID)
 	}
 	return nil
+}
+
+func (f *fakeLocationService) Move(ctx context.Context, callerID, locationID string, newParentID *string) (domain.Location, error) {
+	if f.moveFn != nil {
+		return f.moveFn(ctx, callerID, locationID, newParentID)
+	}
+	return domain.Location{}, nil
 }
 
 // --- helpers ---
@@ -537,4 +545,172 @@ func TestListLocationsHandlerShouldReturn200WithLocationsWhenSuccessful(t *testi
 	require.Equal(t, "Shelf", got[1].Label)
 	require.NotNil(t, got[1].ParentID)
 	require.Equal(t, parentID, *got[1].ParentID)
+}
+
+// ── Move ──────────────────────────────────────────────────────────────────────
+
+func TestMoveLocationHandlerShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1/move", strings.NewReader(`{}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/locations/loc-1/move", strings.NewReader(`{}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1/move", strings.NewReader("not-json"))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn404WhenLocationNotFound(t *testing.T) {
+	svc := &fakeLocationService{
+		moveFn: func(_ context.Context, _, _ string, _ *string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrNotFound
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-ghost/move", strings.NewReader(`{}`))
+	req.SetPathValue("id", "loc-ghost")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn403WhenLocationForbidden(t *testing.T) {
+	svc := &fakeLocationService{
+		moveFn: func(_ context.Context, _, _ string, _ *string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrForbidden
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-other/move", strings.NewReader(`{}`))
+	req.SetPathValue("id", "loc-other")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn409WhenConflict(t *testing.T) {
+	svc := &fakeLocationService{
+		moveFn: func(_ context.Context, _, _ string, _ *string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrConflict
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1/move", strings.NewReader(`{"parent_id":"loc-1"}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeLocationService{
+		moveFn: func(_ context.Context, _, _ string, _ *string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrIO
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1/move", strings.NewReader(`{}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestMoveLocationHandlerShouldReturn200WithLocationWhenMovedToRoot(t *testing.T) {
+	var moved domain.Location
+	moved.ID = "loc-42"
+	moved.OwnerID = "user-1"
+	moved.Label = "Wardrobe"
+
+	svc := &fakeLocationService{
+		moveFn: func(_ context.Context, callerID, locationID string, newParentID *string) (domain.Location, error) {
+			require.Equal(t, "user-1", callerID)
+			require.Equal(t, "loc-42", locationID)
+			require.Nil(t, newParentID)
+			return moved, nil
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-42/move", strings.NewReader(`{"parent_id":null}`))
+	req.SetPathValue("id", "loc-42")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got domain.Location
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "loc-42", got.ID)
+	require.Nil(t, got.ParentID)
+}
+
+func TestMoveLocationHandlerShouldReturn200WithLocationWhenReparented(t *testing.T) {
+	newParent := "loc-parent"
+	var moved domain.Location
+	moved.ID = "loc-42"
+	moved.OwnerID = "user-1"
+	moved.Label = "Wardrobe"
+	moved.ParentID = &newParent
+
+	svc := &fakeLocationService{
+		moveFn: func(_ context.Context, callerID, locationID string, newParentID *string) (domain.Location, error) {
+			require.Equal(t, "user-1", callerID)
+			require.Equal(t, "loc-42", locationID)
+			require.NotNil(t, newParentID)
+			require.Equal(t, newParent, *newParentID)
+			return moved, nil
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-42/move", strings.NewReader(`{"parent_id":"loc-parent"}`))
+	req.SetPathValue("id", "loc-42")
+	w := httptest.NewRecorder()
+	h.Move(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got domain.Location
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "loc-42", got.ID)
+	require.NotNil(t, got.ParentID)
+	require.Equal(t, newParent, *got.ParentID)
 }
