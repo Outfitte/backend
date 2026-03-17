@@ -133,6 +133,20 @@ func TestUpdateRegistrationEnabledShouldReturnErrorWhenSettingsSaveFails(t *test
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestUpdateRegistrationEnabledShouldSucceedWhenSettingsNotFound(t *testing.T) {
+	var admin domain.User
+	admin.ID = "42"
+	admin.Role = domain.RoleAdmin
+
+	store := &mockUserStore{users: []domain.User{admin}}
+	settings := &mockSettingsStore{notFound: true}
+	svc := NewUserService(store, settings)
+
+	err := svc.UpdateRegistrationEnabled(t.Context(), "42", true)
+	require.NoError(t, err)
+	require.True(t, settings.settings.RegistrationEnabled)
+}
+
 func TestUpdateRegistrationEnabledShouldUpdateSettingsWhenCallerIsAdmin(t *testing.T) {
 	var admin domain.User
 	admin.ID = "42"
@@ -277,6 +291,19 @@ func TestRegisterShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 
 	_, err := svc.Register(ctx, "alice@example.com", "password")
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestRegisterShouldReturnErrRegistrationDisabledWhenSettingsNotFoundAndUsersExist(t *testing.T) {
+	var existingUser domain.User
+	existingUser.ID = "1"
+	existingUser.Email = "bob@example.com"
+
+	store := &mockUserStore{users: []domain.User{existingUser}}
+	settings := &mockSettingsStore{notFound: true}
+	svc := NewUserService(store, settings)
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrRegistrationDisabled)
 }
 
 func TestRegisterShouldReturnErrRegistrationDisabledWhenRegistrationIsDisabled(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 
 	localmedia "github.com/outfitte/outfitte/internal/adapter/media/local"
@@ -23,13 +24,16 @@ func run(ctx context.Context) error {
 	return runServer(ctx, cfg, logger)
 }
 
-func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
+func newServer(cfg *config.Config, logger *slog.Logger) *http.Server {
 	users := storejson.NewProvider[domain.User](cfg.StorageDataPath, "users.json")
 	sessions := storejson.NewProvider[domain.Session](cfg.StorageDataPath, "sessions.json")
 	items := storejson.NewProvider[domain.Item](cfg.StorageDataPath, "items.json")
 	locations := storejson.NewProvider[domain.Location](cfg.StorageDataPath, "locations.json")
 	settings := storejson.NewSingletonStore[domain.AppSettings](cfg.StorageDataPath, "app_settings.json")
 	media := localmedia.NewProvider(cfg.MediaStoragePath)
+	return server.New(cfg, logger, users, sessions, items, locations, settings, media)
+}
 
-	return server.Run(ctx, server.New(cfg, logger, users, sessions, items, locations, settings, media))
+func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
+	return server.Run(ctx, newServer(cfg, logger))
 }
