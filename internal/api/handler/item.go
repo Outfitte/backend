@@ -76,6 +76,10 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.items.Create(ctx, callerID, input)
 	if err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
+			return
+		}
 		log.ErrorContext(ctx, "create item failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -227,6 +231,10 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.items.Update(ctx, callerID, itemID, input)
 	if err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
+			return
+		}
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
