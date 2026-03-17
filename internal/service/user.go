@@ -128,7 +128,10 @@ func (s *UserService) UpdateRegistrationEnabled(ctx context.Context, callerID st
 	}
 	settings, err := s.settings.Load(ctx)
 	if err != nil {
-		return err
+		if !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		settings = domain.AppSettings{}
 	}
 	settings.RegistrationEnabled = enabled
 	return s.settings.Save(ctx, settings)
@@ -146,6 +149,9 @@ func (s *UserService) canRegister(ctx context.Context) error {
 	}
 	settings, err := s.settings.Load(ctx)
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.ErrRegistrationDisabled
+		}
 		return err
 	}
 	if !settings.RegistrationEnabled {
