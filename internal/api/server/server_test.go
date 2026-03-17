@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"strconv"
 	"sync"
 	"testing"
@@ -128,4 +129,51 @@ func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 
 		require.NoError(t, <-done)
 	})
+}
+
+func postJSON(t *testing.T, srv *httptest.Server, path, body string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+path, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	return resp
+}
+
+func TestNewShouldReturn400WhenRegisterCalledWithInvalidBody(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/auth/register", "not-json")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestNewShouldReturn400WhenLoginCalledWithInvalidBody(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/auth/login", "not-json")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestNewShouldReturn400WhenRefreshCalledWithInvalidBody(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/auth/refresh", "not-json")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestNewShouldReturn400WhenLogoutCalledWithInvalidBody(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/auth/logout", "not-json")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
