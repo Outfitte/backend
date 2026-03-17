@@ -36,13 +36,13 @@ func NewItemHandler(items itemService, log *slog.Logger) *ItemHandler {
 }
 
 type createItemRequest struct {
-	Name       string   `json:"name"`
-	Brand      string   `json:"brand"`
-	CategoryID string   `json:"category_id"`
-	Color      string   `json:"color"`
-	Size       string   `json:"size"`
-	PhotoKeys  []string `json:"photo_keys"`
-	LocationID *string  `json:"location_id"`
+	Name       string            `json:"name"`
+	Brand      *string           `json:"brand"`
+	CategoryID *string           `json:"category_id"`
+	Color      *string           `json:"color"`
+	Metadata   map[string]string `json:"metadata"`
+	PhotoKeys  []string          `json:"photo_keys"`
+	LocationID *string           `json:"location_id"`
 }
 
 // Create handles POST /items.
@@ -69,7 +69,7 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Brand:      req.Brand,
 		CategoryID: req.CategoryID,
 		Color:      req.Color,
-		Size:       req.Size,
+		Metadata:   domain.ItemMetadata{Fields: req.Metadata},
 		PhotoKeys:  req.PhotoKeys,
 		LocationID: req.LocationID,
 	}
@@ -86,14 +86,14 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateItemRequest struct {
-	Name          string   `json:"name"`
-	Brand         string   `json:"brand"`
-	CategoryID    string   `json:"category_id"`
-	Color         string   `json:"color"`
-	Size          string   `json:"size"`
-	PhotoKeys     []string `json:"photo_keys"`
-	LocationID    *string  `json:"location_id"`
-	PurchasePrice *string  `json:"purchase_price"`
+	Name          string            `json:"name"`
+	Brand         *string           `json:"brand"`
+	CategoryID    *string           `json:"category_id"`
+	Color         *string           `json:"color"`
+	Metadata      map[string]string `json:"metadata"`
+	PhotoKeys     []string          `json:"photo_keys"`
+	LocationID    *string           `json:"location_id"`
+	PurchasePrice *string           `json:"purchase_price"`
 }
 
 type assignLocationRequest struct {
@@ -220,7 +220,7 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Brand:         req.Brand,
 		CategoryID:    req.CategoryID,
 		Color:         req.Color,
-		Size:          req.Size,
+		Metadata:      domain.ItemMetadata{Fields: req.Metadata},
 		PhotoKeys:     req.PhotoKeys,
 		LocationID:    req.LocationID,
 		PurchasePrice: req.PurchasePrice,
