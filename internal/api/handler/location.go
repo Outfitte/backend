@@ -17,6 +17,7 @@ type locationService interface {
 	ListByOwner(ctx context.Context, callerID string) ([]domain.Location, error)
 	GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error)
 	Update(ctx context.Context, callerID, locationID, label string) (domain.Location, error)
+	Delete(ctx context.Context, callerID, locationID string) error
 }
 
 // LocationHandler handles location-related HTTP endpoints.
@@ -158,6 +159,40 @@ func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
 	writeJSON(w, http.StatusOK, loc)
+}
+
+// Delete handles DELETE /locations/{id}.
+func (h *LocationHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Delete")
+	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	locationID := r.PathValue("id")
+
+	if err := h.locations.Delete(ctx, callerID, locationID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		log.ErrorContext(ctx, "delete location failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "location_id", locationID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // List handles GET /locations.

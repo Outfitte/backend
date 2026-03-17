@@ -21,6 +21,7 @@ type fakeLocationService struct {
 	listByOwnerFn func(ctx context.Context, callerID string) ([]domain.Location, error)
 	getByIDFn     func(ctx context.Context, callerID, locationID string) (domain.Location, error)
 	updateFn      func(ctx context.Context, callerID, locationID, label string) (domain.Location, error)
+	deleteFn      func(ctx context.Context, callerID, locationID string) error
 }
 
 func (f *fakeLocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
@@ -49,6 +50,13 @@ func (f *fakeLocationService) Update(ctx context.Context, callerID, locationID, 
 		return f.updateFn(ctx, callerID, locationID, label)
 	}
 	return domain.Location{}, nil
+}
+
+func (f *fakeLocationService) Delete(ctx context.Context, callerID, locationID string) error {
+	if f.deleteFn != nil {
+		return f.deleteFn(ctx, callerID, locationID)
+	}
+	return nil
 }
 
 // --- helpers ---
@@ -414,6 +422,86 @@ func TestListLocationsHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	h.List(w, req)
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+
+func TestDeleteLocationHandlerShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-1", nil)
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestDeleteLocationHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/locations/loc-1", nil)
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeleteLocationHandlerShouldReturn404WhenLocationNotFound(t *testing.T) {
+	svc := &fakeLocationService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrNotFound
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-ghost", nil)
+	req.SetPathValue("id", "loc-ghost")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDeleteLocationHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeLocationService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrIO
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-1", nil)
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDeleteLocationHandlerShouldReturn204WhenDeletedSuccessfully(t *testing.T) {
+	svc := &fakeLocationService{
+		deleteFn: func(_ context.Context, callerID, locationID string) error {
+			require.Equal(t, "user-1", callerID)
+			require.Equal(t, "loc-42", locationID)
+			return nil
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-42", nil)
+	req.SetPathValue("id", "loc-42")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Empty(t, w.Body.String())
 }
 
 func TestListLocationsHandlerShouldReturn200WithLocationsWhenSuccessful(t *testing.T) {
