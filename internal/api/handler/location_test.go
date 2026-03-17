@@ -160,6 +160,68 @@ func TestGetLocationByIDHandlerShouldReturn503WhenContextIsCancelled(t *testing.
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
+func TestGetLocationByIDHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/locations/loc-1", nil)
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.GetByID(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestGetLocationByIDHandlerShouldReturn404WhenLocationNotFound(t *testing.T) {
+	svc := &fakeLocationService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrNotFound
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations/loc-ghost", nil)
+	req.SetPathValue("id", "loc-ghost")
+	w := httptest.NewRecorder()
+	h.GetByID(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestGetLocationByIDHandlerShouldReturn403WhenLocationForbidden(t *testing.T) {
+	svc := &fakeLocationService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrForbidden
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations/loc-other", nil)
+	req.SetPathValue("id", "loc-other")
+	w := httptest.NewRecorder()
+	h.GetByID(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestGetLocationByIDHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeLocationService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrIO
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations/loc-1", nil)
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.GetByID(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestGetLocationByIDHandlerShouldReturn200WithLocationWhenSuccessful(t *testing.T) {
 	var loc domain.Location
 	loc.ID = "loc-42"
@@ -186,64 +248,6 @@ func TestGetLocationByIDHandlerShouldReturn200WithLocationWhenSuccessful(t *test
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "loc-42", got.ID)
 	require.Equal(t, "Wardrobe", got.Label)
-}
-
-func TestGetLocationByIDHandlerShouldReturn500WhenServiceFails(t *testing.T) {
-	svc := &fakeLocationService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Location, error) {
-			return domain.Location{}, domain.ErrIO
-		},
-	}
-	h := newLocationHandler(svc)
-
-	ctx := ctxWithUser(t, "user-1")
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations/loc-1", nil)
-	w := httptest.NewRecorder()
-	h.GetByID(w, req)
-
-	require.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-func TestGetLocationByIDHandlerShouldReturn403WhenLocationForbidden(t *testing.T) {
-	svc := &fakeLocationService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Location, error) {
-			return domain.Location{}, domain.ErrForbidden
-		},
-	}
-	h := newLocationHandler(svc)
-
-	ctx := ctxWithUser(t, "user-1")
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations/loc-other", nil)
-	w := httptest.NewRecorder()
-	h.GetByID(w, req)
-
-	require.Equal(t, http.StatusForbidden, w.Code)
-}
-
-func TestGetLocationByIDHandlerShouldReturn404WhenLocationNotFound(t *testing.T) {
-	svc := &fakeLocationService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Location, error) {
-			return domain.Location{}, domain.ErrNotFound
-		},
-	}
-	h := newLocationHandler(svc)
-
-	ctx := ctxWithUser(t, "user-1")
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations/loc-ghost", nil)
-	w := httptest.NewRecorder()
-	h.GetByID(w, req)
-
-	require.Equal(t, http.StatusNotFound, w.Code)
-}
-
-func TestGetLocationByIDHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
-	h := newLocationHandler(&fakeLocationService{})
-
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/locations/loc-1", nil)
-	w := httptest.NewRecorder()
-	h.GetByID(w, req)
-
-	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────
