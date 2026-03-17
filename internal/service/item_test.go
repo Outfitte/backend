@@ -237,6 +237,30 @@ func TestItemServiceCreateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemServiceCreateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
+		Name:     "Jacket",
+		Metadata: domain.ItemMetadata{Fields: map[string]string{"bad!key": "value"}},
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceCreateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})
+
+	fields := make(map[string]string, 51)
+	for i := range 51 {
+		fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
+	}
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
+		Name:     "Jacket",
+		Metadata: domain.ItemMetadata{Fields: fields},
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
 func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 	store := &mockItemStore{}
 	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
@@ -375,6 +399,40 @@ func TestItemServiceListByOwnerShouldReturnOnlyCallerItems(t *testing.T) {
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
+
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:     "Jacket",
+		Metadata: domain.ItemMetadata{Fields: map[string]string{"bad!key": "value"}},
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	store := &mockItemStore{items: []domain.Item{item}}
+	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
+
+	fields := make(map[string]string, 51)
+	for i := range 51 {
+		fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
+	}
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:     "Jacket",
+		Metadata: domain.ItemMetadata{Fields: fields},
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
 
 func TestItemServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})

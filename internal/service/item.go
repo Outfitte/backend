@@ -93,6 +93,9 @@ func (s *ItemService) Create(ctx context.Context, callerID string, input CreateI
 	if err := ctx.Err(); err != nil {
 		return domain.Item{}, err
 	}
+	if err := domain.ValidateMetadata(input.Metadata); err != nil {
+		return domain.Item{}, err
+	}
 	var item domain.Item
 	item.ID = uuid.NewString()
 	item.OwnerID = callerID
@@ -145,6 +148,9 @@ func (s *ItemService) ListByOwner(ctx context.Context, callerID string) ([]domai
 
 func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input UpdateItemInput) (domain.Item, error) {
 	if err := ctx.Err(); err != nil {
+		return domain.Item{}, err
+	}
+	if err := domain.ValidateMetadata(input.Metadata); err != nil {
 		return domain.Item{}, err
 	}
 	item, err := s.items.Get(ctx, itemID)
