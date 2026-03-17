@@ -20,6 +20,7 @@ type fakeLocationService struct {
 	createFn      func(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)
 	listByOwnerFn func(ctx context.Context, callerID string) ([]domain.Location, error)
 	getByIDFn     func(ctx context.Context, callerID, locationID string) (domain.Location, error)
+	updateFn      func(ctx context.Context, callerID, locationID, label string) (domain.Location, error)
 }
 
 func (f *fakeLocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
@@ -39,6 +40,13 @@ func (f *fakeLocationService) ListByOwner(ctx context.Context, callerID string) 
 func (f *fakeLocationService) GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error) {
 	if f.getByIDFn != nil {
 		return f.getByIDFn(ctx, callerID, locationID)
+	}
+	return domain.Location{}, nil
+}
+
+func (f *fakeLocationService) Update(ctx context.Context, callerID, locationID, label string) (domain.Location, error) {
+	if f.updateFn != nil {
+		return f.updateFn(ctx, callerID, locationID, label)
 	}
 	return domain.Location{}, nil
 }
@@ -248,6 +256,124 @@ func TestGetLocationByIDHandlerShouldReturn200WithLocationWhenSuccessful(t *test
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "loc-42", got.ID)
 	require.Equal(t, "Wardrobe", got.Label)
+}
+
+// ── Update ────────────────────────────────────────────────────────────────────
+
+func TestUpdateLocationHandlerShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1", strings.NewReader(`{"label":"New"}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+func TestUpdateLocationHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, "/locations/loc-1", strings.NewReader(`{"label":"New"}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUpdateLocationHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1", strings.NewReader("not-json"))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateLocationHandlerShouldReturn404WhenLocationNotFound(t *testing.T) {
+	svc := &fakeLocationService{
+		updateFn: func(_ context.Context, _, _, _ string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrNotFound
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-ghost", strings.NewReader(`{"label":"New"}`))
+	req.SetPathValue("id", "loc-ghost")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUpdateLocationHandlerShouldReturn403WhenLocationForbidden(t *testing.T) {
+	svc := &fakeLocationService{
+		updateFn: func(_ context.Context, _, _, _ string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrForbidden
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-other", strings.NewReader(`{"label":"New"}`))
+	req.SetPathValue("id", "loc-other")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestUpdateLocationHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeLocationService{
+		updateFn: func(_ context.Context, _, _, _ string) (domain.Location, error) {
+			return domain.Location{}, domain.ErrIO
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-1", strings.NewReader(`{"label":"New"}`))
+	req.SetPathValue("id", "loc-1")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUpdateLocationHandlerShouldReturn200WithUpdatedLocationWhenSuccessful(t *testing.T) {
+	var updated domain.Location
+	updated.ID = "loc-42"
+	updated.OwnerID = "user-1"
+	updated.Label = "New Label"
+
+	svc := &fakeLocationService{
+		updateFn: func(_ context.Context, callerID, locationID, label string) (domain.Location, error) {
+			require.Equal(t, "user-1", callerID)
+			require.Equal(t, "loc-42", locationID)
+			require.Equal(t, "New Label", label)
+			return updated, nil
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodPatch, "/locations/loc-42", strings.NewReader(`{"label":"New Label"}`))
+	req.SetPathValue("id", "loc-42")
+	w := httptest.NewRecorder()
+	h.Update(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got domain.Location
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "loc-42", got.ID)
+	require.Equal(t, "New Label", got.Label)
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────

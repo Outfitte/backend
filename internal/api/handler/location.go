@@ -16,6 +16,7 @@ type locationService interface {
 	Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)
 	ListByOwner(ctx context.Context, callerID string) ([]domain.Location, error)
 	GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error)
+	Update(ctx context.Context, callerID, locationID, label string) (domain.Location, error)
 }
 
 // LocationHandler handles location-related HTTP endpoints.
@@ -102,6 +103,55 @@ func (h *LocationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.ErrorContext(ctx, "get location failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
+	writeJSON(w, http.StatusOK, loc)
+}
+
+type updateLocationRequest struct {
+	Label string `json:"label"`
+}
+
+// Update handles PATCH /locations/{id}.
+func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Update")
+	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	locationID := r.PathValue("id")
+
+	var req updateLocationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	loc, err := h.locations.Update(ctx, callerID, locationID, req.Label)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		log.ErrorContext(ctx, "update location failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
