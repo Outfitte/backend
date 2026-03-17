@@ -17,7 +17,8 @@ import (
 // --- fakes ---
 
 type fakeLocationService struct {
-	createFn func(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)
+	createFn      func(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)
+	listByOwnerFn func(ctx context.Context, callerID string) ([]domain.Location, error)
 }
 
 func (f *fakeLocationService) Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error) {
@@ -25,6 +26,13 @@ func (f *fakeLocationService) Create(ctx context.Context, callerID, label string
 		return f.createFn(ctx, callerID, label, parentID)
 	}
 	return domain.Location{}, nil
+}
+
+func (f *fakeLocationService) ListByOwner(ctx context.Context, callerID string) ([]domain.Location, error) {
+	if f.listByOwnerFn != nil {
+		return f.listByOwnerFn(ctx, callerID)
+	}
+	return nil, nil
 }
 
 // --- helpers ---
@@ -128,4 +136,67 @@ func TestCreateLocationHandlerShouldReturn403WhenParentLocationForbidden(t *test
 	w := postLocation(t, h, "user-1", `{"label":"Shelf","parent_id":"other-user-loc"}`)
 
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+// ── List ──────────────────────────────────────────────────────────────────────
+
+func TestListLocationsHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/locations", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestListLocationsHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeLocationService{
+		listByOwnerFn: func(_ context.Context, _ string) ([]domain.Location, error) {
+			return nil, domain.ErrIO
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestListLocationsHandlerShouldReturn200WithLocationsWhenSuccessful(t *testing.T) {
+	parentID := "loc-root"
+	var loc1, loc2 domain.Location
+	loc1.ID = "loc-1"
+	loc1.OwnerID = "user-1"
+	loc1.Label = "Wardrobe"
+	loc2.ID = "loc-2"
+	loc2.OwnerID = "user-1"
+	loc2.Label = "Shelf"
+	loc2.ParentID = &parentID
+
+	svc := &fakeLocationService{
+		listByOwnerFn: func(_ context.Context, callerID string) ([]domain.Location, error) {
+			require.Equal(t, "user-1", callerID)
+			return []domain.Location{loc1, loc2}, nil
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got []domain.Location
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Len(t, got, 2)
+	require.Equal(t, "loc-1", got[0].ID)
+	require.Equal(t, "loc-2", got[1].ID)
+	require.Equal(t, "Shelf", got[1].Label)
+	require.NotNil(t, got[1].ParentID)
+	require.Equal(t, parentID, *got[1].ParentID)
 }

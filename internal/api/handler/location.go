@@ -11,8 +11,10 @@ import (
 	"github.com/outfitte/outfitte/internal/domain"
 )
 
+
 type locationService interface {
 	Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)
+	ListByOwner(ctx context.Context, callerID string) ([]domain.Location, error)
 }
 
 // LocationHandler handles location-related HTTP endpoints.
@@ -67,4 +69,26 @@ func (h *LocationHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
 	writeJSON(w, http.StatusCreated, loc)
+}
+
+// List handles GET /locations.
+func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "List")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	locs, err := h.locations.ListByOwner(ctx, callerID)
+	if err != nil {
+		log.ErrorContext(ctx, "list locations failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, locs)
 }
