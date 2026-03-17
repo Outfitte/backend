@@ -10,6 +10,11 @@ import (
 
 // ── ValidateMetadataKey ───────────────────────────────────────────────────────
 
+func TestValidateMetadataKeyShouldReturnErrValidationWhenKeyIsEmpty(t *testing.T) {
+	err := domain.ValidateMetadataKey("")
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
 func TestValidateMetadataKeyShouldReturnErrValidationWhenKeyExceedsMaxLength(t *testing.T) {
 	key := strings.Repeat("a", 65)
 	err := domain.ValidateMetadataKey(key)
@@ -45,14 +50,7 @@ func TestValidateMetadataKeyShouldReturnNilWhenKeyIsExactlyMaxLength(t *testing.
 // ── ValidateMetadata ──────────────────────────────────────────────────────────
 
 func TestValidateMetadataShouldReturnErrValidationWhenFieldCountExceedsMax(t *testing.T) {
-	fields := make(map[string]string, 51)
-	for i := range 51 {
-		fields[strings.Repeat("a", i%10+1)+string(rune('a'+i%26))] = "v"
-	}
-	// Ensure we have exactly 51 unique keys
-	m := domain.ItemMetadata{Fields: fields}
-	// Build 51 unique valid keys
-	m.Fields = make(map[string]string, 51)
+	m := domain.ItemMetadata{Fields: make(map[string]string, 51)}
 	for i := range 51 {
 		m.Fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
 	}
@@ -78,10 +76,10 @@ func TestValidateMetadataShouldReturnErrValidationWhenKeyIsInvalid(t *testing.T)
 
 func TestValidateMetadataShouldReturnNilWhenMetadataIsValid(t *testing.T) {
 	m := domain.ItemMetadata{Fields: map[string]string{
-		"size":    "M",
-		"color":   "blue",
-		"fit":     "slim",
-		"season":  "winter",
+		"size":   "M",
+		"color":  "blue",
+		"fit":    "slim",
+		"season": "winter",
 	}}
 	err := domain.ValidateMetadata(m)
 	require.NoError(t, err)

@@ -22,6 +22,9 @@ const (
 // ValidateMetadataKey validates a single metadata key against the rules:
 // max 64 characters, only alphanumeric characters and spaces, no leading/trailing spaces.
 func ValidateMetadataKey(key string) error {
+	if key == "" {
+		return fmt.Errorf("%w: metadata key must not be empty", ErrValidation)
+	}
 	if len(key) > metadataMaxKeyLen {
 		return fmt.Errorf("%w: metadata key exceeds maximum length of %d characters", ErrValidation, metadataMaxKeyLen)
 	}

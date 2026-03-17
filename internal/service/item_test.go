@@ -98,30 +98,6 @@ func (m *mockMediaProvider) GetURL(_ context.Context, _ string) (string, error) 
 
 // ── Create ────────────────────────────────────────────────────────────────────
 
-func TestItemServiceCreateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
-	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: map[string]string{"bad!key": "value"}},
-	})
-	require.ErrorIs(t, err, domain.ErrValidation)
-}
-
-func TestItemServiceCreateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
-	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})
-
-	fields := make(map[string]string, 51)
-	for i := range 51 {
-		fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
-	}
-	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: fields},
-	})
-	require.ErrorIs(t, err, domain.ErrValidation)
-}
-
 // ── AssignLocation ────────────────────────────────────────────────────────────
 
 func TestItemServiceAssignLocationShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -259,6 +235,30 @@ func TestItemServiceCreateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket"})
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceCreateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
+		Name:     "Jacket",
+		Metadata: domain.ItemMetadata{Fields: map[string]string{"bad!key": "value"}},
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceCreateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
+	svc := NewItemService(&mockItemStore{}, &mockMediaProvider{}, &mockLocationStore{})
+
+	fields := make(map[string]string, 51)
+	for i := range 51 {
+		fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
+	}
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
+		Name:     "Jacket",
+		Metadata: domain.ItemMetadata{Fields: fields},
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
 func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
