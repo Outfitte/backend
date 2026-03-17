@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -98,6 +99,20 @@ func (s *UserService) Register(ctx context.Context, email, password string) (dom
 	}
 
 	return user, nil
+}
+
+func (s *UserService) GetSettings(ctx context.Context) (domain.AppSettings, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.AppSettings{}, err
+	}
+	settings, err := s.settings.Load(ctx)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.AppSettings{}, nil
+		}
+		return domain.AppSettings{}, err
+	}
+	return settings, nil
 }
 
 func (s *UserService) UpdateRegistrationEnabled(ctx context.Context, callerID string, enabled bool) error {
