@@ -1,5 +1,7 @@
 [![Go](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml)
 
+[![Dependabot Updates](https://github.com/Outfitte/Outfitte/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/dependabot/dependabot-updates)
+
 # Outfitte
 
 Self-hosted wardrobe management application built in Go.
