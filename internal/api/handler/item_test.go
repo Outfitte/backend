@@ -208,6 +208,19 @@ func TestCreateHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreateHandlerShouldReturn422WhenServiceReturnsValidationError(t *testing.T) {
+	svc := &fakeItemService{
+		createFn: func(_ context.Context, _ string, _ service.CreateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrValidation
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := postItem(t, h, "user-1", `{"name":"shirt","metadata":{"bad key":"v"}}`)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
 func TestCreateHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
 		createFn: func(_ context.Context, _ string, _ service.CreateItemInput) (domain.Item, error) {
@@ -476,6 +489,19 @@ func TestUpdateHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	w := patchItem(t, h, "item-1", "user-1", "not-json")
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn422WhenServiceReturnsValidationError(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrValidation
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt","metadata":{"bad key":"v"}}`)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
 }
 
 func TestUpdateHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
