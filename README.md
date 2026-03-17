@@ -2,11 +2,39 @@
 
 Self-hosted wardrobe management application built in Go.
 
-> **Status:** Early development — M0 (Foundation) in progress. No user-facing features yet.
+> **Status:** Early development — M1 (Users, Items & Locations) complete. Core REST API is functional.
 
 ## Overview
 
 Outfitte lets you catalogue your clothing, organise items into locations, log wear events, and build outfit journals — all from your own infrastructure.
+
+## API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/health` | — | Health check |
+| `POST` | `/auth/register` | — | Register a new user |
+| `POST` | `/auth/login` | — | Obtain access + refresh tokens |
+| `POST` | `/auth/refresh` | — | Rotate refresh token |
+| `POST` | `/auth/logout` | — | Revoke refresh token |
+| `GET` | `/items` | JWT | List items |
+| `POST` | `/items` | JWT | Create item |
+| `GET` | `/items/{id}` | JWT | Get item |
+| `PATCH` | `/items/{id}` | JWT | Update item |
+| `DELETE` | `/items/{id}` | JWT | Delete item |
+| `POST` | `/items/{id}/photos` | JWT | Upload photo |
+| `DELETE` | `/items/{id}/photos/{key...}` | JWT | Delete photo |
+| `PATCH` | `/items/{id}/location` | JWT | Assign item to location |
+| `GET` | `/locations` | JWT | List location tree |
+| `POST` | `/locations` | JWT | Create location |
+| `GET` | `/locations/{id}` | JWT | Get location |
+| `PATCH` | `/locations/{id}` | JWT | Update location |
+| `DELETE` | `/locations/{id}` | JWT | Delete location |
+| `PATCH` | `/locations/{id}/move` | JWT | Move location |
+| `GET` | `/categories` | JWT | List categories |
+| `GET` | `/media/{key...}` | JWT | Download media file |
+| `GET` | `/admin/settings` | JWT + Admin | Get app settings |
+| `PATCH` | `/admin/settings` | JWT + Admin | Update app settings |
 
 ## Running with Docker Compose
 
@@ -38,12 +66,12 @@ golangci-lint run ./...
 
 ## Roadmap
 
-| Milestone | Description |
-|-----------|-------------|
-| M0 | Foundation — scaffold, config, health check |
-| M1 | Users, Items & Locations |
-| M2 | Wear & Archive Lifecycle |
-| M3 | Outfits & Calendar |
-| M4 | Seller URL & Price Tracking |
-| M5 | Family Sharing |
-| M6 | Polish & Public V1 Launch |
+| Milestone | Description | Status |
+|-----------|-------------|--------|
+| M0 | Foundation — scaffold, config, health check | ✓ Done |
+| M1 | Users, Items & Locations | ✓ Done |
+| M2 | Wear & Archive Lifecycle | Planned |
+| M3 | Outfits & Calendar | Planned |
+| M4 | Seller URL & Price Tracking | Planned |
+| M5 | Family Sharing | Planned |
+| M6 | Polish & Public V1 Launch | Planned |
