@@ -15,4 +15,5 @@ var (
 	ErrRegistrationDisabled = errors.New("registration disabled")
 	ErrIO                   = errors.New("io error")
 	ErrSessionExpired       = errors.New("session expired")
+	ErrValidation           = errors.New("validation error")
 )
