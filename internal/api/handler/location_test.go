@@ -140,6 +140,18 @@ func TestCreateLocationHandlerShouldReturn403WhenParentLocationForbidden(t *test
 
 // ── List ──────────────────────────────────────────────────────────────────────
 
+func TestListLocationsHandlerShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newLocationHandler(&fakeLocationService{})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/locations", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 func TestListLocationsHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
 	h := newLocationHandler(&fakeLocationService{})
 

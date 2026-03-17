@@ -77,6 +77,11 @@ func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
 	log := h.log.With("call", "List")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	callerID, ok := middleware.UserIDFromContext(ctx)
 	if !ok {
 		log.ErrorContext(ctx, "missing caller ID in context")
@@ -90,5 +95,7 @@ func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
+
+	log.InfoContext(ctx, "succeeded", "count", len(locs))
 	writeJSON(w, http.StatusOK, locs)
 }
