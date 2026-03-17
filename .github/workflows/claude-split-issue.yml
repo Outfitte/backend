@@ -1,14 +1,14 @@
-name: Claude Implement Task
+name: Claude Split Issue
 
 on:
   issue_comment:
     types: [created]
 
 jobs:
-  claude-implement:
+  claude-split:
     if: |
       github.event.issue.pull_request == null &&
-      contains(github.event.comment.body, '@claude implement')
+      contains(github.event.comment.body, '@claude split issue')
     runs-on: claude-runner
     timeout-minutes: 60
     permissions:
@@ -28,7 +28,7 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Run Claude Implement Task
+      - name: Run Claude Split Issue
         uses: anthropics/claude-code-action@v1
         with:
           path_to_bun_executable: ~/.bun/bin/bun
@@ -50,4 +50,4 @@ jobs:
               }
             }
           prompt: |
-            Use the /implement-task skill for issue #${{ github.event.issue.number }}.
+            Use the /split-issue skill for issue #${{ github.event.issue.number }}.
