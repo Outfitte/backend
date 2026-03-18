@@ -182,7 +182,38 @@ func (p *Provider[T]) Save(ctx context.Context, entity T) error {
 
 // Delete removes the entity.
 func (p *Provider[T]) Delete(ctx context.Context, id string) error {
-	return errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var zero T
+	switch any(&zero).(type) {
+	case *domain.Item:
+		return deleteItem(ctx, p.db, id)
+	default:
+		return fmt.Errorf("unsupported entity type %T", zero)
+	}
+}
+
+func deleteItem(ctx context.Context, db *sql.DB, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	const q = `DELETE FROM items WHERE id = ?`
+
+	result, err := db.ExecContext(ctx, q, id)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+	}
+	return nil
 }
 
 func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
