@@ -1,21 +1,35 @@
 package sqlstore_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
+	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
 
-func TestRunMigrationsShouldReturnErrorWhenDBIsClosed(t *testing.T) {
+func TestRunMigrationsShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 
-	err = sqlstore.RunMigrations(db, "sqlite")
-	require.Error(t, err)
+	err = sqlstore.RunMigrations(t.Context(), db, "sqlite")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRunMigrationsShouldReturnErrWhenContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	err = sqlstore.RunMigrations(ctx, db, "sqlite")
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRunMigrationsShouldSucceedWhenGivenFreshDB(t *testing.T) {
@@ -23,7 +37,7 @@ func TestRunMigrationsShouldSucceedWhenGivenFreshDB(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	err = sqlstore.RunMigrations(db, "sqlite")
+	err = sqlstore.RunMigrations(t.Context(), db, "sqlite")
 	require.NoError(t, err)
 }
 
@@ -32,8 +46,8 @@ func TestRunMigrationsShouldSucceedWhenMigrationsAlreadyApplied(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	require.NoError(t, sqlstore.RunMigrations(db, "sqlite"))
+	require.NoError(t, sqlstore.RunMigrations(t.Context(), db, "sqlite"))
 
-	err = sqlstore.RunMigrations(db, "sqlite")
+	err = sqlstore.RunMigrations(t.Context(), db, "sqlite")
 	require.NoError(t, err)
 }
