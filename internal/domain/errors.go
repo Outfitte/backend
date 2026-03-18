@@ -16,4 +16,5 @@ var (
 	ErrIO                   = errors.New("io error")
 	ErrSessionExpired       = errors.New("session expired")
 	ErrValidation           = errors.New("validation error")
+	ErrUnsupportedDriver    = errors.New("unsupported driver")
 )
