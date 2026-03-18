@@ -16,7 +16,7 @@ func TestRunMigrationsShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 
-	err = sqlstore.RunMigrations(t.Context(), db, "sqlite")
+	err = sqlstore.RunMigrations(t.Context(), db)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -28,7 +28,7 @@ func TestRunMigrationsShouldReturnErrWhenContextCancelled(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	err = sqlstore.RunMigrations(ctx, db, "sqlite")
+	err = sqlstore.RunMigrations(ctx, db)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -37,7 +37,7 @@ func TestRunMigrationsShouldSucceedWhenGivenFreshDB(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	err = sqlstore.RunMigrations(t.Context(), db, "sqlite")
+	err = sqlstore.RunMigrations(t.Context(), db)
 	require.NoError(t, err)
 }
 
@@ -46,8 +46,8 @@ func TestRunMigrationsShouldSucceedWhenMigrationsAlreadyApplied(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	require.NoError(t, sqlstore.RunMigrations(t.Context(), db, "sqlite"))
+	require.NoError(t, sqlstore.RunMigrations(t.Context(), db))
 
-	err = sqlstore.RunMigrations(t.Context(), db, "sqlite")
+	err = sqlstore.RunMigrations(t.Context(), db)
 	require.NoError(t, err)
 }
