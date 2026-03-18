@@ -90,6 +90,13 @@ func listItems(ctx context.Context, db *sql.DB) ([]domain.Item, error) {
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
+	for i, item := range items {
+		photos, err := loadPhotos(ctx, db, item.ID)
+		if err != nil {
+			return nil, err
+		}
+		items[i].Photos = photos
+	}
 	return items, nil
 }
 
@@ -164,6 +171,51 @@ func buildItem(
 	}
 
 	return item, nil
+}
+
+func loadPhotos(ctx context.Context, db *sql.DB, itemID string) ([]domain.ItemPhoto, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	const q = `
+		SELECT id, media_key, position, created_at
+		FROM item_photos
+		WHERE item_id = ?
+		ORDER BY position ASC`
+
+	rows, err := db.QueryContext(ctx, q, itemID)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer rows.Close()
+
+	photos := []domain.ItemPhoto{}
+	for rows.Next() {
+		var (
+			id        string
+			mediaKey  string
+			position  int
+			createdAt string
+		)
+		if err := rows.Scan(&id, &mediaKey, &position, &createdAt); err != nil {
+			return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		}
+		parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		}
+		photos = append(photos, domain.ItemPhoto{
+			ID:        id,
+			MediaKey:  mediaKey,
+			Position:  position,
+			CreatedAt: parsedCreatedAt,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return photos, nil
 }
 
 // Save creates or replaces the entity.
@@ -251,7 +303,16 @@ func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
+	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
+	if err != nil {
+		return domain.Item{}, err
+	}
+	photos, err := loadPhotos(ctx, db, id)
+	if err != nil {
+		return domain.Item{}, err
+	}
+	item.Photos = photos
+	return item, nil
 }
 
 func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
@@ -259,6 +320,26 @@ func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
 		return err
 	}
 
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if err := upsertItemRow(ctx, tx, item); err != nil {
+		return err
+	}
+	if err := replacePhotos(ctx, tx, item); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return nil
+}
+
+func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 	metadataRaw, err := json.Marshal(item.Metadata)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
@@ -276,7 +357,7 @@ func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
 			 purchase_price, purchase_date, created_at, metadata)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
-	_, err = db.ExecContext(ctx, q,
+	_, err = tx.ExecContext(ctx, q,
 		item.ID,
 		item.OwnerID,
 		item.Name,
@@ -291,6 +372,29 @@ func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return nil
+}
+
+func replacePhotos(ctx context.Context, tx *sql.Tx, item domain.Item) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM item_photos WHERE item_id = ?`, item.ID); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	const q = `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES (?, ?, ?, ?, ?)`
+
+	for _, photo := range item.Photos {
+		if _, err := tx.ExecContext(ctx, q,
+			photo.ID,
+			item.ID,
+			photo.MediaKey,
+			photo.Position,
+			photo.CreatedAt.UTC().Format(time.RFC3339),
+		); err != nil {
+			return fmt.Errorf("%w: %w", domain.ErrIO, err)
+		}
 	}
 	return nil
 }

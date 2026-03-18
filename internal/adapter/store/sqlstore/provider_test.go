@@ -391,3 +391,190 @@ func TestGetItemShouldReturnErrIOWhenPurchaseDateIsInvalid(t *testing.T) {
 	_, err = p.Get(t.Context(), "item-bad-pd")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
+
+func TestGetItemShouldReturnEmptyPhotosWhenNoPhotoRowsExist(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-no-photos', 'owner-1', 'No Photos', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	item, err := p.Get(t.Context(), "item-no-photos")
+	require.NoError(t, err)
+	require.Empty(t, item.Photos)
+}
+
+func TestGetItemShouldReturnPhotosOrderedByPositionWhenPhotoRowsExist(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-with-photos', 'owner-1', 'Has Photos', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES
+			('photo-2', 'item-with-photos', 'key-b.jpg', 1, '2025-06-01T10:00:00Z'),
+			('photo-1', 'item-with-photos', 'key-a.jpg', 0, '2025-06-01T09:00:00Z')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	item, err := p.Get(t.Context(), "item-with-photos")
+	require.NoError(t, err)
+
+	require.Len(t, item.Photos, 2)
+	require.Equal(t, "photo-1", item.Photos[0].ID)
+	require.Equal(t, "key-a.jpg", item.Photos[0].MediaKey)
+	require.Equal(t, 0, item.Photos[0].Position)
+	require.Equal(t, "photo-2", item.Photos[1].ID)
+	require.Equal(t, "key-b.jpg", item.Photos[1].MediaKey)
+	require.Equal(t, 1, item.Photos[1].Position)
+}
+
+func TestGetItemShouldReturnErrIOWhenPhotoCreatedAtIsInvalid(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-photo-ts', 'owner-1', 'Item', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES ('photo-bad', 'item-bad-photo-ts', 'key.jpg', 0, 'not-a-date')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err = p.Get(t.Context(), "item-bad-photo-ts")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestSaveItemShouldPersistPhotosWhenItemHasPhotos(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-photos', 'photos@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	photoCreatedAt := time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item := domain.Item{}
+	item.ID = "item-with-save-photos"
+	item.OwnerID = "user-photos"
+	item.Name = "Jacket"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+	item.Photos = []domain.ItemPhoto{
+		{ID: "photo-save-1", MediaKey: "key-a.jpg", Position: 0, CreatedAt: photoCreatedAt},
+		{ID: "photo-save-2", MediaKey: "key-b.jpg", Position: 1, CreatedAt: photoCreatedAt},
+	}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	got, err := p.Get(t.Context(), "item-with-save-photos")
+	require.NoError(t, err)
+
+	require.Len(t, got.Photos, 2)
+	require.Equal(t, "photo-save-1", got.Photos[0].ID)
+	require.Equal(t, "key-a.jpg", got.Photos[0].MediaKey)
+	require.Equal(t, 0, got.Photos[0].Position)
+	require.Equal(t, "photo-save-2", got.Photos[1].ID)
+	require.Equal(t, "key-b.jpg", got.Photos[1].MediaKey)
+	require.Equal(t, 1, got.Photos[1].Position)
+}
+
+func TestSaveItemShouldReplacePhotosWhenItemIsResaved(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-replace-photos', 'rp@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	photoCreatedAt := time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item := domain.Item{}
+	item.ID = "item-replace-photos"
+	item.OwnerID = "user-replace-photos"
+	item.Name = "Jacket"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+	item.Photos = []domain.ItemPhoto{
+		{ID: "photo-old", MediaKey: "old.jpg", Position: 0, CreatedAt: photoCreatedAt},
+	}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	item.Photos = []domain.ItemPhoto{
+		{ID: "photo-new", MediaKey: "new.jpg", Position: 0, CreatedAt: photoCreatedAt},
+	}
+	require.NoError(t, p.Save(t.Context(), item))
+
+	got, err := p.Get(t.Context(), "item-replace-photos")
+	require.NoError(t, err)
+	require.Len(t, got.Photos, 1)
+	require.Equal(t, "photo-new", got.Photos[0].ID)
+	require.Equal(t, "new.jpg", got.Photos[0].MediaKey)
+}
+
+func TestSaveItemShouldReturnErrIOWhenPhotoInsertFails(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-fail-photo', 'fp@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	// Use a duplicate photo ID to force a constraint violation on second Save.
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('other-item', 'user-fail-photo', 'Other', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES ('conflict-photo', 'other-item', 'x.jpg', 0, '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	item := domain.Item{}
+	item.ID = "item-fail-photo"
+	item.OwnerID = "user-fail-photo"
+	item.Name = "Item"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+	item.Photos = []domain.ItemPhoto{
+		{ID: "conflict-photo", MediaKey: "x.jpg", Position: 0, CreatedAt: time.Now()},
+	}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	err = p.Save(t.Context(), item)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestListItemsShouldLoadPhotosForEachItem(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES
+			('item-list-p1', 'owner-1', 'Item 1', '2025-01-01T00:00:00Z', '{}'),
+			('item-list-p2', 'owner-1', 'Item 2', '2025-01-02T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES
+			('photo-a', 'item-list-p1', 'a.jpg', 0, '2025-06-01T10:00:00Z'),
+			('photo-b', 'item-list-p2', 'b.jpg', 0, '2025-06-01T11:00:00Z')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	items, err := p.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	byID := make(map[string]domain.Item)
+	for _, item := range items {
+		byID[item.GetID()] = item
+	}
+	require.Len(t, byID["item-list-p1"].Photos, 1)
+	require.Equal(t, "a.jpg", byID["item-list-p1"].Photos[0].MediaKey)
+	require.Len(t, byID["item-list-p2"].Photos, 1)
+	require.Equal(t, "b.jpg", byID["item-list-p2"].Photos[0].MediaKey)
+}

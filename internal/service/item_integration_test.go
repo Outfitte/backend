@@ -32,8 +32,8 @@ func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T)
 	// Get the item — verify the photo key was recorded.
 	got, err := svc.GetByID(ctx, "owner-1", item.GetID())
 	require.NoError(t, err)
-	require.Len(t, got.PhotoKeys, 1)
-	photoKey := got.PhotoKeys[0]
+	require.Len(t, got.Photos, 1)
+	photoKey := got.Photos[0].MediaKey
 
 	// Download the photo via the media provider and verify its content.
 	rc, err := media.Download(ctx, photoKey)
@@ -50,7 +50,7 @@ func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T)
 	// Verify the photo key is removed from the item.
 	got, err = svc.GetByID(ctx, "owner-1", item.GetID())
 	require.NoError(t, err)
-	require.Empty(t, got.PhotoKeys)
+	require.Empty(t, got.Photos)
 
 	// Verify the file is gone from the media provider.
 	_, err = media.Download(ctx, photoKey)

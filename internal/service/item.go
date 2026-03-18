@@ -104,7 +104,7 @@ func (s *ItemService) Create(ctx context.Context, callerID string, input CreateI
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
 	item.Metadata = input.Metadata
-	item.PhotoKeys = input.PhotoKeys
+	item.Photos = makeItemPhotos(input.PhotoKeys)
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
 	item.PurchaseDate = input.PurchaseDate
@@ -165,7 +165,7 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
 	item.Metadata = input.Metadata
-	item.PhotoKeys = input.PhotoKeys
+	item.Photos = makeItemPhotos(input.PhotoKeys)
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
 	item.PurchaseDate = input.PurchaseDate
@@ -190,7 +190,12 @@ func (s *ItemService) UploadPhoto(ctx context.Context, callerID, itemID string, 
 	if err := s.media.Upload(ctx, key, r); err != nil {
 		return err
 	}
-	item.PhotoKeys = append(item.PhotoKeys, key)
+	item.Photos = append(item.Photos, domain.ItemPhoto{
+		ID:        uuid.NewString(),
+		MediaKey:  key,
+		Position:  len(item.Photos),
+		CreatedAt: time.Now().UTC(),
+	})
 	return s.items.Save(ctx, item)
 }
 
@@ -206,8 +211,8 @@ func (s *ItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKe
 		return domain.ErrForbidden
 	}
 	found := false
-	for _, k := range item.PhotoKeys {
-		if k == photoKey {
+	for _, p := range item.Photos {
+		if p.MediaKey == photoKey {
 			found = true
 			break
 		}
@@ -218,13 +223,13 @@ func (s *ItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKe
 	if err := s.media.Delete(ctx, photoKey); err != nil {
 		return err
 	}
-	filtered := make([]string, 0, len(item.PhotoKeys))
-	for _, k := range item.PhotoKeys {
-		if k != photoKey {
-			filtered = append(filtered, k)
+	filtered := make([]domain.ItemPhoto, 0, len(item.Photos))
+	for _, p := range item.Photos {
+		if p.MediaKey != photoKey {
+			filtered = append(filtered, p)
 		}
 	}
-	item.PhotoKeys = filtered
+	item.Photos = filtered
 	return s.items.Save(ctx, item)
 }
 
@@ -239,10 +244,26 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 	if item.OwnerID != callerID {
 		return domain.ErrForbidden
 	}
-	for _, key := range item.PhotoKeys {
-		if err := s.media.Delete(ctx, key); err != nil {
+	for _, p := range item.Photos {
+		if err := s.media.Delete(ctx, p.MediaKey); err != nil {
 			return err
 		}
 	}
 	return s.items.Delete(ctx, itemID)
+}
+
+// makeItemPhotos converts a slice of media keys into ItemPhoto structs,
+// assigning sequential positions starting from 0 and a fresh UUID for each.
+func makeItemPhotos(keys []string) []domain.ItemPhoto {
+	photos := make([]domain.ItemPhoto, len(keys))
+	now := time.Now().UTC()
+	for i, key := range keys {
+		photos[i] = domain.ItemPhoto{
+			ID:        uuid.NewString(),
+			MediaKey:  key,
+			Position:  i,
+			CreatedAt: now,
+		}
+	}
+	return photos
 }
