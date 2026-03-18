@@ -90,3 +90,95 @@ func TestGetItemShouldReturnItemWithPurchaseDateWhenSet(t *testing.T) {
 	require.NotNil(t, item.PurchasePrice)
 	require.Equal(t, "120.00", *item.PurchasePrice)
 }
+
+func TestGetShouldReturnErrWhenEntityTypeIsUnsupported(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.User](db)
+	_, err := p.Get(t.Context(), "user-1")
+	require.Error(t, err)
+}
+
+func TestListShouldReturnErrWhenNotImplemented(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err := p.List(t.Context())
+	require.Error(t, err)
+}
+
+func TestSaveShouldReturnErrWhenNotImplemented(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.Item](db)
+	var item domain.Item
+	item.ID = "item-1"
+	err := p.Save(t.Context(), item)
+	require.Error(t, err)
+}
+
+func TestDeleteShouldReturnErrWhenNotImplemented(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.Item](db)
+	err := p.Delete(t.Context(), "item-1")
+	require.Error(t, err)
+}
+
+func TestGetItemShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openMigratedDB(t)
+	db.Close()
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err := p.Get(t.Context(), "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetItemShouldReturnErrIOWhenCreatedAtIsInvalid(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-ts', 'owner-1', 'Bad Item', 'not-a-date', '{}')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err = p.Get(t.Context(), "item-bad-ts")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetItemShouldReturnErrIOWhenMetadataIsInvalid(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-meta', 'owner-1', 'Bad Item', '2025-01-01T00:00:00Z', 'not-json')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err = p.Get(t.Context(), "item-bad-meta")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetItemShouldReturnItemWithAllOptionalFieldsWhenSet(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, category_id, color, location_id, created_at, metadata)
+		VALUES ('item-full', 'owner-1', 'Full Item', 'cat-1', 'Red', 'loc-1',
+		        '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	item, err := p.Get(t.Context(), "item-full")
+	require.NoError(t, err)
+
+	require.NotNil(t, item.CategoryID)
+	require.Equal(t, "cat-1", *item.CategoryID)
+	require.NotNil(t, item.LocationID)
+	require.Equal(t, "loc-1", *item.LocationID)
+}
+
+func TestGetItemShouldReturnErrIOWhenPurchaseDateIsInvalid(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, purchase_date, metadata)
+		VALUES ('item-bad-pd', 'owner-1', 'Bad Item', '2025-01-01T00:00:00Z', 'not-a-date', '{}')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err = p.Get(t.Context(), "item-bad-pd")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
