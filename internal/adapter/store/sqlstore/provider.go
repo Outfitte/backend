@@ -43,7 +43,127 @@ func (p *Provider[T]) Get(ctx context.Context, id string) (T, error) {
 
 // List returns all stored entities.
 func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
-	return nil, errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var zero T
+	switch any(&zero).(type) {
+	case *domain.Item:
+		items, err := listItems(ctx, p.db)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]T, len(items))
+		for i, item := range items {
+			result[i] = any(item).(T)
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("unsupported entity type %T", zero)
+	}
+}
+
+func listItems(ctx context.Context, db *sql.DB) ([]domain.Item, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	const q = `
+		SELECT id, owner_id, name, brand, category_id, color,
+		       location_id, purchase_price, purchase_date, created_at, metadata
+		FROM items`
+
+	rows, err := db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	defer rows.Close()
+
+	items := []domain.Item{}
+	for rows.Next() {
+		item, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return items, nil
+}
+
+func scanItem(rows *sql.Rows) (domain.Item, error) {
+	var (
+		itemID        string
+		ownerID       string
+		name          string
+		brand         sql.NullString
+		categoryID    sql.NullString
+		color         sql.NullString
+		locationID    sql.NullString
+		purchasePrice sql.NullString
+		purchaseDate  sql.NullString
+		createdAt     string
+		metadataRaw   string
+	)
+
+	if err := rows.Scan(
+		&itemID, &ownerID, &name, &brand, &categoryID, &color,
+		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
+	); err != nil {
+		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
+}
+
+func buildItem(
+	itemID, ownerID, name string,
+	brand, categoryID, color, locationID, purchasePrice, purchaseDate sql.NullString,
+	createdAt, metadataRaw string,
+) (domain.Item, error) {
+	parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	var metadata domain.ItemMetadata
+	if err := json.Unmarshal([]byte(metadataRaw), &metadata); err != nil {
+		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	item := domain.Item{}
+	item.ID = itemID
+	item.OwnerID = ownerID
+	item.Name = name
+	item.Metadata = metadata
+	item.CreatedAt = parsedCreatedAt
+
+	if brand.Valid {
+		item.Brand = &brand.String
+	}
+	if categoryID.Valid {
+		item.CategoryID = &categoryID.String
+	}
+	if color.Valid {
+		item.Color = &color.String
+	}
+	if locationID.Valid {
+		item.LocationID = &locationID.String
+	}
+	if purchasePrice.Valid {
+		item.PurchasePrice = &purchasePrice.String
+	}
+	if purchaseDate.Valid {
+		t, err := time.Parse(time.RFC3339, purchaseDate.String)
+		if err != nil {
+			return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		}
+		item.PurchaseDate = &t
+	}
+
+	return item, nil
 }
 
 // Save creates or replaces the entity.
@@ -100,49 +220,7 @@ func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
-	if err != nil {
-		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	var metadata domain.ItemMetadata
-	if err := json.Unmarshal([]byte(metadataRaw), &metadata); err != nil {
-		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	item := domain.Item{}
-	item.ID = itemID
-	item.OwnerID = ownerID
-	item.Name = name
-	item.Metadata = metadata
-	item.CreatedAt = parsedCreatedAt
-	// PhotoKeys is populated via a separate item_photos query; left nil here
-	// until the photo-loading sub-issue is implemented.
-
-	if brand.Valid {
-		item.Brand = &brand.String
-	}
-	if categoryID.Valid {
-		item.CategoryID = &categoryID.String
-	}
-	if color.Valid {
-		item.Color = &color.String
-	}
-	if locationID.Valid {
-		item.LocationID = &locationID.String
-	}
-	if purchasePrice.Valid {
-		item.PurchasePrice = &purchasePrice.String
-	}
-	if purchaseDate.Valid {
-		t, err := time.Parse(time.RFC3339, purchaseDate.String)
-		if err != nil {
-			return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
-		}
-		item.PurchaseDate = &t
-	}
-
-	return item, nil
+	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
 }
 
 func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {

@@ -98,11 +98,41 @@ func TestGetShouldReturnErrWhenEntityTypeIsUnsupported(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestListShouldReturnErrWhenNotImplemented(t *testing.T) {
+func TestListItemsShouldReturnErrWhenContextCancelled(t *testing.T) {
 	db := openMigratedDB(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
 	p := sqlstore.NewProvider[domain.Item](db)
+	_, err := p.List(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestListItemsShouldReturnErrIOWhenMetadataIsInvalid(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-meta', 'owner-1', 'Bad Item', '2025-01-01T00:00:00Z', 'not-json')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err = p.List(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestListShouldReturnErrWhenEntityTypeIsUnsupported(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.User](db)
 	_, err := p.List(t.Context())
 	require.Error(t, err)
+}
+
+func TestListItemsShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openMigratedDB(t)
+	db.Close()
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err := p.List(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestSaveItemShouldReturnErrWhenContextCancelled(t *testing.T) {
@@ -186,6 +216,63 @@ func TestSaveItemShouldReplaceExistingItem(t *testing.T) {
 	got, err := p.Get(t.Context(), "item-replace-1")
 	require.NoError(t, err)
 	require.Equal(t, "New Name", got.Name)
+}
+
+func TestListItemsShouldReturnAllItemsWhenRowsExist(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-list', 'list@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES
+			('item-a', 'user-list', 'Item A', '2025-06-01T10:00:00Z', '{"Fields":{"color":"red"}}'),
+			('item-b', 'user-list', 'Item B', '2025-06-02T10:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	items, err := p.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	ids := []string{items[0].GetID(), items[1].GetID()}
+	require.ElementsMatch(t, []string{"item-a", "item-b"}, ids)
+}
+
+func TestListItemsShouldReturnEmptySliceWhenNoRowsExist(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.Item](db)
+	items, err := p.List(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, items)
+	require.Empty(t, items)
+}
+
+func TestSaveItemShouldPersistItemWithPurchaseDateWhenSet(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-pd', 'pd@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	purchaseDate := time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)
+	item := domain.Item{}
+	item.ID = "item-pd-1"
+	item.OwnerID = "user-pd"
+	item.Name = "Watch"
+	item.CreatedAt = time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item.PurchaseDate = &purchaseDate
+	item.Metadata = domain.ItemMetadata{}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	got, err := p.Get(t.Context(), "item-pd-1")
+	require.NoError(t, err)
+	require.NotNil(t, got.PurchaseDate)
+	require.Equal(t, purchaseDate, *got.PurchaseDate)
 }
 
 func TestDeleteShouldReturnErrWhenNotImplemented(t *testing.T) {
