@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
@@ -64,4 +65,28 @@ func TestGetItemShouldReturnItemWhenRowExists(t *testing.T) {
 	require.NotNil(t, item.Brand)
 	require.Equal(t, "Levi's", *item.Brand)
 	require.Equal(t, "slim", item.Metadata.Fields["fit"])
+}
+
+func TestGetItemShouldReturnItemWithPurchaseDateWhenSet(t *testing.T) {
+	db := openMigratedDB(t)
+
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-2', 'b@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, purchase_price, purchase_date, created_at, metadata)
+		VALUES ('item-2', 'user-2', 'Jacket', '120.00', '2024-03-15T00:00:00Z',
+		        '2025-06-01T10:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	item, err := p.Get(t.Context(), "item-2")
+	require.NoError(t, err)
+
+	require.NotNil(t, item.PurchaseDate)
+	require.Equal(t, time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC), *item.PurchaseDate)
+	require.NotNil(t, item.PurchasePrice)
+	require.Equal(t, "120.00", *item.PurchasePrice)
 }

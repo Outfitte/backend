@@ -57,6 +57,10 @@ func (p *Provider[T]) Delete(ctx context.Context, id string) error {
 }
 
 func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Item{}, err
+	}
+
 	const q = `
 		SELECT id, owner_id, name, brand, category_id, color,
 		       location_id, purchase_price, purchase_date, created_at, metadata
@@ -103,6 +107,8 @@ func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
 	item.Name = name
 	item.Metadata = metadata
 	item.CreatedAt = parsedCreatedAt
+	// PhotoKeys is populated via a separate item_photos query; left nil here
+	// until the photo-loading sub-issue is implemented.
 
 	if brand.Valid {
 		item.Brand = &brand.String
