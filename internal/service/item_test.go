@@ -784,3 +784,30 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 	require.Equal(t, []string{"photo-1.jpg", "photo-2.jpg"}, media.deletedKeys)
 	require.Empty(t, store.items)
 }
+
+// ── makeItemPhotos ────────────────────────────────────────────────────────────
+
+func TestMakeItemPhotosShouldReturnEmptySliceWhenNoKeysGiven(t *testing.T) {
+	photos := makeItemPhotos(nil)
+	require.Empty(t, photos)
+}
+
+func TestMakeItemPhotosShouldAssignSequentialPositionsWhenKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
+	require.Len(t, photos, 3)
+	require.Equal(t, 0, photos[0].Position)
+	require.Equal(t, 1, photos[1].Position)
+	require.Equal(t, 2, photos[2].Position)
+}
+
+func TestMakeItemPhotosShouldSetMediaKeyFromInputWhenKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"x.jpg", "y.jpg"})
+	require.Equal(t, "x.jpg", photos[0].MediaKey)
+	require.Equal(t, "y.jpg", photos[1].MediaKey)
+}
+
+func TestMakeItemPhotosShouldAssignNonEmptyIDAndCreatedAtWhenKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"z.jpg"})
+	require.NotEmpty(t, photos[0].ID)
+	require.False(t, photos[0].CreatedAt.IsZero())
+}

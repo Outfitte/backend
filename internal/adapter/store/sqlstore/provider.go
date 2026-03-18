@@ -340,6 +340,9 @@ func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
 }
 
 func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	metadataRaw, err := json.Marshal(item.Metadata)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
@@ -377,6 +380,9 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 }
 
 func replacePhotos(ctx context.Context, tx *sql.Tx, item domain.Item) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM item_photos WHERE item_id = ?`, item.ID); err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}

@@ -405,6 +405,23 @@ func TestGetItemShouldReturnEmptyPhotosWhenNoPhotoRowsExist(t *testing.T) {
 	require.Empty(t, item.Photos)
 }
 
+func TestGetItemShouldReturnErrIOWhenPhotoCreatedAtIsInvalid(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-photo-ts', 'owner-1', 'Item', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES ('photo-bad', 'item-bad-photo-ts', 'key.jpg', 0, 'not-a-date')`)
+	require.NoError(t, err)
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	_, err = p.Get(t.Context(), "item-bad-photo-ts")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestGetItemShouldReturnPhotosOrderedByPositionWhenPhotoRowsExist(t *testing.T) {
 	db := openMigratedDB(t)
 	_, err := db.ExecContext(t.Context(), `
@@ -430,23 +447,6 @@ func TestGetItemShouldReturnPhotosOrderedByPositionWhenPhotoRowsExist(t *testing
 	require.Equal(t, "photo-2", item.Photos[1].ID)
 	require.Equal(t, "key-b.jpg", item.Photos[1].MediaKey)
 	require.Equal(t, 1, item.Photos[1].Position)
-}
-
-func TestGetItemShouldReturnErrIOWhenPhotoCreatedAtIsInvalid(t *testing.T) {
-	db := openMigratedDB(t)
-	_, err := db.ExecContext(t.Context(), `
-		INSERT INTO items (id, owner_id, name, created_at, metadata)
-		VALUES ('item-bad-photo-ts', 'owner-1', 'Item', '2025-01-01T00:00:00Z', '{}')`)
-	require.NoError(t, err)
-
-	_, err = db.ExecContext(t.Context(), `
-		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
-		VALUES ('photo-bad', 'item-bad-photo-ts', 'key.jpg', 0, 'not-a-date')`)
-	require.NoError(t, err)
-
-	p := sqlstore.NewProvider[domain.Item](db)
-	_, err = p.Get(t.Context(), "item-bad-photo-ts")
-	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestSaveItemShouldPersistPhotosWhenItemHasPhotos(t *testing.T) {
