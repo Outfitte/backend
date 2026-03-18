@@ -25,6 +25,7 @@ func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DSN", "/data/outfitte.db")
 	t.Setenv("SERVER_PORT", "")
 	t.Setenv("APP_ENV", "")
 	t.Setenv("LOG_LEVEL", "")
@@ -51,6 +52,7 @@ func TestLoadShouldErrorWhenServerPortIsInvalid(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DSN", "/data/outfitte.db")
 	t.Setenv("SERVER_PORT", "notaport")
 
 	_, err := config.Load()
@@ -65,6 +67,8 @@ func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	t.Setenv("MEDIA_STORAGE_PATH", "/var/media")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "postgres")
+	t.Setenv("DB_DSN", "postgres://user:pass@host:5432/outfitte?sslmode=disable")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -91,6 +95,7 @@ func TestLoadShouldReadJWTSecretWhenSetAndLongEnough(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DSN", "/data/outfitte.db")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -101,6 +106,7 @@ func TestLoadShouldErrorWhenJWTSecretIsTooShort(t *testing.T) {
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "tooshort")
+	t.Setenv("DB_DSN", "/data/outfitte.db")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -115,4 +121,40 @@ func TestLoadShouldErrorWhenJWTSecretIsMissing(t *testing.T) {
 	_, err := config.Load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "JWT_SECRET")
+}
+
+func TestLoadShouldDefaultToSQLiteDriverWhenDBDriverIsUnset(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DSN", "/data/outfitte.db")
+	t.Setenv("DB_DRIVER", "")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "sqlite", cfg.DB.Driver)
+}
+
+func TestLoadShouldReadDBConfigWhenBothVarsAreSet(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "postgres")
+	t.Setenv("DB_DSN", "postgres://user:pass@host:5432/outfitte?sslmode=disable")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	assert.Equal(t, "postgres", cfg.DB.Driver)
+	assert.Equal(t, "postgres://user:pass@host:5432/outfitte?sslmode=disable", cfg.DB.DSN)
+}
+
+func TestLoadShouldErrorWhenDBDSNIsMissing(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DSN", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_DSN")
 }

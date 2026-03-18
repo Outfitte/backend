@@ -11,6 +11,12 @@ import (
 	"strings"
 )
 
+// DBConfig holds database connection configuration.
+type DBConfig struct {
+	Driver string
+	DSN    string
+}
+
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
 	ServerPort       string
@@ -19,6 +25,7 @@ type Config struct {
 	MediaStoragePath string
 	LogLevel         slog.Level
 	JWTSecret        string
+	DB               DBConfig
 }
 
 // Load reads configuration from environment variables, applies defaults,
@@ -40,6 +47,8 @@ func loadFromEnv(cfg *Config) error {
 	cfg.StorageDataPath = os.Getenv("STORAGE_DATA_PATH")
 	cfg.MediaStoragePath = os.Getenv("MEDIA_STORAGE_PATH")
 	cfg.JWTSecret = os.Getenv("JWT_SECRET")
+	cfg.DB.Driver = getEnv("DB_DRIVER", "sqlite")
+	cfg.DB.DSN = os.Getenv("DB_DSN")
 
 	lvl, err := parseLogLevel(getEnv("LOG_LEVEL", "info"))
 	if err != nil {
@@ -67,6 +76,9 @@ func (c *Config) validate() error {
 	}
 	if c.JWTSecret == "" {
 		missing = append(missing, "JWT_SECRET")
+	}
+	if c.DB.DSN == "" {
+		missing = append(missing, "DB_DSN")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
