@@ -30,6 +30,8 @@ gh pr checkout <pr_number> --repo Outfitte/Outfitte
 
 Parse the comment body to extract the concrete action requested. If the comment references a specific file and line, read that file and locate the relevant code. Identify exactly what needs to change.
 
+If the requested change is ambiguous or unclear, post a PR comment asking for clarification and stop — do not proceed to Step 4.
+
 ## Step 4 — Implement the fix
 
 Load and follow the `tdd` skill **before writing any tests or production code**. The TDD loop must be followed strictly: write one failing test, make it pass with minimal code, then move to the next test. Never write multiple tests upfront, and never implement the full body before each individual test is red.
@@ -57,6 +59,8 @@ The branch is already tracked. Retry up to 3 times with a 5-second delay on netw
 
 ## Step 7 — Post coverage report
 
+Skip this step if no Go files were modified (e.g. the fix only touched YAML or Markdown).
+
 Identify which Go packages were modified from the staged files, then run coverage for those packages:
 
 ```bash
@@ -78,11 +82,12 @@ EOF
 
 ## Step 8 — Reply to the original comment
 
-Post a short acknowledgement on the PR confirming what was fixed and which commit contains the change:
+Post a threaded reply directly on the inline review comment that triggered this workflow, so the commenter receives a notification in context:
 
 ```bash
-gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
-Fixed in <commit_sha>: <one sentence describing what was changed>.
-EOF
-)"
+gh api repos/Outfitte/Outfitte/pulls/<pr_number>/comments/<comment_id>/replies \
+  --method POST \
+  --field body="Fixed in <commit_sha>: <one sentence describing what was changed>."
 ```
+
+Use the `Comment ID` value provided in the prompt as `<comment_id>`.
