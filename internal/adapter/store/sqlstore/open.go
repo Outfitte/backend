@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -13,10 +14,13 @@ const sqlitePragmas = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"
 
 // Open opens a database connection for the given DBConfig, applying
 // any driver-specific setup (e.g. PRAGMAs for SQLite).
-func Open(cfg config.DBConfig) (*sql.DB, error) {
+func Open(ctx context.Context, cfg config.DBConfig) (*sql.DB, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	switch cfg.Driver {
 	case "sqlite":
-		return openSQLite(cfg.DSN)
+		return openSQLite(ctx, cfg.DSN)
 	case "postgres":
 		return nil, domain.ErrUnsupportedDriver
 	default:
@@ -24,12 +28,12 @@ func Open(cfg config.DBConfig) (*sql.DB, error) {
 	}
 }
 
-func openSQLite(dsn string) (*sql.DB, error) {
+func openSQLite(ctx context.Context, dsn string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	if _, err := db.Exec(sqlitePragmas); err != nil {
+	if _, err := db.ExecContext(ctx, sqlitePragmas); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
