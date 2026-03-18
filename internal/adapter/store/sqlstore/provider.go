@@ -48,7 +48,16 @@ func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
 
 // Save creates or replaces the entity.
 func (p *Provider[T]) Save(ctx context.Context, entity T) error {
-	return errors.New("not implemented")
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var zero T
+	switch any(&zero).(type) {
+	case *domain.Item:
+		return saveItem(ctx, p.db, any(entity).(domain.Item))
+	default:
+		return fmt.Errorf("unsupported entity type %T", zero)
+	}
 }
 
 // Delete removes the entity.
@@ -134,4 +143,45 @@ func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
 	}
 
 	return item, nil
+}
+
+func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	metadataRaw, err := json.Marshal(item.Metadata)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+
+	var purchaseDate *string
+	if item.PurchaseDate != nil {
+		s := item.PurchaseDate.UTC().Format(time.RFC3339)
+		purchaseDate = &s
+	}
+
+	const q = `
+		INSERT OR REPLACE INTO items
+			(id, owner_id, name, brand, category_id, color, location_id,
+			 purchase_price, purchase_date, created_at, metadata)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err = db.ExecContext(ctx, q,
+		item.ID,
+		item.OwnerID,
+		item.Name,
+		item.Brand,
+		item.CategoryID,
+		item.Color,
+		item.LocationID,
+		item.PurchasePrice,
+		purchaseDate,
+		item.CreatedAt.UTC().Format(time.RFC3339),
+		string(metadataRaw),
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return nil
 }

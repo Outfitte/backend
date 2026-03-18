@@ -105,13 +105,87 @@ func TestListShouldReturnErrWhenNotImplemented(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSaveShouldReturnErrWhenNotImplemented(t *testing.T) {
+func TestSaveItemShouldReturnErrWhenContextCancelled(t *testing.T) {
 	db := openMigratedDB(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	var item domain.Item
+	item.ID = "item-1"
+	err := p.Save(ctx, item)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestSaveItemShouldReturnErrWhenEntityTypeUnsupported(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.User](db)
+	err := p.Save(t.Context(), domain.User{})
+	require.Error(t, err)
+}
+
+func TestSaveItemShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openMigratedDB(t)
+	db.Close()
 	p := sqlstore.NewProvider[domain.Item](db)
 	var item domain.Item
 	item.ID = "item-1"
 	err := p.Save(t.Context(), item)
-	require.Error(t, err)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestSaveItemShouldPersistNewItem(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-save', 'save@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	brand := "Nike"
+	item := domain.Item{}
+	item.ID = "item-save-1"
+	item.OwnerID = "user-save"
+	item.Name = "Sneakers"
+	item.Brand = &brand
+	item.CreatedAt = time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{Fields: map[string]string{"size": "42"}}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	got, err := p.Get(t.Context(), "item-save-1")
+	require.NoError(t, err)
+	require.Equal(t, "item-save-1", got.GetID())
+	require.Equal(t, "user-save", got.OwnerID)
+	require.Equal(t, "Sneakers", got.Name)
+	require.NotNil(t, got.Brand)
+	require.Equal(t, "Nike", *got.Brand)
+	require.Equal(t, "42", got.Metadata.Fields["size"])
+}
+
+func TestSaveItemShouldReplaceExistingItem(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-replace', 'rep@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	item := domain.Item{}
+	item.ID = "item-replace-1"
+	item.OwnerID = "user-replace"
+	item.Name = "Old Name"
+	item.CreatedAt = time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	item.Name = "New Name"
+	require.NoError(t, p.Save(t.Context(), item))
+
+	got, err := p.Get(t.Context(), "item-replace-1")
+	require.NoError(t, err)
+	require.Equal(t, "New Name", got.Name)
 }
 
 func TestDeleteShouldReturnErrWhenNotImplemented(t *testing.T) {
