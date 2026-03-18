@@ -250,6 +250,31 @@ func TestListItemsShouldReturnEmptySliceWhenNoRowsExist(t *testing.T) {
 	require.Empty(t, items)
 }
 
+func TestSaveItemShouldPersistItemWithPurchaseDateWhenSet(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-pd', 'pd@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	purchaseDate := time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)
+	item := domain.Item{}
+	item.ID = "item-pd-1"
+	item.OwnerID = "user-pd"
+	item.Name = "Watch"
+	item.CreatedAt = time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item.PurchaseDate = &purchaseDate
+	item.Metadata = domain.ItemMetadata{}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	got, err := p.Get(t.Context(), "item-pd-1")
+	require.NoError(t, err)
+	require.NotNil(t, got.PurchaseDate)
+	require.Equal(t, purchaseDate, *got.PurchaseDate)
+}
+
 func TestDeleteShouldReturnErrWhenNotImplemented(t *testing.T) {
 	db := openMigratedDB(t)
 	p := sqlstore.NewProvider[domain.Item](db)

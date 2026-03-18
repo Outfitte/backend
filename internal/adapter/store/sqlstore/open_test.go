@@ -1,6 +1,7 @@
 package sqlstore_test
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -10,6 +11,22 @@ import (
 	"github.com/outfitte/outfitte/internal/config"
 	"github.com/outfitte/outfitte/internal/domain"
 )
+
+func TestOpenShouldReturnErrWhenContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	cfg := config.DBConfig{Driver: "sqlite", DSN: ":memory:"}
+	_, err := sqlstore.Open(ctx, cfg)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestOpenShouldReturnErrIOWhenSQLiteDSNPathIsNotCreatable(t *testing.T) {
+	// sql.Open is lazy; ExecContext triggers the actual connection attempt.
+	// A DSN pointing to a non-existent directory causes ExecContext to fail.
+	cfg := config.DBConfig{Driver: "sqlite", DSN: "/nonexistent_xyz_dir/test.db"}
+	_, err := sqlstore.Open(t.Context(), cfg)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
 
 func TestOpenShouldFailWhenGivenUnknownDriver(t *testing.T) {
 	cfg := config.DBConfig{Driver: "unknown", DSN: ":memory:"}
