@@ -811,3 +811,15 @@ func TestMakeItemPhotosShouldAssignNonEmptyIDAndCreatedAtWhenKeysGiven(t *testin
 	require.NotEmpty(t, photos[0].ID)
 	require.False(t, photos[0].CreatedAt.IsZero())
 }
+
+func TestMakeItemPhotosShouldAssignUniqueIDsWhenMultipleKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
+	ids := map[string]bool{photos[0].ID: true, photos[1].ID: true, photos[2].ID: true}
+	require.Len(t, ids, 3)
+}
+
+func TestMakeItemPhotosShouldShareCreatedAtWhenMultipleKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
+	require.Equal(t, photos[0].CreatedAt, photos[1].CreatedAt)
+	require.Equal(t, photos[1].CreatedAt, photos[2].CreatedAt)
+}

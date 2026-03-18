@@ -11,9 +11,11 @@ import (
 
 // mockUserStore is an in-memory StorageProvider[domain.User] for tests.
 type mockUserStore struct {
-	users   []domain.User
-	listErr error
-	saveErr error
+	users            []domain.User
+	listErr          error
+	listErrOnNthCall int // if > 0, return listErr only on this call number (1-indexed)
+	listCallCount    int
+	saveErr          error
 }
 
 func (m *mockUserStore) Get(_ context.Context, id string) (domain.User, error) {
@@ -26,7 +28,8 @@ func (m *mockUserStore) Get(_ context.Context, id string) (domain.User, error) {
 }
 
 func (m *mockUserStore) List(_ context.Context) ([]domain.User, error) {
-	if m.listErr != nil {
+	m.listCallCount++
+	if m.listErr != nil && (m.listErrOnNthCall == 0 || m.listCallCount == m.listErrOnNthCall) {
 		return nil, m.listErr
 	}
 	return m.users, nil
@@ -345,6 +348,15 @@ func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
 func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
 	store := &mockUserStore{listErr: domain.ErrIO}
 	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	svc := NewUserService(store, settings)
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRegisterShouldReturnErrorWhenDefineRoleListFails(t *testing.T) {
+	store := &mockUserStore{listErr: domain.ErrIO, listErrOnNthCall: 2}
+	settings := &mockSettingsStore{}
 	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
