@@ -286,7 +286,8 @@ func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 	require.Equal(t, &catID, item.CategoryID)
 	require.Equal(t, &color, item.Color)
 	require.Equal(t, "M", item.Metadata.Fields["size"])
-	require.Equal(t, []string{"photo-1.jpg"}, item.PhotoKeys)
+	require.Len(t, item.Photos, 1)
+	require.Equal(t, "photo-1.jpg", item.Photos[0].MediaKey)
 	require.False(t, item.CreatedAt.IsZero())
 	require.Len(t, store.items, 1)
 }
@@ -512,7 +513,8 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	require.Equal(t, &catID, got.CategoryID)
 	require.Equal(t, &color, got.Color)
 	require.Equal(t, "L", got.Metadata.Fields["size"])
-	require.Equal(t, []string{"new-photo.jpg"}, got.PhotoKeys)
+	require.Len(t, got.Photos, 1)
+	require.Equal(t, "new-photo.jpg", got.Photos[0].MediaKey)
 }
 
 // ── UploadPhoto ───────────────────────────────────────────────────────────────
@@ -582,7 +584,7 @@ func TestItemServiceUploadPhotoShouldAppendKeyAndSaveItemWhenSuccessful(t *testi
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"existing.jpg"}
+	item.Photos = []domain.ItemPhoto{{ID: "photo-existing", MediaKey: "existing.jpg", Position: 0}}
 
 	store := &mockItemStore{items: []domain.Item{item}}
 	media := &mockMediaProvider{}
@@ -599,9 +601,9 @@ func TestItemServiceUploadPhotoShouldAppendKeyAndSaveItemWhenSuccessful(t *testi
 	// Item must be updated in the store
 	saved, err := store.Get(t.Context(), "item-1")
 	require.NoError(t, err)
-	require.Len(t, saved.PhotoKeys, 2)
-	require.Equal(t, "existing.jpg", saved.PhotoKeys[0])
-	require.Equal(t, media.uploadedKey, saved.PhotoKeys[1])
+	require.Len(t, saved.Photos, 2)
+	require.Equal(t, "existing.jpg", saved.Photos[0].MediaKey)
+	require.Equal(t, media.uploadedKey, saved.Photos[1].MediaKey)
 }
 
 // ── DeletePhoto ───────────────────────────────────────────────────────────────
@@ -646,7 +648,7 @@ func TestItemServiceDeletePhotoShouldReturnErrNotFoundWhenPhotoKeyIsNotInItem(t 
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"other.jpg"}
+	item.Photos = []domain.ItemPhoto{{ID: "photo-other", MediaKey: "other.jpg", Position: 0}}
 
 	store := &mockItemStore{items: []domain.Item{item}}
 	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
@@ -659,7 +661,7 @@ func TestItemServiceDeletePhotoShouldReturnErrorWhenMediaDeleteFails(t *testing.
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"photo.jpg"}
+	item.Photos = []domain.ItemPhoto{{ID: "photo-p", MediaKey: "photo.jpg", Position: 0}}
 
 	store := &mockItemStore{items: []domain.Item{item}}
 	media := &mockMediaProvider{deleteErr: domain.ErrIO}
@@ -673,7 +675,7 @@ func TestItemServiceDeletePhotoShouldReturnErrorWhenStoreSaveFails(t *testing.T)
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"photo.jpg"}
+	item.Photos = []domain.ItemPhoto{{ID: "photo-p", MediaKey: "photo.jpg", Position: 0}}
 
 	store := &mockItemStore{items: []domain.Item{item}, saveErr: domain.ErrIO}
 	svc := NewItemService(store, &mockMediaProvider{}, &mockLocationStore{})
@@ -686,7 +688,11 @@ func TestItemServiceDeletePhotoShouldRemoveKeyAndSaveItemWhenSuccessful(t *testi
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"keep.jpg", "remove.jpg", "also-keep.jpg"}
+	item.Photos = []domain.ItemPhoto{
+		{ID: "p1", MediaKey: "keep.jpg", Position: 0},
+		{ID: "p2", MediaKey: "remove.jpg", Position: 1},
+		{ID: "p3", MediaKey: "also-keep.jpg", Position: 2},
+	}
 
 	store := &mockItemStore{items: []domain.Item{item}}
 	media := &mockMediaProvider{}
@@ -699,7 +705,9 @@ func TestItemServiceDeletePhotoShouldRemoveKeyAndSaveItemWhenSuccessful(t *testi
 
 	saved, err := store.Get(t.Context(), "item-1")
 	require.NoError(t, err)
-	require.Equal(t, []string{"keep.jpg", "also-keep.jpg"}, saved.PhotoKeys)
+	require.Len(t, saved.Photos, 2)
+	require.Equal(t, "keep.jpg", saved.Photos[0].MediaKey)
+	require.Equal(t, "also-keep.jpg", saved.Photos[1].MediaKey)
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -736,7 +744,7 @@ func TestItemServiceDeleteShouldReturnErrorWhenMediaDeleteFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"photo-1.jpg"}
+	item.Photos = []domain.ItemPhoto{{ID: "p1", MediaKey: "photo-1.jpg", Position: 0}}
 
 	store := &mockItemStore{items: []domain.Item{item}}
 	media := &mockMediaProvider{deleteErr: domain.ErrIO}
@@ -762,7 +770,10 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-	item.PhotoKeys = []string{"photo-1.jpg", "photo-2.jpg"}
+	item.Photos = []domain.ItemPhoto{
+		{ID: "p1", MediaKey: "photo-1.jpg", Position: 0},
+		{ID: "p2", MediaKey: "photo-2.jpg", Position: 1},
+	}
 
 	store := &mockItemStore{items: []domain.Item{item}}
 	media := &mockMediaProvider{}
@@ -772,4 +783,43 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 	require.NoError(t, err)
 	require.Equal(t, []string{"photo-1.jpg", "photo-2.jpg"}, media.deletedKeys)
 	require.Empty(t, store.items)
+}
+
+// ── makeItemPhotos ────────────────────────────────────────────────────────────
+
+func TestMakeItemPhotosShouldReturnEmptySliceWhenNoKeysGiven(t *testing.T) {
+	photos := makeItemPhotos(nil)
+	require.Empty(t, photos)
+}
+
+func TestMakeItemPhotosShouldAssignSequentialPositionsWhenKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
+	require.Len(t, photos, 3)
+	require.Equal(t, 0, photos[0].Position)
+	require.Equal(t, 1, photos[1].Position)
+	require.Equal(t, 2, photos[2].Position)
+}
+
+func TestMakeItemPhotosShouldSetMediaKeyFromInputWhenKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"x.jpg", "y.jpg"})
+	require.Equal(t, "x.jpg", photos[0].MediaKey)
+	require.Equal(t, "y.jpg", photos[1].MediaKey)
+}
+
+func TestMakeItemPhotosShouldAssignNonEmptyIDAndCreatedAtWhenKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"z.jpg"})
+	require.NotEmpty(t, photos[0].ID)
+	require.False(t, photos[0].CreatedAt.IsZero())
+}
+
+func TestMakeItemPhotosShouldAssignUniqueIDsWhenMultipleKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
+	ids := map[string]bool{photos[0].ID: true, photos[1].ID: true, photos[2].ID: true}
+	require.Len(t, ids, 3)
+}
+
+func TestMakeItemPhotosShouldShareCreatedAtWhenMultipleKeysGiven(t *testing.T) {
+	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
+	require.Equal(t, photos[0].CreatedAt, photos[1].CreatedAt)
+	require.Equal(t, photos[1].CreatedAt, photos[2].CreatedAt)
 }

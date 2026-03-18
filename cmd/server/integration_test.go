@@ -132,11 +132,13 @@ func uploadPhoto(t *testing.T, srv *httptest.Server, token, itemID string) strin
 	getResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, token)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 	var item struct {
-		PhotoKeys []string `json:"PhotoKeys"`
+		Photos []struct {
+			MediaKey string
+		}
 	}
 	decodeJSON(t, getResp, &item)
-	require.Len(t, item.PhotoKeys, 1)
-	return item.PhotoKeys[0]
+	require.Len(t, item.Photos, 1)
+	return item.Photos[0].MediaKey
 }
 
 // --- unauthorized cases ---
@@ -197,8 +199,7 @@ func TestIntegrationFullCycle(t *testing.T) {
 	getResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenA)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 	var item struct {
-		LocationID *string  `json:"LocationID"`
-		PhotoKeys  []string `json:"PhotoKeys"`
+		LocationID *string `json:"LocationID"`
 	}
 	decodeJSON(t, getResp, &item)
 	require.NotNil(t, item.LocationID)

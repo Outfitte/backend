@@ -885,7 +885,11 @@ func (s *statefulFakeItemService) Update(ctx context.Context, callerID, itemID s
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
 	item.Metadata = input.Metadata
-	item.PhotoKeys = input.PhotoKeys
+	photos := make([]domain.ItemPhoto, len(input.PhotoKeys))
+	for i, key := range input.PhotoKeys {
+		photos[i] = domain.ItemPhoto{MediaKey: key, Position: i}
+	}
+	item.Photos = photos
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
 	item.PurchaseDate = input.PurchaseDate

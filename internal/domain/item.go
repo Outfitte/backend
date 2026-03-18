@@ -10,7 +10,7 @@ type Item struct {
 	CategoryID    *string    // optional; nil = uncategorised
 	Color         *string    // optional
 	Metadata      ItemMetadata
-	PhotoKeys     []string
+	Photos        []ItemPhoto
 	LocationID    *string    // optional
 	PurchasePrice *string    // optional, deferred to M4+; string to avoid decimal dep
 	PurchaseDate  *time.Time // optional, deferred to M4+
