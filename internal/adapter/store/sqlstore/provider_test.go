@@ -275,11 +275,59 @@ func TestSaveItemShouldPersistItemWithPurchaseDateWhenSet(t *testing.T) {
 	require.Equal(t, purchaseDate, *got.PurchaseDate)
 }
 
-func TestDeleteShouldReturnErrWhenNotImplemented(t *testing.T) {
+func TestDeleteShouldReturnErrWhenContextCancelled(t *testing.T) {
+	db := openMigratedDB(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	err := p.Delete(ctx, "item-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestDeleteShouldReturnErrNotFoundWhenNoRowMatches(t *testing.T) {
 	db := openMigratedDB(t)
 	p := sqlstore.NewProvider[domain.Item](db)
+	err := p.Delete(t.Context(), "nonexistent-id")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestDeleteShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openMigratedDB(t)
+	db.Close()
+	p := sqlstore.NewProvider[domain.Item](db)
 	err := p.Delete(t.Context(), "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestDeleteShouldReturnErrWhenEntityTypeUnsupported(t *testing.T) {
+	db := openMigratedDB(t)
+	p := sqlstore.NewProvider[domain.User](db)
+	err := p.Delete(t.Context(), "user-1")
 	require.Error(t, err)
+}
+
+func TestDeleteShouldRemoveItemWhenExists(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-del', 'del@b.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	item := domain.Item{}
+	item.ID = "item-del-1"
+	item.OwnerID = "user-del"
+	item.Name = "To Delete"
+	item.CreatedAt = time.Date(2025, 6, 1, 10, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+
+	p := sqlstore.NewProvider[domain.Item](db)
+	require.NoError(t, p.Save(t.Context(), item))
+
+	require.NoError(t, p.Delete(t.Context(), "item-del-1"))
+
+	_, err = p.Get(t.Context(), "item-del-1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestGetItemShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
