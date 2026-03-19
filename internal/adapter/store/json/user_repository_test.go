@@ -2,6 +2,8 @@ package json_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/adapter/store/json"
@@ -151,6 +153,35 @@ func TestUserListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 
 	_, err := r.List(ctx)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestUserSaveShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "users.json"), []byte("not json"), 0o644))
+	r := json.NewUserRepository(dir)
+
+	var u domain.User
+	u.ID = "u1"
+	err := r.Save(t.Context(), u)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestUserGetByEmailShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "users.json"), []byte("not json"), 0o644))
+	r := json.NewUserRepository(dir)
+
+	_, err := r.GetByEmail(t.Context(), "alice@example.com")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestUserCountShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "users.json"), []byte("not json"), 0o644))
+	r := json.NewUserRepository(dir)
+
+	_, err := r.Count(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestUserListShouldReturnAllUsers(t *testing.T) {

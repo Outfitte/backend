@@ -2,6 +2,8 @@ package json_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/adapter/store/json"
@@ -254,6 +256,39 @@ func TestItemListPhotoKeysShouldReturnErrorWhenContextIsCancelled(t *testing.T) 
 
 	_, err := r.ListPhotoKeys(ctx, "i1")
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemDeletePhotoShouldKeepOtherPhotosWhenDeletingOne(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	var item domain.Item
+	item.ID = "i1"
+	require.NoError(t, r.Save(t.Context(), item))
+	require.NoError(t, r.SavePhoto(t.Context(), "i1", "p1", "key1", 0))
+	require.NoError(t, r.SavePhoto(t.Context(), "i1", "p2", "key2", 1))
+
+	require.NoError(t, r.DeletePhoto(t.Context(), "i1", "key1"))
+
+	keys, err := r.ListPhotoKeys(t.Context(), "i1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"key2"}, keys)
+}
+
+func TestItemListByOwnerShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "items.json"), []byte("not json"), 0o644))
+	r := json.NewItemRepository(dir)
+
+	_, err := r.ListByOwner(t.Context(), "o1", ports.ItemListFilter{})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemCountByLocationShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "items.json"), []byte("not json"), 0o644))
+	r := json.NewItemRepository(dir)
+
+	_, err := r.CountByLocation(t.Context(), "loc1")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestItemListPhotoKeysShouldReturnKeysOrderedByPosition(t *testing.T) {
