@@ -12,22 +12,22 @@ var _ ports.LocationRepository = (*locationRepositoryStub)(nil)
 
 type locationRepositoryStub struct{}
 
-func (s *locationRepositoryStub) Get(_ context.Context, _ string) (domain.Location, error) {
+func (s *locationRepositoryStub) Get(ctx context.Context, _ string) (domain.Location, error) {
 	return domain.Location{}, nil
 }
 
-func (s *locationRepositoryStub) Save(_ context.Context, _ domain.Location) error {
+func (s *locationRepositoryStub) Save(ctx context.Context, _ domain.Location) error {
 	return nil
 }
 
-func (s *locationRepositoryStub) Delete(_ context.Context, _ string) error {
+func (s *locationRepositoryStub) Delete(ctx context.Context, _ string) error {
 	return nil
 }
 
-func (s *locationRepositoryStub) ListByOwner(_ context.Context, _ string) ([]domain.Location, error) {
+func (s *locationRepositoryStub) ListByOwner(ctx context.Context, _ string) ([]domain.Location, error) {
 	return nil, nil
 }
 
-func (s *locationRepositoryStub) HasChildren(_ context.Context, _ string) (bool, error) {
+func (s *locationRepositoryStub) HasChildren(ctx context.Context, _ string) (bool, error) {
 	return false, nil
 }
