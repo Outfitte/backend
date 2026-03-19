@@ -2,7 +2,6 @@ package json
 
 import (
 	"context"
-	"errors"
 
 	"github.com/outfitte/outfitte/internal/domain"
 )
@@ -31,11 +30,7 @@ func (r *SessionRepository) Delete(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	err := r.provider.Delete(ctx, id)
-	if errors.Is(err, domain.ErrNotFound) {
-		return nil
-	}
-	return err
+	return r.provider.Delete(ctx, id)
 }
 
 func (r *SessionRepository) FindByTokenHash(ctx context.Context, hash string) (domain.Session, error) {

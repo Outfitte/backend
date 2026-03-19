@@ -55,11 +55,11 @@ func TestDeleteShouldReturnErrorWhenContextIsCancelledForSession(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestDeleteShouldBeNoOpWhenSessionDoesNotExist(t *testing.T) {
+func TestDeleteShouldReturnNotFoundWhenSessionDoesNotExist(t *testing.T) {
 	r := json.NewSessionRepository(t.TempDir())
 
 	err := r.Delete(t.Context(), "42")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestDeleteShouldRemoveSessionWhenFound(t *testing.T) {
