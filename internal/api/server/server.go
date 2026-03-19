@@ -30,9 +30,9 @@ func New(
 ) *http.Server {
 	userSvc := service.NewUserService(users, settings)
 	authSvc := service.NewAuthService(users, sessions, []byte(cfg.JWTSecret))
-	itemSvc := service.NewItemService(items, media, locations)
-	locationSvc := service.NewLocationService(locations, items)
 	categorySvc := service.NewCategoryService()
+	itemSvc := service.NewItemService(items, media, locations, categorySvc)
+	locationSvc := service.NewLocationService(locations, items)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 

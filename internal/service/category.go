@@ -132,6 +132,18 @@ func NewCategoryService() *CategoryService {
 	return &CategoryService{}
 }
 
+func (s *CategoryService) GetByID(ctx context.Context, id string) (domain.Category, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Category{}, err
+	}
+	for _, c := range presetCategories {
+		if c.ID == id {
+			return c, nil
+		}
+	}
+	return domain.Category{}, domain.ErrNotFound
+}
+
 func (s *CategoryService) ListAll(ctx context.Context) ([]domain.Category, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

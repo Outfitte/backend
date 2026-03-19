@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -37,16 +38,23 @@ type UpdateItemInput struct {
 	PurchaseDate  *time.Time
 }
 
+// categoryGetter is a narrow interface used by ItemService to validate that a
+// category ID refers to a known category.
+type categoryGetter interface {
+	GetByID(ctx context.Context, id string) (domain.Category, error)
+}
+
 // ItemService manages wardrobe items.
 type ItemService struct {
-	items     ports.StorageProvider[domain.Item]
-	locations ports.StorageProvider[domain.Location]
-	media     ports.MediaProvider
+	items      ports.StorageProvider[domain.Item]
+	locations  ports.StorageProvider[domain.Location]
+	media      ports.MediaProvider
+	categories categoryGetter
 }
 
 // NewItemService constructs an ItemService backed by the given storage and media providers.
-func NewItemService(items ports.StorageProvider[domain.Item], media ports.MediaProvider, locations ports.StorageProvider[domain.Location]) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media}
+func NewItemService(items ports.StorageProvider[domain.Item], media ports.MediaProvider, locations ports.StorageProvider[domain.Location], categories categoryGetter) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -91,6 +99,9 @@ func (s *ItemService) validateLocationOwnership(ctx context.Context, callerID st
 
 func (s *ItemService) Create(ctx context.Context, callerID string, input CreateItemInput) (domain.Item, error) {
 	if err := ctx.Err(); err != nil {
+		return domain.Item{}, err
+	}
+	if err := s.validateNameAndCategory(ctx, input.Name, input.CategoryID); err != nil {
 		return domain.Item{}, err
 	}
 	if err := domain.ValidateMetadata(input.Metadata); err != nil {
@@ -150,8 +161,13 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if err := ctx.Err(); err != nil {
 		return domain.Item{}, err
 	}
-	if err := domain.ValidateMetadata(input.Metadata); err != nil {
+	if err := s.validateNameAndCategory(ctx, input.Name, input.CategoryID); err != nil {
 		return domain.Item{}, err
+	}
+	for k := range input.Metadata.Fields {
+		if err := domain.ValidateMetadataKey(k); err != nil {
+			return domain.Item{}, err
+		}
 	}
 	item, err := s.items.Get(ctx, itemID)
 	if err != nil {
@@ -160,11 +176,15 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if item.OwnerID != callerID {
 		return domain.Item{}, domain.ErrForbidden
 	}
+	merged, err := s.mergeMetadata(item.Metadata, input.Metadata)
+	if err != nil {
+		return domain.Item{}, err
+	}
 	item.Name = input.Name
 	item.Brand = input.Brand
 	item.CategoryID = input.CategoryID
 	item.Color = input.Color
-	item.Metadata = input.Metadata
+	item.Metadata = merged
 	item.Photos = makeItemPhotos(input.PhotoKeys)
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
@@ -173,6 +193,27 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 		return domain.Item{}, err
 	}
 	return item, nil
+}
+
+// mergeMetadata applies patch semantics: keys with empty values are deleted,
+// other keys overwrite existing ones, and keys absent from the patch are preserved.
+// Returns ErrValidation if the merged result exceeds the maximum field count.
+func (s *ItemService) mergeMetadata(existing, patch domain.ItemMetadata) (domain.ItemMetadata, error) {
+	merged := make(map[string]string, len(existing.Fields))
+	for k, v := range existing.Fields {
+		merged[k] = v
+	}
+	for k, v := range patch.Fields {
+		if v == "" {
+			delete(merged, k)
+		} else {
+			merged[k] = v
+		}
+	}
+	if len(merged) > 50 {
+		return domain.ItemMetadata{}, fmt.Errorf("%w: metadata exceeds maximum of 50 fields", domain.ErrValidation)
+	}
+	return domain.ItemMetadata{Fields: merged}, nil
 }
 
 func (s *ItemService) UploadPhoto(ctx context.Context, callerID, itemID string, r io.Reader, filename string) error {
@@ -250,6 +291,20 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 		}
 	}
 	return s.items.Delete(ctx, itemID)
+}
+
+// validateNameAndCategory checks that name is non-empty and, if categoryID is
+// provided, that the referenced category exists.
+func (s *ItemService) validateNameAndCategory(ctx context.Context, name string, categoryID *string) error {
+	if name == "" {
+		return fmt.Errorf("%w: name must not be empty", domain.ErrValidation)
+	}
+	if categoryID != nil {
+		if _, err := s.categories.GetByID(ctx, *categoryID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // makeItemPhotos converts a slice of media keys into ItemPhoto structs,
