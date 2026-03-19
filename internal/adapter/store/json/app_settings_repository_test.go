@@ -2,6 +2,8 @@ package json_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/adapter/store/json"
@@ -13,6 +15,15 @@ import (
 func TestNewAppSettingsRepositoryShouldImplementAppSettingsRepository(t *testing.T) {
 	r := json.NewAppSettingsRepository(t.TempDir())
 	require.Implements(t, (*ports.AppSettingsRepository)(nil), r)
+}
+
+func TestLoadShouldReturnIOErrorWhenStorageIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app_settings.json"), []byte("not json"), 0o644))
+	r := json.NewAppSettingsRepository(dir)
+
+	_, err := r.Load(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestLoadShouldReturnNotFoundWhenNoSettingsSaved(t *testing.T) {
