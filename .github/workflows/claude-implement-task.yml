@@ -1,14 +1,12 @@
 name: Claude Implement Task
 
 on:
-  issue_comment:
-    types: [created]
+  issues:
+    types: [labeled]
 
 jobs:
   claude-implement:
-    if: |
-      github.event.issue.pull_request == null &&
-      contains(github.event.comment.body, '@claude implement')
+    if: github.event.label.name == 'claude implement'
     runs-on: claude-runner
     timeout-minutes: 60
     permissions:
