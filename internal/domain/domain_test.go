@@ -49,6 +49,10 @@ func TestItemMetadataShouldHoldStringFieldsWhenConstructed(t *testing.T) {
 	assert.Equal(t, "slim", meta.Fields["fit"])
 }
 
+func TestCategoryUncategorisedShouldBeEmptyStringWhenUsedAsSentinel(t *testing.T) {
+	assert.Equal(t, "", domain.CategoryUncategorised)
+}
+
 func TestEntitiesImplementPortsEntity(t *testing.T) {
 	iface := (*ports.Entity)(nil)
 	assert.Implements(t, iface, domain.User{})
