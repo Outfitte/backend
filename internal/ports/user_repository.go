@@ -15,6 +15,7 @@ type UserRepository interface {
 	Get(ctx context.Context, id string) (domain.User, error)
 
 	// Save upserts the user row.
+	// Returns domain.ErrConflict if the email is already in use by a different user.
 	Save(ctx context.Context, user domain.User) error
 
 	// GetByEmail retrieves a user by email address.
