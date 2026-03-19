@@ -12,6 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWriteJSONShouldReturnErrorWhenTruncateFails(t *testing.T) {
+	_, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer w.Close()
+
+	err = writeJSON(w, struct{}{})
+	require.Error(t, err)
+}
+
 func TestNewSingletonStoreShouldImplementSingletonStore(t *testing.T) {
 	s := NewSingletonStore[domain.AppSettings](t.TempDir(), "app_settings.json")
 	require.Implements(t, (*ports.SingletonStore[domain.AppSettings])(nil), s)

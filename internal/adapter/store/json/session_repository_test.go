@@ -2,6 +2,8 @@ package json_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -206,4 +208,31 @@ func TestSaveShouldReturnErrorWhenContextIsCancelledForSession(t *testing.T) {
 
 	err := r.Save(ctx, domain.Session{})
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestFindByTokenHashShouldReturnIOErrorWhenListFails(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sessions.json"), []byte("not json"), 0o644))
+	r := json.NewSessionRepository(dir)
+
+	_, err := r.FindByTokenHash(t.Context(), "hash")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestCountByUserShouldReturnIOErrorWhenListFails(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sessions.json"), []byte("not json"), 0o644))
+	r := json.NewSessionRepository(dir)
+
+	_, err := r.CountByUser(t.Context(), "user1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestDeleteOldestByUserShouldReturnIOErrorWhenListFails(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "sessions.json"), []byte("not json"), 0o644))
+	r := json.NewSessionRepository(dir)
+
+	err := r.DeleteOldestByUser(t.Context(), "user1")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
