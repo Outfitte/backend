@@ -18,6 +18,7 @@ type SessionRepository interface {
 	Save(ctx context.Context, session domain.Session) error
 
 	// Delete removes the session row identified by id.
+	// It is a no-op (returns nil) if no session with that ID exists.
 	Delete(ctx context.Context, id string) error
 
 	// FindByTokenHash retrieves a session by its token hash.
@@ -25,8 +26,10 @@ type SessionRepository interface {
 	FindByTokenHash(ctx context.Context, hash string) (domain.Session, error)
 
 	// CountByUser returns the total number of sessions for the given userID.
+	// Returns 0, nil if the user has no sessions or does not exist.
 	CountByUser(ctx context.Context, userID string) (int, error)
 
 	// DeleteOldestByUser removes the oldest session belonging to userID.
+	// Returns domain.ErrNotFound if the user has no sessions.
 	DeleteOldestByUser(ctx context.Context, userID string) error
 }
