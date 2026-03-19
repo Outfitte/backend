@@ -6,8 +6,15 @@ import (
 	"github.com/outfitte/outfitte/internal/domain"
 )
 
+// ItemStatus values for ItemListFilter.Status.
+const (
+	ItemStatusActive   = "active"
+	ItemStatusArchived = "archived"
+	ItemStatusAll      = "all"
+)
+
 // ItemListFilter controls which items are returned by ListByOwner.
-// Status accepts "active", "archived", or "all"; defaults to "active".
+// Status accepts ItemStatusActive, ItemStatusArchived, or ItemStatusAll; defaults to ItemStatusActive.
 type ItemListFilter struct {
 	Status string
 }
