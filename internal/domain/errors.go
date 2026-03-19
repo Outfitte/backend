@@ -17,4 +17,5 @@ var (
 	ErrSessionExpired       = errors.New("session expired")
 	ErrValidation           = errors.New("validation error")
 	ErrUnsupportedDriver    = errors.New("unsupported driver")
+	ErrFutureDateNotAllowed = errors.New("worn date cannot be in the future")
 )

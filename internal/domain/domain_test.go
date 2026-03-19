@@ -60,4 +60,5 @@ func TestEntitiesImplementPortsEntity(t *testing.T) {
 	assert.Implements(t, iface, domain.Location{})
 	assert.Implements(t, iface, domain.Category{})
 	assert.Implements(t, iface, domain.Session{})
+	assert.Implements(t, iface, domain.WearLog{})
 }
