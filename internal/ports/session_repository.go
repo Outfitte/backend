@@ -18,7 +18,7 @@ type SessionRepository interface {
 	Save(ctx context.Context, session domain.Session) error
 
 	// Delete removes the session row identified by id.
-	// It is a no-op (returns nil) if no session with that ID exists.
+	// Returns domain.ErrNotFound if no session with that ID exists.
 	Delete(ctx context.Context, id string) error
 
 	// FindByTokenHash retrieves a session by its token hash.
