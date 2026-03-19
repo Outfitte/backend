@@ -25,4 +25,11 @@ jobs:
       run: go build -v ./...
 
     - name: Test
-      run: go test -v ./...
+      run: go test -v -coverprofile=coverage.out ./...
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
+      with:
+        files: ./coverage.out
+        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
