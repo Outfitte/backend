@@ -16,6 +16,6 @@ func (s *appSettingsRepositoryStub) Load(ctx context.Context) (domain.AppSetting
 	return domain.AppSettings{}, nil
 }
 
-func (s *appSettingsRepositoryStub) Save(ctx context.Context, settings domain.AppSettings) error {
+func (s *appSettingsRepositoryStub) Save(ctx context.Context, _ domain.AppSettings) error {
 	return nil
 }
