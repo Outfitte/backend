@@ -130,6 +130,10 @@ func TestItemListByOwnerAllStatusShouldReturnAllOwnerItems(t *testing.T) {
 	require.Len(t, items, 2)
 }
 
+// TestItemListByOwnerArchivedStatusShouldReturnEmpty verifies the early-return branch for
+// ItemStatusArchived. domain.Item has no archived field until M2-012, so this adapter
+// treats all items as active; the early-return ensures archived queries always return empty
+// rather than incorrectly returning active items.
 func TestItemListByOwnerArchivedStatusShouldReturnEmpty(t *testing.T) {
 	r := json.NewItemRepository(t.TempDir())
 	var i1 domain.Item

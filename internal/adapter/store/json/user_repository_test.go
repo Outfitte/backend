@@ -104,14 +104,6 @@ func TestUserGetByEmailShouldReturnUserWhenFound(t *testing.T) {
 	require.Equal(t, u, got)
 }
 
-func TestUserCountShouldReturnZeroWhenNoUsersExist(t *testing.T) {
-	r := json.NewUserRepository(t.TempDir())
-
-	count, err := r.Count(t.Context())
-	require.NoError(t, err)
-	require.Equal(t, 0, count)
-}
-
 func TestUserCountShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	r := json.NewUserRepository(t.TempDir())
 	ctx, cancel := context.WithCancel(t.Context())
@@ -119,6 +111,14 @@ func TestUserCountShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 
 	_, err := r.Count(ctx)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestUserCountShouldReturnZeroWhenNoUsersExist(t *testing.T) {
+	r := json.NewUserRepository(t.TempDir())
+
+	count, err := r.Count(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
 }
 
 func TestUserCountShouldReturnCorrectCount(t *testing.T) {
