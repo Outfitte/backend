@@ -33,10 +33,22 @@ func TestCategoryListAllShouldReturnAllPresetsWhenContextIsActive(t *testing.T) 
 	require.ElementsMatch(t, []string{
 		"Tops", "Bottoms", "Outerwear", "Footwear", "Accessories",
 		"Underwear", "Sportswear", "Formalwear", "Bags",
+		"Jewellery", "Watches",
 	}, labels)
 	for _, c := range categories {
 		require.True(t, c.IsPreset)
 		require.NotEmpty(t, c.ID)
+	}
+}
+
+func TestCategoryListAllShouldReturnFieldHintsWhenContextIsActive(t *testing.T) {
+	svc := service.NewCategoryService()
+
+	categories, err := svc.ListAll(t.Context())
+	require.NoError(t, err)
+
+	for _, c := range categories {
+		require.NotEmpty(t, c.FieldHints, "category %q should have field hints", c.Label)
 	}
 }
 
