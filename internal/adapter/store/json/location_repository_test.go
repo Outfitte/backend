@@ -157,8 +157,19 @@ func TestHasChildrenShouldReturnIOErrorWhenStorageIsCorrupt(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestHasChildrenShouldReturnNotFoundWhenLocationDoesNotExist(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+
+	_, err := r.HasChildren(t.Context(), "nonexistent")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestHasChildrenShouldReturnFalseWhenNoChildrenExist(t *testing.T) {
 	r := json.NewLocationRepository(t.TempDir())
+	var parent domain.Location
+	parent.ID = "parent1"
+	parent.OwnerID = "owner1"
+	require.NoError(t, r.Save(t.Context(), parent))
 
 	has, err := r.HasChildren(t.Context(), "parent1")
 	require.NoError(t, err)
@@ -168,6 +179,10 @@ func TestHasChildrenShouldReturnFalseWhenNoChildrenExist(t *testing.T) {
 func TestHasChildrenShouldReturnTrueWhenChildExists(t *testing.T) {
 	r := json.NewLocationRepository(t.TempDir())
 	parentID := "parent1"
+	var parent domain.Location
+	parent.ID = parentID
+	parent.OwnerID = "owner1"
+	require.NoError(t, r.Save(t.Context(), parent))
 	var child domain.Location
 	child.ID = "child1"
 	child.OwnerID = "owner1"

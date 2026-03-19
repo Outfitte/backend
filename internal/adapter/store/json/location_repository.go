@@ -54,6 +54,9 @@ func (r *LocationRepository) HasChildren(ctx context.Context, locationID string)
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
+	if _, err := r.provider.Get(ctx, locationID); err != nil {
+		return false, err
+	}
 	all, err := r.provider.List(ctx)
 	if err != nil {
 		return false, err
