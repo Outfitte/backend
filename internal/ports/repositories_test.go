@@ -24,46 +24,46 @@ var _ ports.SessionRepository = (*sessionRepositoryStub)(nil)
 
 type itemRepositoryStub struct{}
 
-func (s *itemRepositoryStub) Get(_ context.Context, _ string) (domain.Item, error) {
+func (s *itemRepositoryStub) Get(ctx context.Context, _ string) (domain.Item, error) {
 	return domain.Item{}, nil
 }
-func (s *itemRepositoryStub) Save(_ context.Context, _ domain.Item) error          { return nil }
-func (s *itemRepositoryStub) Delete(_ context.Context, _ string) error             { return nil }
-func (s *itemRepositoryStub) ListByOwner(_ context.Context, _ string, _ ports.ItemListFilter) ([]domain.Item, error) {
+func (s *itemRepositoryStub) Save(ctx context.Context, _ domain.Item) error          { return nil }
+func (s *itemRepositoryStub) Delete(ctx context.Context, _ string) error             { return nil }
+func (s *itemRepositoryStub) ListByOwner(ctx context.Context, _ string, _ ports.ItemListFilter) ([]domain.Item, error) {
 	return nil, nil
 }
-func (s *itemRepositoryStub) CountByLocation(_ context.Context, _ string) (int, error) {
+func (s *itemRepositoryStub) CountByLocation(ctx context.Context, _ string) (int, error) {
 	return 0, nil
 }
-func (s *itemRepositoryStub) SavePhoto(_ context.Context, _, _, _ string, _ int) error { return nil }
-func (s *itemRepositoryStub) DeletePhoto(_ context.Context, _, _ string) error         { return nil }
-func (s *itemRepositoryStub) ListPhotoKeys(_ context.Context, _ string) ([]string, error) {
+func (s *itemRepositoryStub) SavePhoto(ctx context.Context, _, _, _ string, _ int) error { return nil }
+func (s *itemRepositoryStub) DeletePhoto(ctx context.Context, _, _ string) error         { return nil }
+func (s *itemRepositoryStub) ListPhotoKeys(ctx context.Context, _ string) ([]string, error) {
 	return nil, nil
 }
 
 type userRepositoryStub struct{}
 
-func (s *userRepositoryStub) Get(_ context.Context, _ string) (domain.User, error) {
+func (s *userRepositoryStub) Get(ctx context.Context, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
-func (s *userRepositoryStub) Save(_ context.Context, _ domain.User) error { return nil }
-func (s *userRepositoryStub) GetByEmail(_ context.Context, _ string) (domain.User, error) {
+func (s *userRepositoryStub) Save(ctx context.Context, _ domain.User) error { return nil }
+func (s *userRepositoryStub) GetByEmail(ctx context.Context, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
-func (s *userRepositoryStub) Count(_ context.Context) (int, error)            { return 0, nil }
-func (s *userRepositoryStub) List(_ context.Context) ([]domain.User, error)  { return nil, nil }
+func (s *userRepositoryStub) Count(ctx context.Context) (int, error)           { return 0, nil }
+func (s *userRepositoryStub) List(ctx context.Context) ([]domain.User, error) { return nil, nil }
 
 type sessionRepositoryStub struct{}
 
-func (s *sessionRepositoryStub) Get(_ context.Context, _ string) (domain.Session, error) {
+func (s *sessionRepositoryStub) Get(ctx context.Context, _ string) (domain.Session, error) {
 	return domain.Session{}, nil
 }
-func (s *sessionRepositoryStub) Save(_ context.Context, _ domain.Session) error { return nil }
-func (s *sessionRepositoryStub) Delete(_ context.Context, _ string) error       { return nil }
-func (s *sessionRepositoryStub) FindByTokenHash(_ context.Context, _ string) (domain.Session, error) {
+func (s *sessionRepositoryStub) Save(ctx context.Context, _ domain.Session) error { return nil }
+func (s *sessionRepositoryStub) Delete(ctx context.Context, _ string) error       { return nil }
+func (s *sessionRepositoryStub) FindByTokenHash(ctx context.Context, _ string) (domain.Session, error) {
 	return domain.Session{}, nil
 }
-func (s *sessionRepositoryStub) CountByUser(_ context.Context, _ string) (int, error) {
+func (s *sessionRepositoryStub) CountByUser(ctx context.Context, _ string) (int, error) {
 	return 0, nil
 }
-func (s *sessionRepositoryStub) DeleteOldestByUser(_ context.Context, _ string) error { return nil }
+func (s *sessionRepositoryStub) DeleteOldestByUser(ctx context.Context, _ string) error { return nil }
