@@ -12,26 +12,26 @@ var _ ports.WearLogRepository = (*wearLogRepositoryStub)(nil)
 
 type wearLogRepositoryStub struct{}
 
-func (s *wearLogRepositoryStub) Get(ctx context.Context, id string) (domain.WearLog, error) {
+func (s *wearLogRepositoryStub) Get(ctx context.Context, _ string) (domain.WearLog, error) {
 	return domain.WearLog{}, nil
 }
 
-func (s *wearLogRepositoryStub) Save(ctx context.Context, log domain.WearLog) error {
+func (s *wearLogRepositoryStub) Save(ctx context.Context, _ domain.WearLog) error {
 	return nil
 }
 
-func (s *wearLogRepositoryStub) Delete(ctx context.Context, id string) error {
+func (s *wearLogRepositoryStub) Delete(ctx context.Context, _ string) error {
 	return nil
 }
 
-func (s *wearLogRepositoryStub) ListByItem(ctx context.Context, itemID string) ([]domain.WearLog, error) {
+func (s *wearLogRepositoryStub) ListByItem(ctx context.Context, _ string) ([]domain.WearLog, error) {
 	return nil, nil
 }
 
-func (s *wearLogRepositoryStub) LatestByItem(ctx context.Context, itemID string) (*domain.WearLog, error) {
+func (s *wearLogRepositoryStub) LatestByItem(ctx context.Context, _ string) (*domain.WearLog, error) {
 	return nil, nil
 }
 
-func (s *wearLogRepositoryStub) CountByItem(ctx context.Context, itemID string) (int, error) {
+func (s *wearLogRepositoryStub) CountByItem(ctx context.Context, _ string) (int, error) {
 	return 0, nil
 }
