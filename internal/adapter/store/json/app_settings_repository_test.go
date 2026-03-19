@@ -33,6 +33,15 @@ func TestLoadShouldReturnNotFoundWhenNoSettingsSaved(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestLoadShouldReturnErrorWhenContextIsCancelledForAppSettings(t *testing.T) {
+	r := json.NewAppSettingsRepository(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := r.Load(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestSaveShouldReturnErrorWhenContextIsCancelledForAppSettings(t *testing.T) {
 	r := json.NewAppSettingsRepository(t.TempDir())
 	ctx, cancel := context.WithCancel(t.Context())
@@ -50,13 +59,4 @@ func TestLoadShouldReturnSettingsWhenSaved(t *testing.T) {
 	got, err := r.Load(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, settings, got)
-}
-
-func TestLoadShouldReturnErrorWhenContextIsCancelledForAppSettings(t *testing.T) {
-	r := json.NewAppSettingsRepository(t.TempDir())
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	_, err := r.Load(ctx)
-	require.ErrorIs(t, err, context.Canceled)
 }
