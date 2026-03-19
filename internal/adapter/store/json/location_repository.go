@@ -41,7 +41,7 @@ func (r *LocationRepository) ListByOwner(ctx context.Context, ownerID string) ([
 	if err != nil {
 		return nil, err
 	}
-	var result []domain.Location
+	result := []domain.Location{}
 	for _, loc := range all {
 		if loc.OwnerID == ownerID {
 			result = append(result, loc)

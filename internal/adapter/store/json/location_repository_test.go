@@ -33,6 +33,28 @@ func TestGetShouldReturnErrorWhenContextIsCancelledForLocation(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestGetShouldReturnLocationWhenFound(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+	var loc domain.Location
+	loc.ID = "42"
+	loc.OwnerID = "owner1"
+	loc.Label = "Wardrobe"
+	require.NoError(t, r.Save(t.Context(), loc))
+
+	got, err := r.Get(t.Context(), "42")
+	require.NoError(t, err)
+	require.Equal(t, loc, got)
+}
+
+func TestSaveShouldReturnErrorWhenContextIsCancelledForLocation(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := r.Save(ctx, domain.Location{})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestDeleteShouldReturnErrorWhenContextIsCancelledForLocation(t *testing.T) {
 	r := json.NewLocationRepository(t.TempDir())
 	ctx, cancel := context.WithCancel(t.Context())
@@ -61,15 +83,6 @@ func TestDeleteShouldRemoveLocationWhenFound(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
-func TestSaveShouldReturnErrorWhenContextIsCancelledForLocation(t *testing.T) {
-	r := json.NewLocationRepository(t.TempDir())
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	err := r.Save(ctx, domain.Location{})
-	require.ErrorIs(t, err, context.Canceled)
-}
-
 func TestListByOwnerShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	r := json.NewLocationRepository(t.TempDir())
 	ctx, cancel := context.WithCancel(t.Context())
@@ -90,6 +103,18 @@ func TestListByOwnerShouldReturnIOErrorWhenStorageIsCorrupt(t *testing.T) {
 
 func TestListByOwnerShouldReturnEmptyWhenNoLocationsExist(t *testing.T) {
 	r := json.NewLocationRepository(t.TempDir())
+
+	locs, err := r.ListByOwner(t.Context(), "owner1")
+	require.NoError(t, err)
+	require.Empty(t, locs)
+}
+
+func TestListByOwnerShouldReturnEmptyWhenNoLocationsMatchOwner(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+	var loc domain.Location
+	loc.ID = "1"
+	loc.OwnerID = "owner2"
+	require.NoError(t, r.Save(t.Context(), loc))
 
 	locs, err := r.ListByOwner(t.Context(), "owner1")
 	require.NoError(t, err)
@@ -152,17 +177,4 @@ func TestHasChildrenShouldReturnTrueWhenChildExists(t *testing.T) {
 	has, err := r.HasChildren(t.Context(), "parent1")
 	require.NoError(t, err)
 	require.True(t, has)
-}
-
-func TestGetShouldReturnLocationWhenFound(t *testing.T) {
-	r := json.NewLocationRepository(t.TempDir())
-	var loc domain.Location
-	loc.ID = "42"
-	loc.OwnerID = "owner1"
-	loc.Label = "Wardrobe"
-	require.NoError(t, r.Save(t.Context(), loc))
-
-	got, err := r.Get(t.Context(), "42")
-	require.NoError(t, err)
-	require.Equal(t, loc, got)
 }
