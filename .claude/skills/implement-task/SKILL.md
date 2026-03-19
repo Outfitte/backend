@@ -101,7 +101,11 @@ EOF
 
 ## Step 8 — PR review (background)
 
-Spawn a **background** `pr-reviewer` subagent (`subagent_type: "pr-reviewer"`). Do not pass file contents — let it fetch from GitHub:
+Spawn two **background** subagents in parallel: a `pr-reviewer` (`subagent_type: "pr-reviewer"`) and a `Code Reviewer` (`subagent_type: "Code Reviewer"`). Do not pass file contents — let them fetch from GitHub.
+
+### pr-reviewer subagent
+
+Spawn with `subagent_type: "pr-reviewer"`. Do not pass file contents — let it fetch from GitHub:
 
 ```
 Review PR #<pr_number> in the Outfitte/Outfitte repo.
@@ -126,6 +130,22 @@ Run:
 - Extracted helpers (pure functions) have 100% coverage independently
 
 Report any violations, concerns, or suggestions. If everything looks good, say so.
+```
+
+Report the review findings to the user once complete.
+
+### Code Reviewer subagent
+
+Spawn with `subagent_type: "Code Reviewer"`. Pass the following prompt so it knows where to find the code:
+
+```
+Review the code changes in PR #<pr_number> of the Outfitte/Outfitte GitHub repo.
+
+Fetch the diff using:
+  gh pr view <pr_number> --repo Outfitte/Outfitte
+  gh pr diff <pr_number> --repo Outfitte/Outfitte
+
+Focus on correctness, security, maintainability, and performance. Report any blockers, suggestions, or nits. If everything looks good, say so.
 ```
 
 Report the review findings to the user once complete.
