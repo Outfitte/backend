@@ -40,6 +40,9 @@ func (r *ItemRepository) ListByOwner(ctx context.Context, ownerID string, filter
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	// domain.Item has no archived field until M2-012 is implemented.
+	// All stored items are therefore implicitly active.
+	// ItemStatusArchived returns empty; ItemStatusActive and ItemStatusAll both return all owner items.
 	if filter.Status == ports.ItemStatusArchived {
 		return []domain.Item{}, nil
 	}
@@ -98,7 +101,7 @@ func (r *ItemRepository) DeletePhoto(ctx context.Context, itemID, mediaKey strin
 	if err != nil {
 		return err
 	}
-	filtered := item.Photos[:0]
+	filtered := make([]domain.ItemPhoto, 0, len(item.Photos))
 	for _, p := range item.Photos {
 		if p.MediaKey != mediaKey {
 			filtered = append(filtered, p)

@@ -40,6 +40,30 @@ func TestUserSaveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestUserSaveShouldReturnErrConflictWhenEmailUsedByDifferentUser(t *testing.T) {
+	r := json.NewUserRepository(t.TempDir())
+	var u1, u2 domain.User
+	u1.ID = "u1"
+	u1.Email = "alice@example.com"
+	u2.ID = "u2"
+	u2.Email = "alice@example.com"
+	require.NoError(t, r.Save(t.Context(), u1))
+
+	err := r.Save(t.Context(), u2)
+	require.ErrorIs(t, err, domain.ErrConflict)
+}
+
+func TestUserSaveShouldAllowUpsertOfSameUser(t *testing.T) {
+	r := json.NewUserRepository(t.TempDir())
+	var u domain.User
+	u.ID = "u1"
+	u.Email = "alice@example.com"
+	require.NoError(t, r.Save(t.Context(), u))
+
+	u.PasswordHash = "newhash"
+	require.NoError(t, r.Save(t.Context(), u))
+}
+
 func TestUserGetShouldReturnUserWhenFound(t *testing.T) {
 	r := json.NewUserRepository(t.TempDir())
 	var u domain.User
@@ -101,7 +125,9 @@ func TestUserCountShouldReturnCorrectCount(t *testing.T) {
 	r := json.NewUserRepository(t.TempDir())
 	var u1, u2 domain.User
 	u1.ID = "u1"
+	u1.Email = "alice@example.com"
 	u2.ID = "u2"
+	u2.Email = "bob@example.com"
 	require.NoError(t, r.Save(t.Context(), u1))
 	require.NoError(t, r.Save(t.Context(), u2))
 
@@ -131,7 +157,9 @@ func TestUserListShouldReturnAllUsers(t *testing.T) {
 	r := json.NewUserRepository(t.TempDir())
 	var u1, u2 domain.User
 	u1.ID = "u1"
+	u1.Email = "alice@example.com"
 	u2.ID = "u2"
+	u2.Email = "bob@example.com"
 	require.NoError(t, r.Save(t.Context(), u1))
 	require.NoError(t, r.Save(t.Context(), u2))
 

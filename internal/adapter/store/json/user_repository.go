@@ -2,6 +2,7 @@ package json
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/outfitte/outfitte/internal/domain"
 )
@@ -23,6 +24,18 @@ func (r *UserRepository) Get(ctx context.Context, id string) (domain.User, error
 }
 
 func (r *UserRepository) Save(ctx context.Context, user domain.User) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	users, err := r.provider.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, u := range users {
+		if u.Email == user.Email && u.ID != user.ID {
+			return fmt.Errorf("%w: email already in use", domain.ErrConflict)
+		}
+	}
 	return r.provider.Save(ctx, user)
 }
 
