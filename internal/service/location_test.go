@@ -129,6 +129,27 @@ func TestLocationServiceMoveShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestLocationServiceMoveShouldSucceedWhenAncestorInChainIsMissing(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	ghostParentID := "ghost-id"
+	var parent domain.Location
+	parent.ID = "parent-1"
+	parent.OwnerID = "owner-1"
+	parent.ParentID = &ghostParentID // ghost-id does not exist in store
+
+	newParentID := "parent-1"
+	repo := &mockLocationRepo{locations: []domain.Location{loc, parent}}
+	svc := NewLocationService(repo, &mockItemRepo{})
+
+	got, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
+	require.NoError(t, err)
+	require.NotNil(t, got.ParentID)
+	require.Equal(t, "parent-1", *got.ParentID)
+}
+
 func TestLocationServiceMoveShouldMakeLocationRootWhenNewParentIDIsNil(t *testing.T) {
 	parentID := "parent-1"
 	var loc domain.Location
