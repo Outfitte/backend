@@ -17,14 +17,28 @@ import (
 	"github.com/outfitte/outfitte/internal/service"
 )
 
+// itemBackend combines ports.ItemRepository with the List method required by
+// services that still depend on ports.StorageProvider[domain.Item].
+type itemBackend interface {
+	ports.ItemRepository
+	List(ctx context.Context) ([]domain.Item, error)
+}
+
+// locationBackend combines ports.LocationRepository with the List method required
+// by services that still depend on ports.StorageProvider[domain.Location].
+type locationBackend interface {
+	ports.LocationRepository
+	List(ctx context.Context) ([]domain.Location, error)
+}
+
 // New builds a configured *http.Server from cfg, logger, and adapter instances.
 func New(
 	cfg *config.Config,
 	logger *slog.Logger,
 	users ports.StorageProvider[domain.User],
 	sessions ports.StorageProvider[domain.Session],
-	items ports.StorageProvider[domain.Item],
-	locations ports.StorageProvider[domain.Location],
+	items itemBackend,
+	locations locationBackend,
 	settings ports.SingletonStore[domain.AppSettings],
 	media ports.MediaProvider,
 ) *http.Server {

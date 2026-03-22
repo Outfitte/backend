@@ -46,14 +46,14 @@ type categoryGetter interface {
 
 // ItemService manages wardrobe items.
 type ItemService struct {
-	items      ports.StorageProvider[domain.Item]
-	locations  ports.StorageProvider[domain.Location]
+	items      ports.ItemRepository
+	locations  ports.LocationRepository
 	media      ports.MediaProvider
 	categories categoryGetter
 }
 
-// NewItemService constructs an ItemService backed by the given storage and media providers.
-func NewItemService(items ports.StorageProvider[domain.Item], media ports.MediaProvider, locations ports.StorageProvider[domain.Location], categories categoryGetter) *ItemService {
+// NewItemService constructs an ItemService backed by the given repositories and media provider.
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter) *ItemService {
 	return &ItemService{items: items, locations: locations, media: media, categories: categories}
 }
 
@@ -140,21 +140,11 @@ func (s *ItemService) GetByID(ctx context.Context, callerID, itemID string) (dom
 	return item, nil
 }
 
-func (s *ItemService) ListByOwner(ctx context.Context, callerID string) ([]domain.Item, error) {
+func (s *ItemService) ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	all, err := s.items.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]domain.Item, 0)
-	for _, item := range all {
-		if item.OwnerID == callerID {
-			items = append(items, item)
-		}
-	}
-	return items, nil
+	return s.items.ListByOwner(ctx, callerID, filter)
 }
 
 func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input UpdateItemInput) (domain.Item, error) {
@@ -220,73 +210,58 @@ func (s *ItemService) UploadPhoto(ctx context.Context, callerID, itemID string, 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	item, err := s.items.Get(ctx, itemID)
+	item, err := s.getOwnedItem(ctx, callerID, itemID)
 	if err != nil {
 		return err
-	}
-	if item.OwnerID != callerID {
-		return domain.ErrForbidden
 	}
 	key := "items/" + itemID + "/" + uuid.NewString() + "/" + filename
 	if err := s.media.Upload(ctx, key, r); err != nil {
 		return err
 	}
-	item.Photos = append(item.Photos, domain.ItemPhoto{
-		ID:        uuid.NewString(),
-		MediaKey:  key,
-		Position:  len(item.Photos),
-		CreatedAt: time.Now().UTC(),
-	})
-	return s.items.Save(ctx, item)
+	photoID := uuid.NewString()
+	position := len(item.Photos)
+	return s.items.SavePhoto(ctx, itemID, photoID, key, position)
 }
 
 func (s *ItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKey string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	item, err := s.items.Get(ctx, itemID)
+	item, err := s.getOwnedItem(ctx, callerID, itemID)
 	if err != nil {
 		return err
 	}
-	if item.OwnerID != callerID {
-		return domain.ErrForbidden
-	}
-	found := false
-	for _, p := range item.Photos {
-		if p.MediaKey == photoKey {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !s.itemHasPhoto(item, photoKey) {
 		return domain.ErrNotFound
 	}
 	if err := s.media.Delete(ctx, photoKey); err != nil {
 		return err
 	}
-	filtered := make([]domain.ItemPhoto, 0, len(item.Photos))
+	return s.items.DeletePhoto(ctx, itemID, photoKey)
+}
+
+func (s *ItemService) itemHasPhoto(item domain.Item, photoKey string) bool {
 	for _, p := range item.Photos {
-		if p.MediaKey != photoKey {
-			filtered = append(filtered, p)
+		if p.MediaKey == photoKey {
+			return true
 		}
 	}
-	item.Photos = filtered
-	return s.items.Save(ctx, item)
+	return false
 }
 
 func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	item, err := s.items.Get(ctx, itemID)
+	if _, err := s.getOwnedItem(ctx, callerID, itemID); err != nil {
+		return err
+	}
+	keys, err := s.items.ListPhotoKeys(ctx, itemID)
 	if err != nil {
 		return err
 	}
-	if item.OwnerID != callerID {
-		return domain.ErrForbidden
-	}
-	for _, p := range item.Photos {
-		if err := s.media.Delete(ctx, p.MediaKey); err != nil {
+	for _, key := range keys {
+		if err := s.media.Delete(ctx, key); err != nil {
 			return err
 		}
 	}

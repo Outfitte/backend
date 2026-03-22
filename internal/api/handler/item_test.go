@@ -17,6 +17,7 @@ import (
 	"github.com/outfitte/outfitte/internal/api/handler"
 	"github.com/outfitte/outfitte/internal/api/middleware"
 	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/outfitte/outfitte/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,7 @@ func (f *fakeItemService) Create(ctx context.Context, callerID string, input ser
 	return domain.Item{}, nil
 }
 
-func (f *fakeItemService) ListByOwner(ctx context.Context, callerID string) ([]domain.Item, error) {
+func (f *fakeItemService) ListByOwner(ctx context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
 	if f.listByOwnerFn != nil {
 		return f.listByOwnerFn(ctx, callerID)
 	}
@@ -836,7 +837,7 @@ func (s *statefulFakeItemService) Create(ctx context.Context, callerID string, i
 	return item, nil
 }
 
-func (s *statefulFakeItemService) ListByOwner(ctx context.Context, callerID string) ([]domain.Item, error) {
+func (s *statefulFakeItemService) ListByOwner(ctx context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

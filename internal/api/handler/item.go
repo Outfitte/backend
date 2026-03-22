@@ -10,12 +10,13 @@ import (
 
 	"github.com/outfitte/outfitte/internal/api/middleware"
 	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/outfitte/outfitte/internal/service"
 )
 
 type itemService interface {
 	Create(ctx context.Context, callerID string, input service.CreateItemInput) (domain.Item, error)
-	ListByOwner(ctx context.Context, callerID string) ([]domain.Item, error)
+	ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error)
 	GetByID(ctx context.Context, callerID, itemID string) (domain.Item, error)
 	Update(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error)
 	Delete(ctx context.Context, callerID, itemID string) error
@@ -155,7 +156,7 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := h.items.ListByOwner(ctx, callerID)
+	items, err := h.items.ListByOwner(ctx, callerID, ports.ItemListFilter{})
 	if err != nil {
 		log.ErrorContext(ctx, "list items failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})

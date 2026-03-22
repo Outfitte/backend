@@ -36,6 +36,13 @@ func (r *ItemRepository) Delete(ctx context.Context, id string) error {
 	return r.provider.Delete(ctx, id)
 }
 
+// List returns all stored items. It is provided so that ItemRepository satisfies
+// ports.StorageProvider[domain.Item] alongside ports.ItemRepository, allowing a
+// single adapter instance to be wired to services that require either interface.
+func (r *ItemRepository) List(ctx context.Context) ([]domain.Item, error) {
+	return r.provider.List(ctx)
+}
+
 func (r *ItemRepository) ListByOwner(ctx context.Context, ownerID string, filter ports.ItemListFilter) ([]domain.Item, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

@@ -99,7 +99,7 @@ func (l *errorListener) Accept() (net.Conn, error) {
 	<-l.done
 	return nil, net.ErrClosed
 }
-func (l *errorListener) Close() error  { return nil }
+func (l *errorListener) Close() error   { return nil }
 func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
 
 func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
