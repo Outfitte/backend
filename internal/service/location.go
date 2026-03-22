@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,12 +13,12 @@ import (
 
 // LocationService manages wardrobe locations.
 type LocationService struct {
-	locations ports.StorageProvider[domain.Location]
-	items     ports.StorageProvider[domain.Item]
+	locations ports.LocationRepository
+	items     ports.ItemRepository
 }
 
-// NewLocationService constructs a LocationService backed by the given storage and items providers.
-func NewLocationService(locations ports.StorageProvider[domain.Location], items ports.StorageProvider[domain.Item]) *LocationService {
+// NewLocationService constructs a LocationService backed by the given repositories.
+func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository) *LocationService {
 	return &LocationService{locations: locations, items: items}
 }
 
@@ -59,17 +60,7 @@ func (s *LocationService) ListByOwner(ctx context.Context, callerID string) ([]d
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	locs, err := s.locations.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var result []domain.Location
-	for _, loc := range locs {
-		if loc.OwnerID == callerID {
-			result = append(result, loc)
-		}
-	}
-	return result, nil
+	return s.locations.ListByOwner(ctx, callerID)
 }
 
 // Update changes the label of the location identified by locationID if it belongs to callerID.
@@ -107,27 +98,23 @@ func (s *LocationService) Delete(ctx context.Context, callerID, locationID strin
 }
 
 func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID string) error {
-	locs, err := s.locations.List(ctx)
+	hasChildren, err := s.locations.HasChildren(ctx, locationID)
 	if err != nil {
 		return err
 	}
-	for _, loc := range locs {
-		if loc.ParentID != nil && *loc.ParentID == locationID {
-			return domain.ErrConflict
-		}
+	if hasChildren {
+		return domain.ErrConflict
 	}
 	return nil
 }
 
 func (s *LocationService) checkNoAssignedItems(ctx context.Context, locationID string) error {
-	items, err := s.items.List(ctx)
+	count, err := s.items.CountByLocation(ctx, locationID)
 	if err != nil {
 		return err
 	}
-	for _, item := range items {
-		if item.LocationID != nil && *item.LocationID == locationID {
-			return domain.ErrConflict
-		}
+	if count > 0 {
+		return domain.ErrConflict
 	}
 	return nil
 }
@@ -157,21 +144,19 @@ func (s *LocationService) Move(ctx context.Context, callerID, locationID string,
 }
 
 func (s *LocationService) checkNoCircularReference(ctx context.Context, locationID, candidateID string) error {
-	locs, err := s.locations.List(ctx)
-	if err != nil {
-		return err
-	}
-	index := make(map[string]domain.Location, len(locs))
-	for _, l := range locs {
-		index[l.GetID()] = l
-	}
 	current := candidateID
 	for current != "" {
 		if current == locationID {
 			return domain.ErrConflict
 		}
-		l, ok := index[current]
-		if !ok || l.ParentID == nil {
+		l, err := s.locations.Get(ctx, current)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				break
+			}
+			return err
+		}
+		if l.ParentID == nil {
 			break
 		}
 		current = *l.ParentID
