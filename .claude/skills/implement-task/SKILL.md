@@ -80,14 +80,20 @@ EOF
 
 ## Step 7b — Post coverage report as PR comment
 
-Identify which Go packages were modified from the staged files, then run coverage for those packages:
+Identify which Go packages were modified from the staged files, then run coverage for those packages only:
 
 ```bash
 go test -coverprofile=coverage.out ./internal/<modified-packages>/...
 go tool cover -func=coverage.out
 ```
 
-Post the output as a PR comment:
+Coverage checks apply **exclusively to the modified packages** — unmodified packages are irrelevant to this task.
+
+Extract the total coverage percentage from the last line of `go tool cover -func` output (e.g. `total: (statements) 87.5%`).
+
+### If total coverage is 100%
+
+Post the standard comment:
 
 ```bash
 gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
@@ -98,6 +104,30 @@ gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
 EOF
 )"
 ```
+
+### If total coverage is less than 100%
+
+1. Review the `go tool cover -func` output to identify every function below 100%
+2. Read the relevant source lines to understand what is not covered
+3. **If any uncovered lines can be covered with additional tests** — add those tests (return to the TDD loop), then re-run coverage and repeat this check
+4. Only after exhausting all feasible tests, post a comment that includes both the coverage output AND a mandatory justification section — one entry per under-covered function:
+
+```bash
+gh pr comment <pr_number> --repo Outfitte/Outfitte --body "$(cat <<'EOF'
+## Coverage report
+\`\`\`
+<coverage output>
+\`\`\`
+
+## Why coverage is not 100%
+
+- `internal/adapter/store/json/foo.go: Bar()` — 85.7%: the `os.WriteFile` error path requires OS-level fault injection and cannot be triggered in unit tests
+- ...one entry per under-covered function...
+EOF
+)"
+```
+
+A bare coverage report without a `## Why coverage is not 100%` section is **not acceptable** when coverage is below 100%.
 
 ## Step 8 — PR review (background)
 
