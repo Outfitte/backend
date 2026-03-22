@@ -33,6 +33,13 @@ func (r *LocationRepository) Delete(ctx context.Context, id string) error {
 	return r.provider.Delete(ctx, id)
 }
 
+// List returns all stored locations. It is provided so that LocationRepository satisfies
+// ports.StorageProvider[domain.Location] alongside ports.LocationRepository, allowing a
+// single adapter instance to be wired to services that require either interface.
+func (r *LocationRepository) List(ctx context.Context) ([]domain.Location, error) {
+	return r.provider.List(ctx)
+}
+
 func (r *LocationRepository) ListByOwner(ctx context.Context, ownerID string) ([]domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

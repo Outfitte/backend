@@ -25,7 +25,7 @@ func discardLogger() *slog.Logger {
 
 func TestNewShouldServeHealthWhenGivenValidConfig(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil)
+	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 	assert.Equal(t, ":8080", srv.Addr)
 
 	ts := httptest.NewServer(srv.Handler)
@@ -61,7 +61,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	l.Close()
 
 	cfg := &config.Config{ServerPort: strconv.Itoa(port)}
-	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil)
+	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -104,7 +104,7 @@ func (l *errorListener) Addr() net.Addr { return &net.TCPAddr{} }
 
 func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil)
+	srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 
 	l := &errorListener{done: make(chan struct{})}
 	err := serve(t.Context(), srv, l)
@@ -114,7 +114,7 @@ func TestServeShouldReturnErrorWhenListenerFails(t *testing.T) {
 func TestServeShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		cfg := &config.Config{ServerPort: "8080"}
-		srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil)
+		srv := New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil)
 
 		l := &idleListener{done: make(chan struct{})}
 		ctx, cancel := context.WithCancel(t.Context())
@@ -164,7 +164,7 @@ func deleteURL(t *testing.T, srv *httptest.Server, path string) *http.Response {
 
 func TestNewShouldReturn401WhenGetLocationsCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := getURL(t, ts, "/locations")
@@ -173,7 +173,7 @@ func TestNewShouldReturn401WhenGetLocationsCalledWithoutAuth(t *testing.T) {
 
 func TestNewShouldReturn401WhenPostLocationsCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := postJSON(t, ts, "/locations", `{"label":"closet"}`)
@@ -182,7 +182,7 @@ func TestNewShouldReturn401WhenPostLocationsCalledWithoutAuth(t *testing.T) {
 
 func TestNewShouldReturn401WhenGetLocationByIDCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := getURL(t, ts, "/locations/loc-1")
@@ -191,7 +191,7 @@ func TestNewShouldReturn401WhenGetLocationByIDCalledWithoutAuth(t *testing.T) {
 
 func TestNewShouldReturn401WhenPatchLocationCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := patchJSON(t, ts, "/locations/loc-1", `{"label":"shelf"}`)
@@ -200,7 +200,7 @@ func TestNewShouldReturn401WhenPatchLocationCalledWithoutAuth(t *testing.T) {
 
 func TestNewShouldReturn401WhenDeleteLocationCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := deleteURL(t, ts, "/locations/loc-1")
@@ -209,7 +209,7 @@ func TestNewShouldReturn401WhenDeleteLocationCalledWithoutAuth(t *testing.T) {
 
 func TestNewShouldReturn401WhenMoveLocationCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := patchJSON(t, ts, "/locations/loc-1/move", `{"parent_id":null}`)
@@ -229,7 +229,7 @@ func postJSON(t *testing.T, srv *httptest.Server, path, body string) *http.Respo
 
 func TestNewShouldReturn400WhenRegisterCalledWithInvalidBody(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := postJSON(t, ts, "/auth/register", "not-json")
@@ -238,7 +238,7 @@ func TestNewShouldReturn400WhenRegisterCalledWithInvalidBody(t *testing.T) {
 
 func TestNewShouldReturn400WhenLoginCalledWithInvalidBody(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := postJSON(t, ts, "/auth/login", "not-json")
@@ -247,7 +247,7 @@ func TestNewShouldReturn400WhenLoginCalledWithInvalidBody(t *testing.T) {
 
 func TestNewShouldReturn400WhenRefreshCalledWithInvalidBody(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := postJSON(t, ts, "/auth/refresh", "not-json")
@@ -256,7 +256,7 @@ func TestNewShouldReturn400WhenRefreshCalledWithInvalidBody(t *testing.T) {
 
 func TestNewShouldReturn400WhenLogoutCalledWithInvalidBody(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
-	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil, nil, nil).Handler)
+	ts := httptest.NewServer(New(cfg, discardLogger(), nil, nil, nil, nil, nil, nil).Handler)
 	defer ts.Close()
 
 	resp := postJSON(t, ts, "/auth/logout", "not-json")
