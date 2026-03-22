@@ -12,41 +12,23 @@ import (
 	"github.com/outfitte/outfitte/internal/api/handler"
 	"github.com/outfitte/outfitte/internal/api/middleware"
 	"github.com/outfitte/outfitte/internal/config"
-	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/outfitte/outfitte/internal/service"
 )
-
-// itemBackend combines ports.ItemRepository with the List method required by
-// services that still depend on ports.StorageProvider[domain.Item].
-type itemBackend interface {
-	ports.ItemRepository
-	List(ctx context.Context) ([]domain.Item, error)
-}
-
-// locationBackend combines ports.LocationRepository with the List method required
-// by services that still depend on ports.StorageProvider[domain.Location].
-type locationBackend interface {
-	ports.LocationRepository
-	List(ctx context.Context) ([]domain.Location, error)
-}
 
 // New builds a configured *http.Server from cfg, logger, and adapter instances.
 func New(
 	cfg *config.Config,
 	logger *slog.Logger,
-	users ports.UserRepository,
-	sessions ports.SessionRepository,
-	items itemBackend,
-	locations locationBackend,
-	settings ports.AppSettingsRepository,
+	repos ports.Repositories,
 	media ports.MediaProvider,
 ) *http.Server {
-	userSvc := service.NewUserService(users, settings)
-	authSvc := service.NewAuthService(users, sessions, []byte(cfg.JWTSecret))
+	userSvc := service.NewUserService(repos.Users, repos.AppSettings)
+	authSvc := service.NewAuthService(repos.Users, repos.Sessions, []byte(cfg.JWTSecret))
 	categorySvc := service.NewCategoryService()
-	itemSvc := service.NewItemService(items, media, locations, categorySvc)
-	locationSvc := service.NewLocationService(locations, items)
+	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc)
+	locationSvc := service.NewLocationService(repos.Locations, repos.Items)
+	_ = service.NewWearLogService(repos.WearLogs, repos.Items)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 
