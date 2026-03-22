@@ -16,11 +16,7 @@ type mockWearLogRepo struct {
 	saveErr error
 	delErr  error
 
-	listByItemErr    error
-	latestByItemErr  error
-	latestByItemResult *domain.WearLog
-	countByItemErr   error
-	countByItemResult int
+	listByItemErr error
 }
 
 func (m *mockWearLogRepo) Get(_ context.Context, id string) (domain.WearLog, error) {
@@ -75,20 +71,6 @@ func (m *mockWearLogRepo) ListByItem(_ context.Context, itemID string) ([]domain
 	return result, nil
 }
 
-func (m *mockWearLogRepo) LatestByItem(_ context.Context, _ string) (*domain.WearLog, error) {
-	if m.latestByItemErr != nil {
-		return nil, m.latestByItemErr
-	}
-	return m.latestByItemResult, nil
-}
-
-func (m *mockWearLogRepo) CountByItem(_ context.Context, _ string) (int, error) {
-	if m.countByItemErr != nil {
-		return 0, m.countByItemErr
-	}
-	return m.countByItemResult, nil
-}
-
 // ── DeleteWearLog ─────────────────────────────────────────────────────────────
 
 func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -132,133 +114,18 @@ func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenDeleteFails(t *testing.
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenLatestByItemFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	var log domain.WearLog
-	log.ID = "log-1"
-	log.ItemID = "item-1"
-	log.OwnerID = "owner-1"
-
-	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}, latestByItemErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}})
-
-	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenCountByItemFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	var log domain.WearLog
-	log.ID = "log-1"
-	log.ItemID = "item-1"
-	log.OwnerID = "owner-1"
-
-	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}, countByItemErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}})
-
-	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenItemGetFails(t *testing.T) {
+func TestWearLogServiceDeleteWearLogShouldDeleteLogWhenSuccessful(t *testing.T) {
 	var log domain.WearLog
 	log.ID = "log-1"
 	log.ItemID = "item-1"
 	log.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}}
-	itemRepo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, itemRepo)
-
-	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenItemSaveFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.WearCount = 1
-
-	var log domain.WearLog
-	log.ID = "log-1"
-	log.ItemID = "item-1"
-	log.OwnerID = "owner-1"
-
-	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}}
-	itemRepo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, itemRepo)
-
-	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestWearLogServiceDeleteWearLogShouldSetLastWornAtNilAndWearCountZeroWhenNoLogsRemain(t *testing.T) {
-	wornOn := time.Now().Add(-48 * time.Hour)
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.WearCount = 1
-	item.LastWornAt = &wornOn
-
-	var log domain.WearLog
-	log.ID = "log-1"
-	log.ItemID = "item-1"
-	log.OwnerID = "owner-1"
-
-	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}}
-	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewWearLogService(logRepo, itemRepo)
+	svc := NewWearLogService(logRepo, &mockItemRepo{})
 
 	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
 	require.NoError(t, err)
 	require.Empty(t, logRepo.logs)
-	require.Equal(t, 0, itemRepo.items[0].WearCount)
-	require.Nil(t, itemRepo.items[0].LastWornAt)
-}
-
-func TestWearLogServiceDeleteWearLogShouldRecomputeStatsFromRemainingLogsWhenLogsExist(t *testing.T) {
-	wornOn1 := time.Now().Add(-24 * time.Hour)
-	wornOn2 := time.Now().Add(-48 * time.Hour)
-
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.WearCount = 2
-	item.LastWornAt = &wornOn1
-
-	var log1 domain.WearLog
-	log1.ID = "log-1"
-	log1.ItemID = "item-1"
-	log1.OwnerID = "owner-1"
-	log1.WornOn = wornOn1
-
-	var log2 domain.WearLog
-	log2.ID = "log-2"
-	log2.ItemID = "item-1"
-	log2.OwnerID = "owner-1"
-	log2.WornOn = wornOn2
-
-	latestRemaining := log2
-	logRepo := &mockWearLogRepo{
-		logs:               []domain.WearLog{log1, log2},
-		latestByItemResult: &latestRemaining,
-		countByItemResult:  1,
-	}
-	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewWearLogService(logRepo, itemRepo)
-
-	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
-	require.NoError(t, err)
-	require.Equal(t, 1, itemRepo.items[0].WearCount)
-	require.NotNil(t, itemRepo.items[0].LastWornAt)
-	require.Equal(t, wornOn2, *itemRepo.items[0].LastWornAt)
 }
 
 // ── ListByItem ────────────────────────────────────────────────────────────────
@@ -376,47 +243,13 @@ func TestWearLogServiceLogWearShouldReturnErrorWhenWearLogSaveFails(t *testing.T
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestWearLogServiceLogWearShouldReturnErrorWhenItemSaveFails(t *testing.T) {
+func TestWearLogServiceLogWearShouldCreateLogWhenSuccessful(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
-
-	itemRepo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewWearLogService(&mockWearLogRepo{}, itemRepo)
-
-	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now(), nil)
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestWearLogServiceLogWearShouldNotUpdateLastWornAtWhenNewDateIsOlderThanExisting(t *testing.T) {
-	recent := time.Now().Add(-24 * time.Hour).UTC()
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.WearCount = 1
-	item.LastWornAt = &recent
-
-	older := time.Now().Add(-48 * time.Hour).UTC()
-	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewWearLogService(&mockWearLogRepo{}, itemRepo)
-
-	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", older, nil)
-	require.NoError(t, err)
-
-	// LastWornAt must remain the more recent date, not be regressed to the older one.
-	require.Equal(t, 2, itemRepo.items[0].WearCount)
-	require.Equal(t, recent, *itemRepo.items[0].LastWornAt)
-}
-
-func TestWearLogServiceLogWearShouldCreateLogAndUpdateItemStatsWhenSuccessful(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.WearCount = 2
 
 	logRepo := &mockWearLogRepo{}
-	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewWearLogService(logRepo, itemRepo)
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}})
 
 	note := "first test wear"
 	wornOn := time.Now().Add(-24 * time.Hour).UTC()
@@ -430,9 +263,5 @@ func TestWearLogServiceLogWearShouldCreateLogAndUpdateItemStatsWhenSuccessful(t 
 	require.NotNil(t, got.Notes)
 	require.Equal(t, note, *got.Notes)
 	require.False(t, got.CreatedAt.IsZero())
-
 	require.Len(t, logRepo.logs, 1)
-	require.Equal(t, 3, itemRepo.items[0].WearCount)
-	require.NotNil(t, itemRepo.items[0].LastWornAt)
-	require.Equal(t, wornOn, *itemRepo.items[0].LastWornAt)
 }

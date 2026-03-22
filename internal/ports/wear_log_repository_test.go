@@ -27,11 +27,3 @@ func (s *wearLogRepositoryStub) Delete(ctx context.Context, _ string) error {
 func (s *wearLogRepositoryStub) ListByItem(ctx context.Context, _ string) ([]domain.WearLog, error) {
 	return nil, nil
 }
-
-func (s *wearLogRepositoryStub) LatestByItem(ctx context.Context, _ string) (*domain.WearLog, error) {
-	return nil, nil
-}
-
-func (s *wearLogRepositoryStub) CountByItem(ctx context.Context, _ string) (int, error) {
-	return 0, nil
-}

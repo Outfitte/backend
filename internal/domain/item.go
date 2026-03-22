@@ -15,7 +15,4 @@ type Item struct {
 	PurchasePrice *string    // optional, deferred to M4+; string to avoid decimal dep
 	PurchaseDate  *time.Time // optional, deferred to M4+
 	CreatedAt     time.Time
-	// WearCount and LastWornAt are maintained by WearLogService — not set directly by the user.
-	WearCount  int
-	LastWornAt *time.Time
 }
