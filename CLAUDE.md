@@ -58,6 +58,12 @@ Every HTTP handler must emit two `slog` log lines via `InfoContext`:
 
 Error log calls must use `"error"` as the key for the error value (e.g. `log.ErrorContext(ctx, "...", "error", err)`).
 
+## SQL Adapter Guidelines
+
+- **Never use `INSERT OR REPLACE`** for tables with `ON DELETE CASCADE` children — SQLite implements it as DELETE + INSERT, which fires cascades and silently destroys child rows. Use `INSERT INTO ... ON CONFLICT(id) DO UPDATE SET ...` instead.
+- **In-memory test DBs do not enforce FK constraints** — `openMigratedDB` uses `sql.Open` directly without `PRAGMA foreign_keys=ON`. Add `PRAGMA foreign_keys = ON` explicitly in any test that must verify cascade-safe behaviour.
+- **Compile-time interface guard** — every new repository type must include `var _ ports.XxxRepository = (*XxxRepository)(nil)` immediately before the struct declaration.
+
 ## Task Guidelines
 
 **Branch naming:** `username/tasknr-short-name`

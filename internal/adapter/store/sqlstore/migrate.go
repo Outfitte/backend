@@ -20,13 +20,22 @@ var migrationsFS embed.FS
 
 const dbName = "outfitte"
 
+// migrationsEmbedDir is the directory within migrationsFS that holds SQL files.
+// Exposed as a variable so whitebox tests can override it to exercise the
+// newMigrationSource error path in RunMigrations.
+var migrationsEmbedDir = "migrations"
+
+// migrateNewWithInstance is the function used to construct the migrate runner.
+// Exposed as a variable so whitebox tests can inject a failing implementation.
+var migrateNewWithInstance = migrate.NewWithInstance
+
 // RunMigrations applies all pending migrations to the given database.
 func RunMigrations(ctx context.Context, db *sql.DB) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	src, err := newMigrationSource(migrationsFS, "migrations")
+	src, err := newMigrationSource(migrationsFS, migrationsEmbedDir)
 	if err != nil {
 		return err
 	}
@@ -56,7 +65,7 @@ func newMigrateRunner(src source.Driver, db *sql.DB) (*migrate.Migrate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	m, err := migrate.NewWithInstance("iofs", src, dbName, dbDriver)
+	m, err := migrateNewWithInstance("iofs", src, dbName, dbDriver)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}

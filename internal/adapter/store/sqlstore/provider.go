@@ -173,7 +173,7 @@ func buildItem(
 	return item, nil
 }
 
-func loadPhotos(ctx context.Context, db *sql.DB, itemID string) ([]domain.ItemPhoto, error) {
+func loadPhotos(ctx context.Context, db itemDB, itemID string) ([]domain.ItemPhoto, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (p *Provider[T]) Delete(ctx context.Context, id string) error {
 	}
 }
 
-func deleteItem(ctx context.Context, db *sql.DB, id string) error {
+func deleteItem(ctx context.Context, db itemDB, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func deleteItem(ctx context.Context, db *sql.DB, id string) error {
 	return nil
 }
 
-func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
+func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Item{}, err
 	}
@@ -339,11 +339,15 @@ func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
 	return nil
 }
 
+// jsonMarshalFn is the function used to marshal item metadata.
+// Exposed as a variable so whitebox tests can inject a failing implementation.
+var jsonMarshalFn = json.Marshal
+
 func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	metadataRaw, err := json.Marshal(item.Metadata)
+	metadataRaw, err := jsonMarshalFn(item.Metadata)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
@@ -355,10 +359,21 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 	}
 
 	const q = `
-		INSERT OR REPLACE INTO items
+		INSERT INTO items
 			(id, owner_id, name, brand, category_id, color, location_id,
 			 purchase_price, purchase_date, created_at, metadata)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			owner_id       = excluded.owner_id,
+			name           = excluded.name,
+			brand          = excluded.brand,
+			category_id    = excluded.category_id,
+			color          = excluded.color,
+			location_id    = excluded.location_id,
+			purchase_price = excluded.purchase_price,
+			purchase_date  = excluded.purchase_date,
+			created_at     = excluded.created_at,
+			metadata       = excluded.metadata`
 
 	_, err = tx.ExecContext(ctx, q,
 		item.ID,
