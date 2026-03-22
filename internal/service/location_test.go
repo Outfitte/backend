@@ -129,6 +129,23 @@ func TestLocationServiceMoveShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestLocationServiceMoveShouldMakeLocationRootWhenNewParentIDIsNil(t *testing.T) {
+	parentID := "parent-1"
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+	loc.ParentID = &parentID
+
+	repo := &mockLocationRepo{locations: []domain.Location{loc}}
+	svc := NewLocationService(repo, &mockItemRepo{})
+
+	got, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
+	require.NoError(t, err)
+	require.Equal(t, "loc-1", got.GetID())
+	require.Nil(t, got.ParentID)
+	require.Nil(t, repo.locations[0].ParentID)
+}
+
 func TestLocationServiceMoveShouldSucceedWhenAncestorInChainIsMissing(t *testing.T) {
 	var loc domain.Location
 	loc.ID = "loc-1"
@@ -148,23 +165,6 @@ func TestLocationServiceMoveShouldSucceedWhenAncestorInChainIsMissing(t *testing
 	require.NoError(t, err)
 	require.NotNil(t, got.ParentID)
 	require.Equal(t, "parent-1", *got.ParentID)
-}
-
-func TestLocationServiceMoveShouldMakeLocationRootWhenNewParentIDIsNil(t *testing.T) {
-	parentID := "parent-1"
-	var loc domain.Location
-	loc.ID = "loc-1"
-	loc.OwnerID = "owner-1"
-	loc.ParentID = &parentID
-
-	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{})
-
-	got, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
-	require.NoError(t, err)
-	require.Equal(t, "loc-1", got.GetID())
-	require.Nil(t, got.ParentID)
-	require.Nil(t, repo.locations[0].ParentID)
 }
 
 func TestLocationServiceMoveShouldReparentLocationWhenNewParentExists(t *testing.T) {
