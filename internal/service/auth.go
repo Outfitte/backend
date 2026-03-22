@@ -7,8 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -25,7 +25,7 @@ const (
 
 type AuthService struct {
 	users      ports.UserRepository
-	sessions   ports.StorageProvider[domain.Session]
+	sessions   ports.SessionRepository
 	secret     []byte
 	randRead   func([]byte) (int, error)
 	now        func() time.Time
@@ -34,7 +34,7 @@ type AuthService struct {
 
 func NewAuthService(
 	users ports.UserRepository,
-	sessions ports.StorageProvider[domain.Session],
+	sessions ports.SessionRepository,
 	secret []byte,
 ) *AuthService {
 	return &AuthService{
@@ -71,19 +71,17 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 }
 
 func (s *AuthService) findAndVerifyUser(ctx context.Context, email, password string) (domain.User, error) {
-	users, err := s.users.List(ctx)
+	u, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
-		return domain.User{}, err
-	}
-	for _, u := range users {
-		if u.Email == email {
-			if verifyPassword(password, u.PasswordHash) == nil {
-				return u, nil
-			}
+		if errors.Is(err, domain.ErrNotFound) {
 			return domain.User{}, domain.ErrUnauthorized
 		}
+		return domain.User{}, err
 	}
-	return domain.User{}, domain.ErrUnauthorized
+	if verifyPassword(password, u.PasswordHash) != nil {
+		return domain.User{}, domain.ErrUnauthorized
+	}
+	return u, nil
 }
 
 func (s *AuthService) createSession(ctx context.Context, userID string) (string, error) {
@@ -104,12 +102,7 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 		return "", err
 	}
 
-	all, err := s.sessions.List(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	if err := s.evictOldestIfOverLimit(ctx, userID, all); err != nil {
+	if err := s.evictOldestIfOverLimit(ctx, userID); err != nil {
 		return "", err
 	}
 
@@ -118,20 +111,15 @@ func (s *AuthService) createSession(ctx context.Context, userID string) (string,
 
 const maxSessionsPerUser = 10
 
-func (s *AuthService) evictOldestIfOverLimit(ctx context.Context, userID string, all []domain.Session) error {
-	var userSessions []domain.Session
-	for _, sess := range all {
-		if sess.UserID == userID {
-			userSessions = append(userSessions, sess)
-		}
+func (s *AuthService) evictOldestIfOverLimit(ctx context.Context, userID string) error {
+	count, err := s.sessions.CountByUser(ctx, userID)
+	if err != nil {
+		return err
 	}
-	if len(userSessions) <= maxSessionsPerUser {
+	if count <= maxSessionsPerUser {
 		return nil
 	}
-	sort.Slice(userSessions, func(i, j int) bool {
-		return userSessions[i].CreatedAt.Before(userSessions[j].CreatedAt)
-	})
-	return s.sessions.Delete(ctx, userSessions[0].GetID())
+	return s.sessions.DeleteOldestByUser(ctx, userID)
 }
 
 func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (accessToken, refreshToken string, err error) {
@@ -184,17 +172,8 @@ func (s *AuthService) refreshSession(ctx context.Context, session domain.Session
 }
 
 func (s *AuthService) findSessionByToken(ctx context.Context, rawToken string) (domain.Session, error) {
-	all, err := s.sessions.List(ctx)
-	if err != nil {
-		return domain.Session{}, err
-	}
 	hash := hashToken(s.secret, rawToken)
-	for _, sess := range all {
-		if hmac.Equal([]byte(sess.TokenHash), []byte(hash)) {
-			return sess, nil
-		}
-	}
-	return domain.Session{}, domain.ErrNotFound
+	return s.sessions.FindByTokenHash(ctx, hash)
 }
 
 func (s *AuthService) Logout(ctx context.Context, rawRefreshToken string) error {

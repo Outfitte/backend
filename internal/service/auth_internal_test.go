@@ -7,16 +7,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFindSessionByTokenShouldReturnErrorWhenListFails(t *testing.T) {
-	sessionStore := &mockSessionStore{listErr: domain.ErrIO}
-	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+func TestFindSessionByTokenShouldReturnErrorWhenFindByTokenHashFails(t *testing.T) {
+	sessionRepo := &mockSessionRepo{findByTokenHashErr: domain.ErrIO}
+	svc := NewAuthService(&mockUserStore{}, sessionRepo, []byte("secret"))
 
 	_, err := svc.findSessionByToken(t.Context(), "any-token")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestFindSessionByTokenShouldReturnErrNotFoundWhenNoSessionsExist(t *testing.T) {
-	svc := NewAuthService(&mockUserStore{}, &mockSessionStore{}, []byte("secret"))
+	svc := NewAuthService(&mockUserStore{}, &mockSessionRepo{}, []byte("secret"))
 
 	_, err := svc.findSessionByToken(t.Context(), "any-token")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -26,8 +26,8 @@ func TestFindSessionByTokenShouldReturnErrNotFoundWhenTokenDoesNotMatch(t *testi
 	var sess domain.Session
 	sess.ID = "session-1"
 	sess.TokenHash = hashToken([]byte("secret"), "correct-token")
-	sessionStore := &mockSessionStore{sessions: []domain.Session{sess}}
-	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+	sessionRepo := &mockSessionRepo{sessions: []domain.Session{sess}}
+	svc := NewAuthService(&mockUserStore{}, sessionRepo, []byte("secret"))
 
 	_, err := svc.findSessionByToken(t.Context(), "wrong-token")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -37,8 +37,8 @@ func TestFindSessionByTokenShouldReturnSessionWhenTokenMatches(t *testing.T) {
 	var sess domain.Session
 	sess.ID = "session-42"
 	sess.TokenHash = hashToken([]byte("secret"), "correct-token")
-	sessionStore := &mockSessionStore{sessions: []domain.Session{sess}}
-	svc := NewAuthService(&mockUserStore{}, sessionStore, []byte("secret"))
+	sessionRepo := &mockSessionRepo{sessions: []domain.Session{sess}}
+	svc := NewAuthService(&mockUserStore{}, sessionRepo, []byte("secret"))
 
 	got, err := svc.findSessionByToken(t.Context(), "correct-token")
 	require.NoError(t, err)
