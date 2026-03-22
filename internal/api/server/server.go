@@ -28,7 +28,7 @@ func New(
 	categorySvc := service.NewCategoryService()
 	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items)
-	_ = service.NewWearLogService(repos.WearLogs, repos.Items)
+	_ = service.NewWearLogService(repos.WearLogs, repos.Items) // handler wired in a later task
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 
