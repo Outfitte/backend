@@ -51,3 +51,18 @@ func TestRunMigrationsShouldSucceedWhenMigrationsAlreadyApplied(t *testing.T) {
 	err = sqlstore.RunMigrations(t.Context(), db)
 	require.NoError(t, err)
 }
+
+func TestRunMigrationsShouldCreateTokenHashIndex(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	require.NoError(t, sqlstore.RunMigrations(t.Context(), db))
+
+	var count int
+	err = db.QueryRowContext(t.Context(),
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_sessions_token_hash'`,
+	).Scan(&count)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
