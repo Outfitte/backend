@@ -35,11 +35,11 @@ type locationBackend interface {
 func New(
 	cfg *config.Config,
 	logger *slog.Logger,
-	users ports.StorageProvider[domain.User],
+	users ports.UserRepository,
 	sessions ports.StorageProvider[domain.Session],
 	items itemBackend,
 	locations locationBackend,
-	settings ports.SingletonStore[domain.AppSettings],
+	settings ports.AppSettingsRepository,
 	media ports.MediaProvider,
 ) *http.Server {
 	userSvc := service.NewUserService(users, settings)

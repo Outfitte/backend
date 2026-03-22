@@ -25,11 +25,11 @@ func run(ctx context.Context) error {
 }
 
 func newServer(cfg *config.Config, logger *slog.Logger) *http.Server {
-	users := storejson.NewProvider[domain.User](cfg.StorageDataPath, "users.json")
+	users := storejson.NewUserRepository(cfg.StorageDataPath)
 	sessions := storejson.NewProvider[domain.Session](cfg.StorageDataPath, "sessions.json")
 	items := storejson.NewItemRepository(cfg.StorageDataPath)
 	locations := storejson.NewLocationRepository(cfg.StorageDataPath)
-	settings := storejson.NewSingletonStore[domain.AppSettings](cfg.StorageDataPath, "app_settings.json")
+	settings := storejson.NewAppSettingsRepository(cfg.StorageDataPath)
 	media := localmedia.NewProvider(cfg.MediaStoragePath)
 	return server.New(cfg, logger, users, sessions, items, locations, settings, media)
 }

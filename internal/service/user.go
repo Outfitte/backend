@@ -18,12 +18,12 @@ import (
 )
 
 type UserService struct {
-	users    ports.StorageProvider[domain.User]
-	settings ports.SingletonStore[domain.AppSettings]
+	users    ports.UserRepository
+	settings ports.AppSettingsRepository
 	randRead func([]byte) (int, error)
 }
 
-func NewUserService(users ports.StorageProvider[domain.User], settings ports.SingletonStore[domain.AppSettings]) *UserService {
+func NewUserService(users ports.UserRepository, settings ports.AppSettingsRepository) *UserService {
 	return &UserService{users: users, settings: settings, randRead: rand.Read}
 }
 
@@ -56,16 +56,7 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (domain.User
 	if err := ctx.Err(); err != nil {
 		return domain.User{}, err
 	}
-	users, err := s.users.List(ctx)
-	if err != nil {
-		return domain.User{}, err
-	}
-	for _, u := range users {
-		if u.Email == email {
-			return u, nil
-		}
-	}
-	return domain.User{}, domain.ErrNotFound
+	return s.users.GetByEmail(ctx, email)
 }
 
 func (s *UserService) Register(ctx context.Context, email, password string) (domain.User, error) {
@@ -140,11 +131,11 @@ func (s *UserService) UpdateRegistrationEnabled(ctx context.Context, callerID st
 // canRegister checks that registration is allowed.
 // If no users exist yet, registration is always allowed (first-user bootstrap).
 func (s *UserService) canRegister(ctx context.Context) error {
-	users, err := s.users.List(ctx)
+	count, err := s.users.Count(ctx)
 	if err != nil {
 		return err
 	}
-	if len(users) == 0 {
+	if count == 0 {
 		return nil
 	}
 	settings, err := s.settings.Load(ctx)
@@ -160,21 +151,21 @@ func (s *UserService) canRegister(ctx context.Context) error {
 	return nil
 }
 
-// defineRole lists existing users to check for email conflicts and determine
-// the role for the new user: RoleAdmin if this is the first user, RoleMember otherwise.
+// defineRole checks for email conflicts and determines the role for the new user:
+// RoleAdmin if this is the first user, RoleMember otherwise.
 func (s *UserService) defineRole(ctx context.Context, email string) (domain.Role, error) {
-	existing, err := s.users.List(ctx)
+	_, err := s.users.GetByEmail(ctx, email)
+	if err == nil {
+		return "", domain.ErrConflict
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return "", err
+	}
+	count, err := s.users.Count(ctx)
 	if err != nil {
 		return "", err
 	}
-
-	for _, u := range existing {
-		if u.Email == email {
-			return "", domain.ErrConflict
-		}
-	}
-
-	if len(existing) == 0 {
+	if count == 0 {
 		return domain.RoleAdmin, nil
 	}
 	return domain.RoleMember, nil
