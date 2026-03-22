@@ -355,10 +355,21 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 	}
 
 	const q = `
-		INSERT OR REPLACE INTO items
+		INSERT INTO items
 			(id, owner_id, name, brand, category_id, color, location_id,
 			 purchase_price, purchase_date, created_at, metadata)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			owner_id       = excluded.owner_id,
+			name           = excluded.name,
+			brand          = excluded.brand,
+			category_id    = excluded.category_id,
+			color          = excluded.color,
+			location_id    = excluded.location_id,
+			purchase_price = excluded.purchase_price,
+			purchase_date  = excluded.purchase_date,
+			created_at     = excluded.created_at,
+			metadata       = excluded.metadata`
 
 	_, err = tx.ExecContext(ctx, q,
 		item.ID,

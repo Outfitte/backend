@@ -102,6 +102,36 @@ func TestItemRepositorySaveShouldPersistItemWithoutTouchingPhotos(t *testing.T) 
 	require.Empty(t, got.Photos)
 }
 
+func TestItemRepositorySaveShouldNotReplaceExistingPhotosWithFKEnforced(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), "PRAGMA foreign_keys = ON")
+	require.NoError(t, err)
+	repo := sqlstore.NewItemRepository(db)
+	seedUserForItem(t, db, "user-fk")
+
+	var item domain.Item
+	item.ID = "item-fk"
+	item.OwnerID = "user-fk"
+	item.Name = "FK Test"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+	require.NoError(t, repo.Save(t.Context(), item))
+
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES ('photo-fk', 'item-fk', 'fk.jpg', 0, '2025-06-01T10:00:00Z')`)
+	require.NoError(t, err)
+
+	item.Name = "FK Test Updated"
+	require.NoError(t, repo.Save(t.Context(), item))
+
+	got, err := repo.Get(t.Context(), "item-fk")
+	require.NoError(t, err)
+	require.Equal(t, "FK Test Updated", got.Name)
+	require.Len(t, got.Photos, 1, "photos must survive re-save with FK enforcement on")
+	require.Equal(t, "fk.jpg", got.Photos[0].MediaKey)
+}
+
 func TestItemRepositorySaveShouldNotReplaceExistingPhotos(t *testing.T) {
 	repo, db := newItemRepo(t)
 	seedUserForItem(t, db, "user-noreplace")
