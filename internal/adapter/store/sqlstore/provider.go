@@ -173,7 +173,7 @@ func buildItem(
 	return item, nil
 }
 
-func loadPhotos(ctx context.Context, db *sql.DB, itemID string) ([]domain.ItemPhoto, error) {
+func loadPhotos(ctx context.Context, db itemDB, itemID string) ([]domain.ItemPhoto, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (p *Provider[T]) Delete(ctx context.Context, id string) error {
 	}
 }
 
-func deleteItem(ctx context.Context, db *sql.DB, id string) error {
+func deleteItem(ctx context.Context, db itemDB, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func deleteItem(ctx context.Context, db *sql.DB, id string) error {
 	return nil
 }
 
-func getItem(ctx context.Context, db *sql.DB, id string) (domain.Item, error) {
+func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Item{}, err
 	}

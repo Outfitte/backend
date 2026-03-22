@@ -11,15 +11,24 @@ import (
 	"github.com/outfitte/outfitte/internal/ports"
 )
 
+// itemDB is the subset of *sql.DB methods used by ItemRepository.
+// Accepting this interface instead of *sql.DB allows test doubles to be injected.
+type itemDB interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
 var _ ports.ItemRepository = (*ItemRepository)(nil)
 
 // ItemRepository is a SQL-backed implementation of ports.ItemRepository.
 type ItemRepository struct {
-	db *sql.DB
+	db itemDB
 }
 
-// NewItemRepository creates an ItemRepository backed by the given *sql.DB.
-func NewItemRepository(db *sql.DB) *ItemRepository {
+// NewItemRepository creates an ItemRepository backed by the given db.
+func NewItemRepository(db itemDB) *ItemRepository {
 	return &ItemRepository{db: db}
 }
 

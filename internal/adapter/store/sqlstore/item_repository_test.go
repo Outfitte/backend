@@ -3,6 +3,7 @@ package sqlstore_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -540,6 +541,72 @@ func TestItemRepositoryListPhotoKeysShouldReturnErrIOWhenDBIsClosed(t *testing.T
 	db := openMigratedDB(t)
 	repo := sqlstore.NewItemRepository(db)
 	db.Close()
+
+	_, err := repo.ListPhotoKeys(t.Context(), "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+// ── Test doubles ──────────────────────────────────────────────────────────────
+
+type stubDB struct {
+	err error
+}
+
+func (s *stubDB) BeginTx(_ context.Context, _ *sql.TxOptions) (*sql.Tx, error) {
+	return nil, s.err
+}
+
+func (s *stubDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	return nil, s.err
+}
+
+func (s *stubDB) QueryContext(_ context.Context, _ string, _ ...any) (*sql.Rows, error) {
+	return nil, s.err
+}
+
+func (s *stubDB) QueryRowContext(_ context.Context, _ string, _ ...any) *sql.Row {
+	panic("QueryRowContext not expected in this test")
+}
+
+// ── Tests using test doubles ──────────────────────────────────────────────────
+
+func TestItemRepositorySaveShouldReturnErrIOWhenBeginTxFails(t *testing.T) {
+	stub := &stubDB{err: errors.New("begin failed")}
+	repo := sqlstore.NewItemRepository(stub)
+
+	var item domain.Item
+	item.ID = "item-1"
+	err := repo.Save(t.Context(), item)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemRepositorySavePhotoShouldReturnErrIOWhenExecContextFails(t *testing.T) {
+	stub := &stubDB{err: errors.New("exec failed")}
+	repo := sqlstore.NewItemRepository(stub)
+
+	err := repo.SavePhoto(t.Context(), "item-1", "photo-1", "key.jpg", 0)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemRepositoryDeletePhotoShouldReturnErrIOWhenExecContextFails(t *testing.T) {
+	stub := &stubDB{err: errors.New("exec failed")}
+	repo := sqlstore.NewItemRepository(stub)
+
+	err := repo.DeletePhoto(t.Context(), "item-1", "key.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemRepositoryListByOwnerShouldReturnErrIOWhenQueryContextFails(t *testing.T) {
+	stub := &stubDB{err: errors.New("query failed")}
+	repo := sqlstore.NewItemRepository(stub)
+
+	_, err := repo.ListByOwner(t.Context(), "user-1", ports.ItemListFilter{Status: ports.ItemStatusAll})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemRepositoryListPhotoKeysShouldReturnErrIOWhenQueryContextFails(t *testing.T) {
+	stub := &stubDB{err: errors.New("query failed")}
+	repo := sqlstore.NewItemRepository(stub)
 
 	_, err := repo.ListPhotoKeys(t.Context(), "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
