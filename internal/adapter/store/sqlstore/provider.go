@@ -339,11 +339,15 @@ func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
 	return nil
 }
 
+// jsonMarshalFn is the function used to marshal item metadata.
+// Exposed as a variable so whitebox tests can inject a failing implementation.
+var jsonMarshalFn = json.Marshal
+
 func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	metadataRaw, err := json.Marshal(item.Metadata)
+	metadataRaw, err := jsonMarshalFn(item.Metadata)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}

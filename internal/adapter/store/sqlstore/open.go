@@ -12,6 +12,10 @@ import (
 
 const sqlitePragmas = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"
 
+// sqlOpenFn is the function used to open a database connection.
+// Exposed as a variable so whitebox tests can inject a failing implementation.
+var sqlOpenFn = sql.Open
+
 // Open opens a database connection for the given DBConfig, applying
 // any driver-specific setup (e.g. PRAGMAs for SQLite).
 func Open(ctx context.Context, cfg config.DBConfig) (*sql.DB, error) {
@@ -29,7 +33,7 @@ func Open(ctx context.Context, cfg config.DBConfig) (*sql.DB, error) {
 }
 
 func openSQLite(ctx context.Context, dsn string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sqlOpenFn("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
