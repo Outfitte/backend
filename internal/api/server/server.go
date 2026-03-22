@@ -23,16 +23,18 @@ func New(
 	logger *slog.Logger,
 	users ports.StorageProvider[domain.User],
 	sessions ports.StorageProvider[domain.Session],
-	items ports.StorageProvider[domain.Item],
-	locations ports.StorageProvider[domain.Location],
+	itemRepo ports.ItemRepository,
+	itemStore ports.StorageProvider[domain.Item],
+	locRepo ports.LocationRepository,
+	locStore ports.StorageProvider[domain.Location],
 	settings ports.SingletonStore[domain.AppSettings],
 	media ports.MediaProvider,
 ) *http.Server {
 	userSvc := service.NewUserService(users, settings)
 	authSvc := service.NewAuthService(users, sessions, []byte(cfg.JWTSecret))
 	categorySvc := service.NewCategoryService()
-	itemSvc := service.NewItemService(items, media, locations, categorySvc)
-	locationSvc := service.NewLocationService(locations, items)
+	itemSvc := service.NewItemService(itemRepo, media, locRepo, categorySvc)
+	locationSvc := service.NewLocationService(locStore, itemStore)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 
