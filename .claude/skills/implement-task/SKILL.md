@@ -179,3 +179,32 @@ Focus on correctness, security, maintainability, and performance. Report any blo
 ```
 
 Report the review findings to the user once complete.
+
+## Step 9 — Capture learnings
+
+After the PR review is done, reflect on what happened during this implementation session. Ask: **did anything non-obvious come up that would help future sessions?**
+
+Examples of things worth capturing:
+- A pattern or convention discovered from reading existing code (e.g. how errors are wrapped, how tests are structured)
+- A decision made that isn't obvious from the code (e.g. why a certain approach was chosen over another)
+- A gotcha or edge case that caused confusion or required backtracking
+- A new rule that emerged from PR review feedback
+
+### What to update
+
+- **CLAUDE.md** — for project-wide conventions, handler guidelines, architecture rules, or patterns that every future implementation should follow
+- **Memory files** — for patterns specific to a sub-system (e.g. JSON adapter), feedback about how to collaborate, or anything that isn't a hard project rule
+
+If nothing non-obvious came up, skip this step — do not invent learnings.
+
+### How to update CLAUDE.md
+
+Add the learning under the most relevant existing section, or create a new section if needed. Keep entries concise (1–3 lines). Do not duplicate what is already documented.
+
+```bash
+# Read CLAUDE.md first, then Edit to add the new entry
+```
+
+### How to update memory
+
+Use the Write tool to create or update the relevant memory file in `/home/maxime/.claude/projects/-home-maxime-Development-Outfitte/memory/`, then update `MEMORY.md` with a pointer if it's a new file.
