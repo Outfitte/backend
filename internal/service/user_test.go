@@ -6,16 +6,19 @@ import (
 	"testing"
 
 	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
-// mockUserStore is an in-memory StorageProvider[domain.User] for tests.
+// mockUserStore is an in-memory UserRepository for tests.
 type mockUserStore struct {
-	users            []domain.User
-	listErr          error
-	listErrOnNthCall int // if > 0, return listErr only on this call number (1-indexed)
-	listCallCount    int
-	saveErr          error
+	users              []domain.User
+	listErr            error
+	countErr           error
+	countErrOnNthCall  int // if > 0, return countErr only on this call number (1-indexed)
+	countCallCount     int
+	getByEmailErr      error
+	saveErr            error
 }
 
 func (m *mockUserStore) Get(_ context.Context, id string) (domain.User, error) {
@@ -28,8 +31,7 @@ func (m *mockUserStore) Get(_ context.Context, id string) (domain.User, error) {
 }
 
 func (m *mockUserStore) List(_ context.Context) ([]domain.User, error) {
-	m.listCallCount++
-	if m.listErr != nil && (m.listErrOnNthCall == 0 || m.listCallCount == m.listErrOnNthCall) {
+	if m.listErr != nil {
 		return nil, m.listErr
 	}
 	return m.users, nil
@@ -49,7 +51,27 @@ func (m *mockUserStore) Save(_ context.Context, u domain.User) error {
 	return nil
 }
 
-func (m *mockUserStore) Delete(_ context.Context, id string) error {
+func (m *mockUserStore) GetByEmail(_ context.Context, email string) (domain.User, error) {
+	if m.getByEmailErr != nil {
+		return domain.User{}, m.getByEmailErr
+	}
+	for _, u := range m.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return domain.User{}, domain.ErrNotFound
+}
+
+func (m *mockUserStore) Count(_ context.Context) (int, error) {
+	m.countCallCount++
+	if m.countErr != nil && (m.countErrOnNthCall == 0 || m.countCallCount == m.countErrOnNthCall) {
+		return 0, m.countErr
+	}
+	return len(m.users), nil
+}
+
+func (m *mockUserStore) Delete(_ context.Context, _ string) error {
 	return errors.New("not implemented")
 }
 
@@ -80,6 +102,18 @@ func (m *mockSettingsStore) Save(_ context.Context, s domain.AppSettings) error 
 	}
 	m.settings = s
 	return nil
+}
+
+var _ ports.UserRepository = &mockUserStore{}
+var _ ports.AppSettingsRepository = &mockSettingsStore{}
+
+func TestRegisterShouldReturnErrorWhenCanRegisterCountFails(t *testing.T) {
+	store := &mockUserStore{countErr: domain.ErrIO}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	svc := NewUserService(store, settings)
+
+	_, err := svc.Register(t.Context(), "alice@example.com", "password")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestUpdateRegistrationEnabledShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -266,8 +300,8 @@ func TestGetByEmailShouldReturnErrNotFoundWhenEmailDoesNotExist(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
-func TestGetByEmailShouldReturnErrorWhenListFails(t *testing.T) {
-	store := &mockUserStore{listErr: domain.ErrIO}
+func TestGetByEmailShouldReturnErrorWhenGetByEmailFails(t *testing.T) {
+	store := &mockUserStore{getByEmailErr: domain.ErrIO}
 	svc := NewUserService(store, &mockSettingsStore{})
 
 	_, err := svc.GetByEmail(t.Context(), "alice@example.com")
@@ -345,17 +379,20 @@ func TestRegisterShouldReturnErrConflictWhenEmailAlreadyExists(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrConflict)
 }
 
-func TestRegisterShouldReturnErrorWhenStoreListFails(t *testing.T) {
-	store := &mockUserStore{listErr: domain.ErrIO}
-	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+func TestRegisterShouldReturnErrorWhenDefineRoleCountFails(t *testing.T) {
+	// Store is empty: canRegister → Count call 1 returns 0 (bootstrap, no error).
+	// defineRole → GetByEmail returns ErrNotFound → Count call 2 fails.
+	store := &mockUserStore{countErr: domain.ErrIO, countErrOnNthCall: 2}
+	settings := &mockSettingsStore{}
 	svc := NewUserService(store, settings)
 
 	_, err := svc.Register(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestRegisterShouldReturnErrorWhenDefineRoleListFails(t *testing.T) {
-	store := &mockUserStore{listErr: domain.ErrIO, listErrOnNthCall: 2}
+func TestRegisterShouldReturnErrorWhenDefineRoleGetByEmailFails(t *testing.T) {
+	// canRegister → Count returns 0 (bootstrap). defineRole → GetByEmail fails with unexpected error.
+	store := &mockUserStore{getByEmailErr: domain.ErrIO}
 	settings := &mockSettingsStore{}
 	svc := NewUserService(store, settings)
 

@@ -24,7 +24,7 @@ const (
 )
 
 type AuthService struct {
-	users      ports.StorageProvider[domain.User]
+	users      ports.UserRepository
 	sessions   ports.StorageProvider[domain.Session]
 	secret     []byte
 	randRead   func([]byte) (int, error)
@@ -33,7 +33,7 @@ type AuthService struct {
 }
 
 func NewAuthService(
-	users ports.StorageProvider[domain.User],
+	users ports.UserRepository,
 	sessions ports.StorageProvider[domain.Session],
 	secret []byte,
 ) *AuthService {
