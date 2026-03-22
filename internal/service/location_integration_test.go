@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	jsonstore "github.com/outfitte/outfitte/internal/adapter/store/json"
-	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLocationServiceShouldCompleteFullCycleWhenCreateUpdateListMoveDelete(t *testing.T) {
-	locStore := jsonstore.NewProvider[domain.Location](t.TempDir(), "locations.json")
-	itemStore := jsonstore.NewProvider[domain.Item](t.TempDir(), "items.json")
+	locStore := jsonstore.NewLocationRepository(t.TempDir())
+	itemStore := jsonstore.NewItemRepository(t.TempDir())
 	svc := service.NewLocationService(locStore, itemStore)
 
 	ctx := t.Context()

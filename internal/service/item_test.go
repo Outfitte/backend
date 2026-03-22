@@ -10,62 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockItemStore is an in-memory StorageProvider[domain.Item] for tests.
-// It is used by LocationService tests in location_test.go.
-type mockItemStore struct {
-	items     []domain.Item
-	getErr    error
-	listErr   error
-	saveErr   error
-	deleteErr error
-}
-
-func (m *mockItemStore) Get(_ context.Context, id string) (domain.Item, error) {
-	if m.getErr != nil {
-		return domain.Item{}, m.getErr
-	}
-	for _, item := range m.items {
-		if item.GetID() == id {
-			return item, nil
-		}
-	}
-	return domain.Item{}, domain.ErrNotFound
-}
-
-func (m *mockItemStore) List(_ context.Context) ([]domain.Item, error) {
-	if m.listErr != nil {
-		return nil, m.listErr
-	}
-	return m.items, nil
-}
-
-func (m *mockItemStore) Save(_ context.Context, item domain.Item) error {
-	if m.saveErr != nil {
-		return m.saveErr
-	}
-	for i, existing := range m.items {
-		if existing.GetID() == item.GetID() {
-			m.items[i] = item
-			return nil
-		}
-	}
-	m.items = append(m.items, item)
-	return nil
-}
-
-func (m *mockItemStore) Delete(_ context.Context, id string) error {
-	if m.deleteErr != nil {
-		return m.deleteErr
-	}
-	for i, item := range m.items {
-		if item.GetID() == id {
-			m.items = append(m.items[:i], m.items[i+1:]...)
-			return nil
-		}
-	}
-	return domain.ErrNotFound
-}
-
 // mockItemRepo is an in-memory ports.ItemRepository for tests.
 type mockItemRepo struct {
 	items          []domain.Item
@@ -77,6 +21,9 @@ type mockItemRepo struct {
 	deletePhotoErr error
 	photoKeys      []string
 	listPhotoErr   error
+
+	countByLocationErr    error
+	countByLocationResult int
 
 	// tracking
 	savedPhotoItemID   string
@@ -140,7 +87,10 @@ func (m *mockItemRepo) ListByOwner(_ context.Context, ownerID string, _ ports.It
 }
 
 func (m *mockItemRepo) CountByLocation(_ context.Context, _ string) (int, error) {
-	return 0, nil
+	if m.countByLocationErr != nil {
+		return 0, m.countByLocationErr
+	}
+	return m.countByLocationResult, nil
 }
 
 func (m *mockItemRepo) SavePhoto(_ context.Context, itemID, photoID, mediaKey string, position int) error {
@@ -174,11 +124,19 @@ func (m *mockItemRepo) ListPhotoKeys(_ context.Context, _ string) ([]string, err
 type mockLocationRepo struct {
 	locations []domain.Location
 	getErr    error
+	getErrFor map[string]error
 	saveErr   error
 	deleteErr error
+
+	listByOwnerErr  error
+	hasChildrenErr  error
+	hasChildrenResult bool
 }
 
 func (m *mockLocationRepo) Get(_ context.Context, id string) (domain.Location, error) {
+	if err, ok := m.getErrFor[id]; ok {
+		return domain.Location{}, err
+	}
 	if m.getErr != nil {
 		return domain.Location{}, m.getErr
 	}
@@ -217,12 +175,24 @@ func (m *mockLocationRepo) Delete(_ context.Context, id string) error {
 	return domain.ErrNotFound
 }
 
-func (m *mockLocationRepo) ListByOwner(_ context.Context, _ string) ([]domain.Location, error) {
-	return m.locations, nil
+func (m *mockLocationRepo) ListByOwner(_ context.Context, ownerID string) ([]domain.Location, error) {
+	if m.listByOwnerErr != nil {
+		return nil, m.listByOwnerErr
+	}
+	var result []domain.Location
+	for _, loc := range m.locations {
+		if loc.OwnerID == ownerID {
+			result = append(result, loc)
+		}
+	}
+	return result, nil
 }
 
 func (m *mockLocationRepo) HasChildren(_ context.Context, _ string) (bool, error) {
-	return false, nil
+	if m.hasChildrenErr != nil {
+		return false, m.hasChildrenErr
+	}
+	return m.hasChildrenResult, nil
 }
 
 // mockMediaProvider is an in-memory MediaProvider for tests.
