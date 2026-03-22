@@ -11,7 +11,6 @@ import (
 	storejson "github.com/outfitte/outfitte/internal/adapter/store/json"
 	"github.com/outfitte/outfitte/internal/api/server"
 	"github.com/outfitte/outfitte/internal/config"
-	"github.com/outfitte/outfitte/internal/domain"
 )
 
 func run(ctx context.Context) error {
@@ -26,7 +25,7 @@ func run(ctx context.Context) error {
 
 func newServer(cfg *config.Config, logger *slog.Logger) *http.Server {
 	users := storejson.NewUserRepository(cfg.StorageDataPath)
-	sessions := storejson.NewProvider[domain.Session](cfg.StorageDataPath, "sessions.json")
+	sessions := storejson.NewSessionRepository(cfg.StorageDataPath)
 	items := storejson.NewItemRepository(cfg.StorageDataPath)
 	locations := storejson.NewLocationRepository(cfg.StorageDataPath)
 	settings := storejson.NewAppSettingsRepository(cfg.StorageDataPath)

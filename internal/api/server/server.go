@@ -36,7 +36,7 @@ func New(
 	cfg *config.Config,
 	logger *slog.Logger,
 	users ports.UserRepository,
-	sessions ports.StorageProvider[domain.Session],
+	sessions ports.SessionRepository,
 	items itemBackend,
 	locations locationBackend,
 	settings ports.AppSettingsRepository,
