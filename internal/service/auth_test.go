@@ -27,7 +27,7 @@ type mockSessionRepo struct {
 
 var _ ports.SessionRepository = &mockSessionRepo{}
 
-func (m *mockSessionRepo) Get(_ context.Context, id string) (domain.Session, error) {
+func (m *mockSessionRepo) Get(ctx context.Context, id string) (domain.Session, error) {
 	if m.getErr != nil {
 		return domain.Session{}, m.getErr
 	}
@@ -39,7 +39,7 @@ func (m *mockSessionRepo) Get(_ context.Context, id string) (domain.Session, err
 	return domain.Session{}, domain.ErrNotFound
 }
 
-func (m *mockSessionRepo) Save(_ context.Context, s domain.Session) error {
+func (m *mockSessionRepo) Save(ctx context.Context, s domain.Session) error {
 	if m.saveErr != nil {
 		return m.saveErr
 	}
@@ -47,7 +47,7 @@ func (m *mockSessionRepo) Save(_ context.Context, s domain.Session) error {
 	return nil
 }
 
-func (m *mockSessionRepo) Delete(_ context.Context, id string) error {
+func (m *mockSessionRepo) Delete(ctx context.Context, id string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -60,7 +60,7 @@ func (m *mockSessionRepo) Delete(_ context.Context, id string) error {
 	return domain.ErrNotFound
 }
 
-func (m *mockSessionRepo) FindByTokenHash(_ context.Context, hash string) (domain.Session, error) {
+func (m *mockSessionRepo) FindByTokenHash(ctx context.Context, hash string) (domain.Session, error) {
 	if m.findByTokenHashErr != nil {
 		return domain.Session{}, m.findByTokenHashErr
 	}
@@ -72,7 +72,7 @@ func (m *mockSessionRepo) FindByTokenHash(_ context.Context, hash string) (domai
 	return domain.Session{}, domain.ErrNotFound
 }
 
-func (m *mockSessionRepo) CountByUser(_ context.Context, userID string) (int, error) {
+func (m *mockSessionRepo) CountByUser(ctx context.Context, userID string) (int, error) {
 	if m.countByUserErr != nil {
 		return 0, m.countByUserErr
 	}
@@ -85,7 +85,7 @@ func (m *mockSessionRepo) CountByUser(_ context.Context, userID string) (int, er
 	return count, nil
 }
 
-func (m *mockSessionRepo) DeleteOldestByUser(_ context.Context, userID string) error {
+func (m *mockSessionRepo) DeleteOldestByUser(ctx context.Context, userID string) error {
 	if m.deleteOldestByUserErr != nil {
 		return m.deleteOldestByUserErr
 	}
