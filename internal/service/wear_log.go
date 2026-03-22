@@ -30,7 +30,7 @@ func (s *WearLogService) LogWear(ctx context.Context, callerID, itemID string, w
 	if err != nil {
 		return domain.WearLog{}, err
 	}
-	if wornOn.After(time.Now()) {
+	if wornOn.UTC().After(time.Now().UTC()) {
 		return domain.WearLog{}, domain.ErrFutureDateNotAllowed
 	}
 	log, err := s.saveNewWearLog(ctx, callerID, itemID, wornOn, notes)
@@ -48,7 +48,7 @@ func (s *WearLogService) saveNewWearLog(ctx context.Context, callerID, itemID st
 	log.ID = uuid.NewString()
 	log.ItemID = itemID
 	log.OwnerID = callerID
-	log.WornOn = wornOn
+	log.WornOn = wornOn.UTC()
 	log.Notes = notes
 	log.CreatedAt = time.Now().UTC()
 	if err := s.wearLogs.Save(ctx, log); err != nil {
@@ -59,7 +59,9 @@ func (s *WearLogService) saveNewWearLog(ctx context.Context, callerID, itemID st
 
 func (s *WearLogService) updateItemWearStats(ctx context.Context, item domain.Item, wornOn time.Time) error {
 	item.WearCount++
-	item.LastWornAt = &wornOn
+	if item.LastWornAt == nil || wornOn.After(*item.LastWornAt) {
+		item.LastWornAt = &wornOn
+	}
 	return s.items.Save(ctx, item)
 }
 

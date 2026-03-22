@@ -388,6 +388,26 @@ func TestWearLogServiceLogWearShouldReturnErrorWhenItemSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestWearLogServiceLogWearShouldNotUpdateLastWornAtWhenNewDateIsOlderThanExisting(t *testing.T) {
+	recent := time.Now().Add(-24 * time.Hour).UTC()
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.WearCount = 1
+	item.LastWornAt = &recent
+
+	older := time.Now().Add(-48 * time.Hour).UTC()
+	itemRepo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewWearLogService(&mockWearLogRepo{}, itemRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", older, nil)
+	require.NoError(t, err)
+
+	// LastWornAt must remain the more recent date, not be regressed to the older one.
+	require.Equal(t, 2, itemRepo.items[0].WearCount)
+	require.Equal(t, recent, *itemRepo.items[0].LastWornAt)
+}
+
 func TestWearLogServiceLogWearShouldCreateLogAndUpdateItemStatsWhenSuccessful(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
