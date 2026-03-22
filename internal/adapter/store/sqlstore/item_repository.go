@@ -11,6 +11,8 @@ import (
 	"github.com/outfitte/outfitte/internal/ports"
 )
 
+var _ ports.ItemRepository = (*ItemRepository)(nil)
+
 // ItemRepository is a SQL-backed implementation of ports.ItemRepository.
 type ItemRepository struct {
 	db *sql.DB

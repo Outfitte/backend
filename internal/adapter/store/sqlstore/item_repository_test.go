@@ -437,6 +437,24 @@ func TestItemRepositoryListPhotoKeysShouldReturnEmptyWhenNoPhotos(t *testing.T) 
 	require.Empty(t, keys)
 }
 
+func TestItemRepositoryGetShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openMigratedDB(t)
+	repo := sqlstore.NewItemRepository(db)
+	db.Close()
+
+	_, err := repo.Get(t.Context(), "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemRepositoryDeleteShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openMigratedDB(t)
+	repo := sqlstore.NewItemRepository(db)
+	db.Close()
+
+	err := repo.Delete(t.Context(), "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 // ── DB closed error paths ─────────────────────────────────────────────────────
 
 func TestItemRepositorySaveShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
