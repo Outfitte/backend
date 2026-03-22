@@ -71,29 +71,6 @@ func (m *mockWearLogRepo) ListByItem(_ context.Context, itemID string) ([]domain
 	return result, nil
 }
 
-func (m *mockWearLogRepo) LatestByItem(_ context.Context, itemID string) (*domain.WearLog, error) {
-	var latest *domain.WearLog
-	for i := range m.logs {
-		if m.logs[i].ItemID == itemID {
-			if latest == nil || m.logs[i].WornOn.After(latest.WornOn) {
-				l := m.logs[i]
-				latest = &l
-			}
-		}
-	}
-	return latest, nil
-}
-
-func (m *mockWearLogRepo) CountByItem(_ context.Context, itemID string) (int, error) {
-	count := 0
-	for _, l := range m.logs {
-		if l.ItemID == itemID {
-			count++
-		}
-	}
-	return count, nil
-}
-
 // ── DeleteWearLog ─────────────────────────────────────────────────────────────
 
 func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
