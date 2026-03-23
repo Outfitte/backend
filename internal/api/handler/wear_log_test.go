@@ -243,7 +243,7 @@ func TestListByItemShouldReturn500WhenServiceFails(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestListByItemShouldReturn200WithLogsOrderedByWornOnDesc(t *testing.T) {
+func TestListByItemShouldReturn200WithAllLogs(t *testing.T) {
 	var log1, log2 domain.WearLog
 	log1.ID = "log-1"
 	log1.ItemID = "item-1"

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/api/middleware"
 	"github.com/outfitte/outfitte/internal/domain"
 )
 
@@ -22,7 +21,7 @@ type wearLogResponse struct {
 	ID        string    `json:"id"`
 	ItemID    string    `json:"item_id"`
 	OwnerID   string    `json:"owner_id"`
-	WornOn    string    `json:"worn_on"`
+	WornOn    string    `json:"worn_on"` // calendar date only, formatted YYYY-MM-DD
 	Notes     *string   `json:"notes"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -166,11 +165,3 @@ func (h *WearLogHandler) DeleteWearLog(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func callerIDFromContext(ctx context.Context, w http.ResponseWriter, log *slog.Logger) (string, bool) {
-	callerID, ok := middleware.UserIDFromContext(ctx)
-	if !ok {
-		log.ErrorContext(ctx, "missing caller ID in context")
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-	}
-	return callerID, ok
-}
