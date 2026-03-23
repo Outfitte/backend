@@ -6,7 +6,7 @@
 
 Self-hosted wardrobe management application built in Go.
 
-> **Status:** Early development — M1 (Users, Items & Locations) complete. Core REST API is functional.
+> **Status:** Early development — M2 (Wear & Archive Lifecycle) complete. Core REST API is functional.
 
 ## Overview
 
@@ -21,7 +21,7 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 | `POST` | `/auth/login` | — | Obtain access + refresh tokens |
 | `POST` | `/auth/refresh` | — | Rotate refresh token |
 | `POST` | `/auth/logout` | — | Revoke refresh token |
-| `GET` | `/items` | JWT | List items |
+| `GET` | `/items?status=active\|archived\|all` | JWT | List items (default: `active`) |
 | `POST` | `/items` | JWT | Create item |
 | `GET` | `/items/{id}` | JWT | Get item |
 | `PATCH` | `/items/{id}` | JWT | Update item |
@@ -29,6 +29,12 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 | `POST` | `/items/{id}/photos` | JWT | Upload photo |
 | `DELETE` | `/items/{id}/photos/{key...}` | JWT | Delete photo |
 | `PATCH` | `/items/{id}/location` | JWT | Assign item to location |
+| `POST` | `/items/{id}/archive` | JWT | Archive item |
+| `POST` | `/items/{id}/unarchive` | JWT | Unarchive item |
+| `POST` | `/items/{id}/dispose` | JWT | Dispose item (body: `{"reason": "donated\|sold\|discarded\|lost\|other"}`) |
+| `POST` | `/items/{id}/wear-logs` | JWT | Log a wear event |
+| `GET` | `/items/{id}/wear-logs` | JWT | List wear logs for an item |
+| `DELETE` | `/items/{id}/wear-logs/{logID}` | JWT | Delete a wear log |
 | `GET` | `/locations` | JWT | List location tree |
 | `POST` | `/locations` | JWT | Create location |
 | `GET` | `/locations/{id}` | JWT | Get location |
@@ -39,6 +45,35 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 | `GET` | `/media/{key...}` | JWT | Download media file |
 | `GET` | `/admin/settings` | JWT + Admin | Get app settings |
 | `PATCH` | `/admin/settings` | JWT + Admin | Update app settings |
+
+## Item API Shape
+
+Item objects returned by the API have the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Item UUID |
+| `owner_id` | string | Owner user UUID |
+| `name` | string | Item name |
+| `brand` | string\|null | Brand (optional) |
+| `category_id` | string\|null | Category UUID (optional) |
+| `color` | string\|null | Colour (optional) |
+| `metadata` | object | Free-form key/value pairs (string → string) |
+| `photos` | array | Attached photos (`id`, `media_key`, `position`, `created_at`) |
+| `location_id` | string\|null | Location UUID (optional) |
+| `purchase_price` | string\|null | Purchase price as a decimal string (optional) |
+| `created_at` | string (RFC3339) | Creation timestamp |
+
+### Wear Log shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Log UUID |
+| `item_id` | string | Parent item UUID |
+| `owner_id` | string | Owner user UUID |
+| `worn_on` | string (YYYY-MM-DD) | Calendar date the item was worn |
+| `notes` | string\|null | Optional notes |
+| `created_at` | string (RFC3339) | Creation timestamp |
 
 ## Running with Docker Compose
 
@@ -81,7 +116,7 @@ golangci-lint run ./...
 |-----------|-------------|--------|
 | M0 | Foundation — scaffold, config, health check | ✓ Done |
 | M1 | Users, Items & Locations | ✓ Done |
-| M2 | Wear & Archive Lifecycle | Planned |
+| M2 | Wear & Archive Lifecycle | ✓ Done |
 | M3 | Outfits & Calendar | Planned |
 | M4 | Seller URL & Price Tracking | Planned |
 | M5 | Family Sharing | Planned |
