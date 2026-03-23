@@ -43,7 +43,7 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 ## Running with Docker Compose
 
 ```bash
-cp .env.example .env   # edit STORAGE_DATA_PATH and MEDIA_STORAGE_PATH
+cp .env.example .env   # set JWT_SECRET and review DB_DSN / MEDIA_STORAGE_PATH
 docker compose up
 ```
 
@@ -55,10 +55,17 @@ See `.env.example` for all available variables.
 |---|---|---|
 | `SERVER_PORT` | `8080` | HTTP listen port |
 | `APP_ENV` | `dev` | Runtime environment (`dev`/`prod`) |
-| `STORAGE_DATA_PATH` | *(required)* | Directory for JSON storage data |
+| `DB_DRIVER` | `sqlite` | Storage driver: `sqlite`, `json`, or `postgres` |
+| `DB_DSN` | *(required)* | Data source name for the selected driver (see below) |
 | `MEDIA_STORAGE_PATH` | *(required)* | Directory for media files |
 | `LOG_LEVEL` | `info` | Log verbosity |
 | `JWT_SECRET` | *(required)* | Secret key for signing JWTs; min 32 chars (`openssl rand -hex 32`) |
+
+### DB_DSN format
+
+- **SQLite** (`DB_DRIVER=sqlite`): path to the database file, e.g. `/data/outfitte.db`
+- **Postgres** (`DB_DRIVER=postgres`): standard DSN, e.g. `postgres://user:pass@host:5432/outfitte?sslmode=disable` — not yet implemented; the app will exit with an unsupported driver error on startup
+- **JSON** (`DB_DRIVER=json`): directory path for JSON storage files, e.g. `/data/storage` — the JSON file store is no longer the default but remains available for local development by swapping the adapter in `run.go`
 
 ## Linting
 

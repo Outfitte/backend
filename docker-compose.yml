@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     volumes:
-      - storage_data:${STORAGE_DATA_PATH:-/data/storage}
+      - sqlite_data:/data
       - media_storage:${MEDIA_STORAGE_PATH:-/data/media}
     healthcheck:
       test:
@@ -28,5 +28,5 @@ services:
   #   Uncomment when DB_DRIVER=postgres is used.
 
 volumes:
-  storage_data:
+  sqlite_data:
   media_storage:
