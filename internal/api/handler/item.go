@@ -7,12 +7,63 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/outfitte/outfitte/internal/api/middleware"
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/ports"
 	"github.com/outfitte/outfitte/internal/service"
 )
+
+type photoResponse struct {
+	ID        string    `json:"id"`
+	MediaKey  string    `json:"media_key"`
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type itemResponse struct {
+	ID            string            `json:"id"`
+	OwnerID       string            `json:"owner_id"`
+	Name          string            `json:"name"`
+	Brand         *string           `json:"brand"`
+	CategoryID    *string           `json:"category_id"`
+	Color         *string           `json:"color"`
+	Metadata      map[string]string `json:"metadata"`
+	Photos        []photoResponse   `json:"photos"`
+	LocationID    *string           `json:"location_id"`
+	PurchasePrice *string           `json:"purchase_price"`
+	CreatedAt     time.Time         `json:"created_at"`
+}
+
+func toItemResponse(item domain.Item) itemResponse {
+	photos := make([]photoResponse, len(item.Photos))
+	for i, p := range item.Photos {
+		photos[i] = photoResponse{
+			ID:        p.ID,
+			MediaKey:  p.MediaKey,
+			Position:  p.Position,
+			CreatedAt: p.CreatedAt,
+		}
+	}
+	meta := item.Metadata.Fields
+	if meta == nil {
+		meta = map[string]string{}
+	}
+	return itemResponse{
+		ID:            item.ID,
+		OwnerID:       item.OwnerID,
+		Name:          item.Name,
+		Brand:         item.Brand,
+		CategoryID:    item.CategoryID,
+		Color:         item.Color,
+		Metadata:      meta,
+		Photos:        photos,
+		LocationID:    item.LocationID,
+		PurchasePrice: item.PurchasePrice,
+		CreatedAt:     item.CreatedAt,
+	}
+}
 
 type itemService interface {
 	Create(ctx context.Context, callerID string, input service.CreateItemInput) (domain.Item, error)
@@ -87,7 +138,7 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "item_id", item.ID)
-	writeJSON(w, http.StatusCreated, item)
+	writeJSON(w, http.StatusCreated, toItemResponse(item))
 }
 
 type updateItemRequest struct {
@@ -163,8 +214,12 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	responses := make([]itemResponse, len(items))
+	for i, item := range items {
+		responses[i] = toItemResponse(item)
+	}
 	log.InfoContext(ctx, "succeeded", "count", len(items))
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, responses)
 }
 
 // GetByID handles GET /items/{id}.
@@ -197,7 +252,7 @@ func (h *ItemHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "item_id", item.ID)
-	writeJSON(w, http.StatusOK, item)
+	writeJSON(w, http.StatusOK, toItemResponse(item))
 }
 
 // Update handles PATCH /items/{id}.
@@ -249,7 +304,7 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.InfoContext(ctx, "succeeded", "item_id", item.ID)
-	writeJSON(w, http.StatusOK, item)
+	writeJSON(w, http.StatusOK, toItemResponse(item))
 }
 
 // Delete handles DELETE /items/{id}.
