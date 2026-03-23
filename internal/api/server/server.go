@@ -28,6 +28,7 @@ func New(
 	categorySvc := service.NewCategoryService()
 	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items)
+	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 
@@ -37,6 +38,7 @@ func New(
 	categoryHandler := handler.NewCategoryHandler(categorySvc, logger)
 	mediaHandler := handler.NewMediaHandler(media, logger)
 	settingsHandler := handler.NewSettingsHandler(userSvc, logger)
+	wearLogHandler := handler.NewWearLogHandler(wearLogSvc, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
@@ -62,6 +64,9 @@ func New(
 	mux.Handle("POST /items/{id}/archive", auth(http.HandlerFunc(itemHandler.Archive)))
 	mux.Handle("POST /items/{id}/unarchive", auth(http.HandlerFunc(itemHandler.Unarchive)))
 	mux.Handle("POST /items/{id}/dispose", auth(http.HandlerFunc(itemHandler.Dispose)))
+	mux.Handle("POST /items/{id}/wear-logs", auth(http.HandlerFunc(wearLogHandler.LogWear)))
+	mux.Handle("GET /items/{id}/wear-logs", auth(http.HandlerFunc(wearLogHandler.ListByItem)))
+	mux.Handle("DELETE /items/{id}/wear-logs/{logID}", auth(http.HandlerFunc(wearLogHandler.DeleteWearLog)))
 
 	mux.Handle("GET /locations", auth(http.HandlerFunc(locationHandler.List)))
 	mux.Handle("POST /locations", auth(http.HandlerFunc(locationHandler.Create)))

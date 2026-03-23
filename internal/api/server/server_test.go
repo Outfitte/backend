@@ -263,3 +263,30 @@ func TestNewShouldReturn400WhenLogoutCalledWithInvalidBody(t *testing.T) {
 	resp := postJSON(t, ts, "/auth/logout", "not-json")
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
+
+func TestNewShouldReturn401WhenPostWearLogsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/items/item-1/wear-logs", `{"worn_on":"2024-01-01"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetWearLogsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/items/item-1/wear-logs")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteWearLogCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/items/item-1/wear-logs/log-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
