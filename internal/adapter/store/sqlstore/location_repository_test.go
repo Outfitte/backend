@@ -158,6 +158,41 @@ func TestLocationRepositorySaveShouldUpdateExistingLocation(t *testing.T) {
 	require.Equal(t, time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC), got.CreatedAt) // must not change
 }
 
+func TestLocationRepositorySaveShouldNotCascadeToChildrenWithFKEnforced(t *testing.T) {
+	db := openMigratedDB(t)
+	_, err := db.ExecContext(t.Context(), "PRAGMA foreign_keys = ON")
+	require.NoError(t, err)
+	repo := sqlstore.NewLocationRepository(db)
+	seedUserForLocation(t, db, "user-fk")
+
+	var parent domain.Location
+	parent.ID = "loc-fk-parent"
+	parent.OwnerID = "user-fk"
+	parent.Label = "Room"
+	parent.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, repo.Save(t.Context(), parent))
+
+	parentID := "loc-fk-parent"
+	var child domain.Location
+	child.ID = "loc-fk-child"
+	child.OwnerID = "user-fk"
+	child.ParentID = &parentID
+	child.Label = "Shelf"
+	child.CreatedAt = time.Date(2025, 6, 2, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, repo.Save(t.Context(), child))
+
+	parent.Label = "Room Updated"
+	require.NoError(t, repo.Save(t.Context(), parent))
+
+	got, err := repo.Get(t.Context(), "loc-fk-parent")
+	require.NoError(t, err)
+	require.Equal(t, "Room Updated", got.Label)
+
+	gotChild, err := repo.Get(t.Context(), "loc-fk-child")
+	require.NoError(t, err)
+	require.Equal(t, "loc-fk-child", gotChild.GetID(), "child must survive re-save of parent with FK enforcement on")
+}
+
 func TestLocationRepositorySaveShouldPersistParentID(t *testing.T) {
 	repo, db := newLocationRepo(t)
 	seedUserForLocation(t, db, "user-pid")
