@@ -23,15 +23,39 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// ── listItems ─────────────────────────────────────────────────────────────────
+// ── buildItem ─────────────────────────────────────────────────────────────────
 
-func TestListItemsContextCancelledInternal(t *testing.T) {
+func TestGetItemShouldReturnErrIOWhenMetadataIsInvalid(t *testing.T) {
 	db := openTestDB(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-meta', 'owner-1', 'Bad Item', '2025-01-01T00:00:00Z', 'not-json')`)
+	require.NoError(t, err)
 
-	_, err := listItems(ctx, db)
-	require.ErrorIs(t, err, context.Canceled)
+	_, err = getItem(t.Context(), db, "item-bad-meta")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetItemShouldReturnErrIOWhenCreatedAtIsInvalid(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-ts', 'owner-1', 'Bad Item', 'not-a-date', '{}')`)
+	require.NoError(t, err)
+
+	_, err = getItem(t.Context(), db, "item-bad-ts")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetItemShouldReturnErrIOWhenPurchaseDateIsInvalid(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, purchase_date, metadata)
+		VALUES ('item-bad-pd', 'owner-1', 'Bad Item', '2025-01-01T00:00:00Z', 'not-a-date', '{}')`)
+	require.NoError(t, err)
+
+	_, err = getItem(t.Context(), db, "item-bad-pd")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 // ── getItem ───────────────────────────────────────────────────────────────────
@@ -45,6 +69,52 @@ func TestGetItemContextCancelledInternal(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestGetItemShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	db := openTestDB(t)
+	db.Close()
+	_, err := getItem(t.Context(), db, "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestGetItemShouldReturnItemWithAllOptionalFieldsWhenSet(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, brand, category_id, color,
+		                   location_id, purchase_price, purchase_date, created_at, metadata)
+		VALUES ('item-all', 'owner-1', 'Full Item', 'Nike', 'cat-1', 'Red',
+		        'loc-1', '99.99', '2024-01-15T00:00:00Z', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+
+	item, err := getItem(t.Context(), db, "item-all")
+	require.NoError(t, err)
+	require.NotNil(t, item.Brand)
+	require.Equal(t, "Nike", *item.Brand)
+	require.NotNil(t, item.CategoryID)
+	require.Equal(t, "cat-1", *item.CategoryID)
+	require.NotNil(t, item.Color)
+	require.Equal(t, "Red", *item.Color)
+	require.NotNil(t, item.LocationID)
+	require.Equal(t, "loc-1", *item.LocationID)
+	require.NotNil(t, item.PurchasePrice)
+	require.Equal(t, "99.99", *item.PurchasePrice)
+	require.NotNil(t, item.PurchaseDate)
+}
+
+func TestGetItemShouldReturnErrIOWhenLoadPhotosFails(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-bad-photo-ts', 'owner-1', 'Item', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
+		VALUES ('photo-bad', 'item-bad-photo-ts', 'key.jpg', 0, 'not-a-date')`)
+	require.NoError(t, err)
+
+	_, err = getItem(t.Context(), db, "item-bad-photo-ts")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 // ── deleteItem ────────────────────────────────────────────────────────────────
 
 func TestDeleteItemContextCancelledInternal(t *testing.T) {
@@ -54,34 +124,6 @@ func TestDeleteItemContextCancelledInternal(t *testing.T) {
 
 	err := deleteItem(ctx, db, "item-1")
 	require.ErrorIs(t, err, context.Canceled)
-}
-
-// ── saveItem ──────────────────────────────────────────────────────────────────
-
-func TestSaveItemContextCancelledInternal(t *testing.T) {
-	db := openTestDB(t)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	err := saveItem(ctx, db, domain.Item{})
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestSaveItemShouldReturnErrIOWhenUpsertFails(t *testing.T) {
-	db := openTestDB(t)
-	db.SetMaxOpenConns(1)
-	_, err := db.ExecContext(t.Context(), "PRAGMA foreign_keys = ON")
-	require.NoError(t, err)
-
-	var item domain.Item
-	item.ID = "item-fk-fail"
-	item.OwnerID = "nonexistent-user"
-	item.Name = "Test"
-	item.CreatedAt = time.Now()
-	item.Metadata = domain.ItemMetadata{}
-
-	err = saveItem(t.Context(), db, item)
-	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 // ── upsertItemRow ─────────────────────────────────────────────────────────────
@@ -108,35 +150,6 @@ func TestUpsertItemRowShouldReturnErrIOWhenExecFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
 	err = upsertItemRow(t.Context(), tx, item)
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-// ── replacePhotos ─────────────────────────────────────────────────────────────
-
-func TestReplacePhotosContextCancelledInternal(t *testing.T) {
-	db := openTestDB(t)
-	tx, err := db.BeginTx(t.Context(), nil)
-	require.NoError(t, err)
-	defer tx.Rollback() //nolint:errcheck
-
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	var item1 domain.Item
-	item1.ID = "item-1"
-	err = replacePhotos(ctx, tx, item1)
-	require.ErrorIs(t, err, context.Canceled)
-}
-
-func TestReplacePhotosShouldReturnErrIOWhenDeleteFails(t *testing.T) {
-	db := openTestDB(t)
-	tx, err := db.BeginTx(t.Context(), nil)
-	require.NoError(t, err)
-	require.NoError(t, tx.Rollback())
-
-	var item1 domain.Item
-	item1.ID = "item-1"
-	err = replacePhotos(t.Context(), tx, item1)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -188,14 +201,6 @@ func TestLoadPhotosShouldReturnErrIOWhenScanFails(t *testing.T) {
 	require.ErrorIs(t, err2, domain.ErrIO)
 }
 
-// ── listItems rows.Err ────────────────────────────────────────────────────────
-
-func TestListItemsRowsErrInternal(t *testing.T) {
-	db := openFakeDB(t, "fake-rows-err")
-	_, err := listItems(t.Context(), db)
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
 // ── loadPhotos rows.Err ───────────────────────────────────────────────────────
 
 func TestLoadPhotosRowsErrInternal(t *testing.T) {
@@ -212,20 +217,6 @@ func TestDeleteItemShouldReturnErrIOWhenRowsAffectedFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-// ── saveItem tx.Commit error ──────────────────────────────────────────────────
-
-func TestSaveItemShouldReturnErrIOWhenCommitFails(t *testing.T) {
-	db := openFakeDB(t, "fake-commit-err")
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.Name = "Test"
-	item.CreatedAt = time.Now()
-	item.Metadata = domain.ItemMetadata{}
-	err := saveItem(t.Context(), db, item)
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
 // ── upsertItemRow json.Marshal error ──────────────────────────────────────────
 
 func TestUpsertItemRowShouldReturnErrIOWhenMarshalFails(t *testing.T) {
@@ -239,6 +230,54 @@ func TestUpsertItemRowShouldReturnErrIOWhenMarshalFails(t *testing.T) {
 	defer tx.Rollback() //nolint:errcheck
 
 	var item domain.Item
+	err = upsertItemRow(t.Context(), tx, item)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+// ── upsertItemRow with purchaseDate ──────────────────────────────────────────
+
+func TestUpsertItemRowShouldSucceedWhenPurchaseDateIsSet(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-pd', 'pd@test.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	pd := time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC)
+	var item domain.Item
+	item.ID = "item-pd"
+	item.OwnerID = "user-pd"
+	item.Name = "Test"
+	item.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	item.PurchaseDate = &pd
+	item.Metadata = domain.ItemMetadata{}
+
+	require.NoError(t, upsertItemRow(t.Context(), tx, item))
+}
+
+// ── upsertItemRow FK violation ────────────────────────────────────────────────
+
+func TestUpsertItemRowShouldReturnErrIOWhenFKFails(t *testing.T) {
+	db := openTestDB(t)
+	db.SetMaxOpenConns(1)
+	_, err := db.ExecContext(t.Context(), "PRAGMA foreign_keys = ON")
+	require.NoError(t, err)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	var item domain.Item
+	item.ID = "item-fk-fail"
+	item.OwnerID = "nonexistent-user"
+	item.Name = "Test"
+	item.CreatedAt = time.Now()
+	item.Metadata = domain.ItemMetadata{}
+
 	err = upsertItemRow(t.Context(), tx, item)
 	require.ErrorIs(t, err, domain.ErrIO)
 }

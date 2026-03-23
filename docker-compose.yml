@@ -25,7 +25,7 @@ services:
 
   # db:
   #   image: postgres:17
-  #   Future database service — uncomment when persistence is added.
+  #   Uncomment when DB_DRIVER=postgres is used.
 
 volumes:
   storage_data:

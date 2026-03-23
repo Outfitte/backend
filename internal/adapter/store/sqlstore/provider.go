@@ -9,95 +9,53 @@ import (
 	"time"
 
 	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
 )
 
-// Provider is a SQL-backed implementation of ports.StorageProvider[T].
-type Provider[T ports.Entity] struct {
-	db *sql.DB
-}
-
-// NewProvider creates a Provider backed by the given *sql.DB.
-func NewProvider[T ports.Entity](db *sql.DB) *Provider[T] {
-	return &Provider[T]{db: db}
-}
-
-// Get retrieves the entity with the given id.
-// Returns domain.ErrNotFound if no row matches.
-func (p *Provider[T]) Get(ctx context.Context, id string) (T, error) {
-	var zero T
+func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 	if err := ctx.Err(); err != nil {
-		return zero, err
-	}
-	switch any(&zero).(type) {
-	case *domain.Item:
-		item, err := getItem(ctx, p.db, id)
-		if err != nil {
-			return zero, err
-		}
-		return any(item).(T), nil
-	default:
-		return zero, fmt.Errorf("unsupported entity type %T", zero)
-	}
-}
-
-// List returns all stored entities.
-func (p *Provider[T]) List(ctx context.Context) ([]T, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	var zero T
-	switch any(&zero).(type) {
-	case *domain.Item:
-		items, err := listItems(ctx, p.db)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]T, len(items))
-		for i, item := range items {
-			result[i] = any(item).(T)
-		}
-		return result, nil
-	default:
-		return nil, fmt.Errorf("unsupported entity type %T", zero)
-	}
-}
-
-func listItems(ctx context.Context, db *sql.DB) ([]domain.Item, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+		return domain.Item{}, err
 	}
 
 	const q = `
 		SELECT id, owner_id, name, brand, category_id, color,
 		       location_id, purchase_price, purchase_date, created_at, metadata
-		FROM items`
+		FROM items WHERE id = ?`
 
-	rows, err := db.QueryContext(ctx, q)
+	var (
+		itemID        string
+		ownerID       string
+		name          string
+		brand         sql.NullString
+		categoryID    sql.NullString
+		color         sql.NullString
+		locationID    sql.NullString
+		purchasePrice sql.NullString
+		purchaseDate  sql.NullString
+		createdAt     string
+		metadataRaw   string
+	)
+
+	err := db.QueryRowContext(ctx, q, id).Scan(
+		&itemID, &ownerID, &name, &brand, &categoryID, &color,
+		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Item{}, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	defer rows.Close()
 
-	items := []domain.Item{}
-	for rows.Next() {
-		item, err := scanItem(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
+	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
+	if err != nil {
+		return domain.Item{}, err
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	photos, err := loadPhotos(ctx, db, id)
+	if err != nil {
+		return domain.Item{}, err
 	}
-	for i, item := range items {
-		photos, err := loadPhotos(ctx, db, item.ID)
-		if err != nil {
-			return nil, err
-		}
-		items[i].Photos = photos
-	}
-	return items, nil
+	item.Photos = photos
+	return item, nil
 }
 
 func scanItem(rows *sql.Rows) (domain.Item, error) {
@@ -218,34 +176,6 @@ func loadPhotos(ctx context.Context, db itemDB, itemID string) ([]domain.ItemPho
 	return photos, nil
 }
 
-// Save creates or replaces the entity.
-func (p *Provider[T]) Save(ctx context.Context, entity T) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	var zero T
-	switch any(&zero).(type) {
-	case *domain.Item:
-		return saveItem(ctx, p.db, any(entity).(domain.Item))
-	default:
-		return fmt.Errorf("unsupported entity type %T", zero)
-	}
-}
-
-// Delete removes the entity.
-func (p *Provider[T]) Delete(ctx context.Context, id string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	var zero T
-	switch any(&zero).(type) {
-	case *domain.Item:
-		return deleteItem(ctx, p.db, id)
-	default:
-		return fmt.Errorf("unsupported entity type %T", zero)
-	}
-}
-
 func deleteItem(ctx context.Context, db itemDB, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -264,77 +194,6 @@ func deleteItem(ctx context.Context, db itemDB, id string) error {
 	}
 	if n == 0 {
 		return fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
-	}
-	return nil
-}
-
-func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.Item{}, err
-	}
-
-	const q = `
-		SELECT id, owner_id, name, brand, category_id, color,
-		       location_id, purchase_price, purchase_date, created_at, metadata
-		FROM items WHERE id = ?`
-
-	var (
-		itemID        string
-		ownerID       string
-		name          string
-		brand         sql.NullString
-		categoryID    sql.NullString
-		color         sql.NullString
-		locationID    sql.NullString
-		purchasePrice sql.NullString
-		purchaseDate  sql.NullString
-		createdAt     string
-		metadataRaw   string
-	)
-
-	err := db.QueryRowContext(ctx, q, id).Scan(
-		&itemID, &ownerID, &name, &brand, &categoryID, &color,
-		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Item{}, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
-	}
-	if err != nil {
-		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
-	if err != nil {
-		return domain.Item{}, err
-	}
-	photos, err := loadPhotos(ctx, db, id)
-	if err != nil {
-		return domain.Item{}, err
-	}
-	item.Photos = photos
-	return item, nil
-}
-
-func saveItem(ctx context.Context, db *sql.DB, item domain.Item) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-	defer tx.Rollback() //nolint:errcheck
-
-	if err := upsertItemRow(ctx, tx, item); err != nil {
-		return err
-	}
-	if err := replacePhotos(ctx, tx, item); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 	return nil
 }
@@ -390,32 +249,6 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-	return nil
-}
-
-func replacePhotos(ctx context.Context, tx *sql.Tx, item domain.Item) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM item_photos WHERE item_id = ?`, item.ID); err != nil {
-		return fmt.Errorf("%w: %w", domain.ErrIO, err)
-	}
-
-	const q = `
-		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
-		VALUES (?, ?, ?, ?, ?)`
-
-	for _, photo := range item.Photos {
-		if _, err := tx.ExecContext(ctx, q,
-			photo.ID,
-			item.ID,
-			photo.MediaKey,
-			photo.Position,
-			photo.CreatedAt.UTC().Format(time.RFC3339),
-		); err != nil {
-			return fmt.Errorf("%w: %w", domain.ErrIO, err)
-		}
 	}
 	return nil
 }

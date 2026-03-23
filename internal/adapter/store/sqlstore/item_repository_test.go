@@ -208,6 +208,14 @@ func TestItemRepositoryListByOwnerShouldReturnErrWhenContextCancelled(t *testing
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestItemRepositoryListByOwnerShouldReturnEmptySliceWhenNoItemsExist(t *testing.T) {
+	repo, _ := newItemRepo(t)
+
+	items, err := repo.ListByOwner(t.Context(), "user-nobody", ports.ItemListFilter{Status: ports.ItemStatusActive})
+	require.NoError(t, err)
+	require.Empty(t, items)
+}
+
 func TestItemRepositoryListByOwnerShouldReturnOnlyOwnerItems(t *testing.T) {
 	repo, db := newItemRepo(t)
 	seedUserForItem(t, db, "user-a")

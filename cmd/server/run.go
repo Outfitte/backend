@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
+	store "github.com/outfitte/outfitte/internal/adapter/store"
 	localmedia "github.com/outfitte/outfitte/internal/adapter/media/local"
-	storejson "github.com/outfitte/outfitte/internal/adapter/store/json"
 	"github.com/outfitte/outfitte/internal/api/server"
 	"github.com/outfitte/outfitte/internal/config"
 )
@@ -23,12 +23,21 @@ func run(ctx context.Context) error {
 	return runServer(ctx, cfg, logger)
 }
 
-func newServer(cfg *config.Config, logger *slog.Logger) *http.Server {
-	repos := storejson.NewRepositories(cfg.StorageDataPath)
+func newServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*http.Server, func(), error) {
+	repos, closer, err := store.NewRepositories(ctx, *cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open repositories: %w", err)
+	}
 	media := localmedia.NewProvider(cfg.MediaStoragePath)
-	return server.New(cfg, logger, repos, media)
+	cleanup := func() { closer.Close() } //nolint:errcheck
+	return server.New(cfg, logger, repos, media), cleanup, nil
 }
 
 func runServer(ctx context.Context, cfg *config.Config, logger *slog.Logger) error {
-	return server.Run(ctx, newServer(cfg, logger))
+	srv, cleanup, err := newServer(ctx, cfg, logger)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	return server.Run(ctx, srv)
 }

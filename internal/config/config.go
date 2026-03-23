@@ -21,7 +21,6 @@ type DBConfig struct {
 type Config struct {
 	ServerPort       string
 	AppEnv           string
-	StorageDataPath  string
 	MediaStoragePath string
 	LogLevel         slog.Level
 	JWTSecret        string
@@ -44,7 +43,6 @@ func Load() (*Config, error) {
 func loadFromEnv(cfg *Config) error {
 	cfg.ServerPort = getEnv("SERVER_PORT", "8080")
 	cfg.AppEnv = getEnv("APP_ENV", "dev")
-	cfg.StorageDataPath = os.Getenv("STORAGE_DATA_PATH")
 	cfg.MediaStoragePath = os.Getenv("MEDIA_STORAGE_PATH")
 	cfg.JWTSecret = os.Getenv("JWT_SECRET")
 	cfg.DB.Driver = getEnv("DB_DRIVER", "sqlite")
@@ -68,9 +66,6 @@ func parseLogLevel(s string) (slog.Level, error) {
 
 func (c *Config) validate() error {
 	var missing []string
-	if c.StorageDataPath == "" {
-		missing = append(missing, "STORAGE_DATA_PATH")
-	}
 	if c.MediaStoragePath == "" {
 		missing = append(missing, "MEDIA_STORAGE_PATH")
 	}

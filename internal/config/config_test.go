@@ -11,31 +11,30 @@ import (
 )
 
 func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "")
+	t.Setenv("DB_DRIVER", "json")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
-	t.Setenv("DB_DSN", "/data/outfitte.db")
+	t.Setenv("DB_DSN", "")
 
 	_, err := config.Load()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "STORAGE_DATA_PATH")
+	assert.Contains(t, err.Error(), "DB_DSN")
 	assert.Contains(t, err.Error(), "MEDIA_STORAGE_PATH")
 }
 
 func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("DB_DRIVER", "json")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
-	t.Setenv("DB_DSN", "/data/outfitte.db")
+	t.Setenv("DB_DSN", "/data")
 
 	_, err := config.Load()
 	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "STORAGE_DATA_PATH")
+	assert.NotContains(t, err.Error(), "DB_DSN")
 	assert.Contains(t, err.Error(), "MEDIA_STORAGE_PATH")
 }
 
 func TestLoadShouldErrorWhenServerPortIsInvalid(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -47,7 +46,6 @@ func TestLoadShouldErrorWhenServerPortIsInvalid(t *testing.T) {
 }
 
 func TestLoadShouldErrorWhenLogLevelIsUnrecognized(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -59,7 +57,6 @@ func TestLoadShouldErrorWhenLogLevelIsUnrecognized(t *testing.T) {
 }
 
 func TestLoadShouldErrorWhenJWTSecretIsTooShort(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "tooshort")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -70,7 +67,6 @@ func TestLoadShouldErrorWhenJWTSecretIsTooShort(t *testing.T) {
 }
 
 func TestLoadShouldErrorWhenJWTSecretIsMissing(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -81,7 +77,6 @@ func TestLoadShouldErrorWhenJWTSecretIsMissing(t *testing.T) {
 }
 
 func TestLoadShouldErrorWhenDBDSNIsMissing(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DSN", "")
@@ -92,7 +87,6 @@ func TestLoadShouldErrorWhenDBDSNIsMissing(t *testing.T) {
 }
 
 func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -108,7 +102,6 @@ func TestLoadShouldUseDefaultsWhenOptionalVarsAreUnset(t *testing.T) {
 }
 
 func TestLoadShouldDefaultToSQLiteDriverWhenDBDriverIsUnset(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -120,7 +113,6 @@ func TestLoadShouldDefaultToSQLiteDriverWhenDBDriverIsUnset(t *testing.T) {
 }
 
 func TestLoadShouldReadJWTSecretWhenSetAndLongEnough(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DSN", "/data/outfitte.db")
@@ -130,8 +122,30 @@ func TestLoadShouldReadJWTSecretWhenSetAndLongEnough(t *testing.T) {
 	assert.Equal(t, "a-secure-random-string-that-is-32-chars!!", cfg.JWTSecret)
 }
 
+
+func TestLoadShouldErrorWhenDBDSNMissingForJSONDriver(t *testing.T) {
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "json")
+	t.Setenv("DB_DSN", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_DSN")
+}
+
+func TestLoadShouldErrorWhenDBDSNMissingForSQLiteDriver(t *testing.T) {
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("DB_DSN", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_DSN")
+}
+
 func TestLoadShouldReadDBConfigWhenBothVarsAreSet(t *testing.T) {
-	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
 	t.Setenv("DB_DRIVER", "postgres")
@@ -146,7 +160,6 @@ func TestLoadShouldReadDBConfigWhenBothVarsAreSet(t *testing.T) {
 func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	t.Setenv("SERVER_PORT", "9090")
 	t.Setenv("APP_ENV", "production")
-	t.Setenv("STORAGE_DATA_PATH", "/var/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "/var/media")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
@@ -157,7 +170,6 @@ func TestLoadShouldReadAllVarsWhenAllAreSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "9090", cfg.ServerPort)
 	assert.Equal(t, "production", cfg.AppEnv)
-	assert.Equal(t, "/var/data", cfg.StorageDataPath)
 	assert.Equal(t, "/var/media", cfg.MediaStoragePath)
 	assert.Equal(t, slog.LevelDebug, cfg.LogLevel)
 	assert.Equal(t, "a-secure-random-string-that-is-32-chars!!", cfg.JWTSecret)

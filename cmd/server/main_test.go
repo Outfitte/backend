@@ -22,10 +22,30 @@ func freePort(t *testing.T) int {
 	return port
 }
 
+func TestNewServerShouldReturnErrWhenDriverIsUnsupported(t *testing.T) {
+	cfg := &config.Config{
+		DB:               config.DBConfig{Driver: "postgres"},
+		MediaStoragePath: t.TempDir(),
+		ServerPort:       "8080",
+	}
+	_, _, err := newServer(t.Context(), cfg, slog.New(slog.DiscardHandler))
+	require.Error(t, err)
+}
+
+func TestRunServerShouldReturnErrWhenNewServerFails(t *testing.T) {
+	cfg := &config.Config{
+		DB:               config.DBConfig{Driver: "postgres"},
+		MediaStoragePath: t.TempDir(),
+		ServerPort:       "8080",
+	}
+	err := runServer(t.Context(), cfg, slog.New(slog.DiscardHandler))
+	require.Error(t, err)
+}
+
 func TestRunShouldShutdownCleanlyWhenContextCancelled(t *testing.T) {
 	port := freePort(t)
 	cfg := &config.Config{
-		StorageDataPath:  t.TempDir(),
+		DB:               config.DBConfig{Driver: "sqlite", DSN: ":memory:"},
 		MediaStoragePath: t.TempDir(),
 		ServerPort:       strconv.Itoa(port),
 	}
