@@ -18,26 +18,30 @@ func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 
 	const q = `
 		SELECT id, owner_id, name, brand, category_id, color,
-		       location_id, purchase_price, purchase_date, created_at, metadata
+		       location_id, purchase_price, purchase_date, created_at, metadata,
+		       archived_at, disposal_reason
 		FROM items WHERE id = ?`
 
 	var (
-		itemID        string
-		ownerID       string
-		name          string
-		brand         sql.NullString
-		categoryID    sql.NullString
-		color         sql.NullString
-		locationID    sql.NullString
-		purchasePrice sql.NullString
-		purchaseDate  sql.NullString
-		createdAt     string
-		metadataRaw   string
+		itemID         string
+		ownerID        string
+		name           string
+		brand          sql.NullString
+		categoryID     sql.NullString
+		color          sql.NullString
+		locationID     sql.NullString
+		purchasePrice  sql.NullString
+		purchaseDate   sql.NullString
+		createdAt      string
+		metadataRaw    string
+		archivedAt     sql.NullString
+		disposalReason sql.NullString
 	)
 
 	err := db.QueryRowContext(ctx, q, id).Scan(
 		&itemID, &ownerID, &name, &brand, &categoryID, &color,
 		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
+		&archivedAt, &disposalReason,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Item{}, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
@@ -46,7 +50,7 @@ func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
+	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw, archivedAt, disposalReason)
 	if err != nil {
 		return domain.Item{}, err
 	}
@@ -60,33 +64,37 @@ func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 
 func scanItem(rows *sql.Rows) (domain.Item, error) {
 	var (
-		itemID        string
-		ownerID       string
-		name          string
-		brand         sql.NullString
-		categoryID    sql.NullString
-		color         sql.NullString
-		locationID    sql.NullString
-		purchasePrice sql.NullString
-		purchaseDate  sql.NullString
-		createdAt     string
-		metadataRaw   string
+		itemID         string
+		ownerID        string
+		name           string
+		brand          sql.NullString
+		categoryID     sql.NullString
+		color          sql.NullString
+		locationID     sql.NullString
+		purchasePrice  sql.NullString
+		purchaseDate   sql.NullString
+		createdAt      string
+		metadataRaw    string
+		archivedAt     sql.NullString
+		disposalReason sql.NullString
 	)
 
 	if err := rows.Scan(
 		&itemID, &ownerID, &name, &brand, &categoryID, &color,
 		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
+		&archivedAt, &disposalReason,
 	); err != nil {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw)
+	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw, archivedAt, disposalReason)
 }
 
 func buildItem(
 	itemID, ownerID, name string,
 	brand, categoryID, color, locationID, purchasePrice, purchaseDate sql.NullString,
 	createdAt, metadataRaw string,
+	archivedAt, disposalReason sql.NullString,
 ) (domain.Item, error) {
 	parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
@@ -126,6 +134,17 @@ func buildItem(
 			return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
 		item.PurchaseDate = &t
+	}
+	if archivedAt.Valid {
+		t, err := time.Parse(time.RFC3339, archivedAt.String)
+		if err != nil {
+			return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+		}
+		item.ArchivedAt = &t
+	}
+	if disposalReason.Valid {
+		r := domain.DisposalReason(disposalReason.String)
+		item.DisposalReason = &r
 	}
 
 	return item, nil
@@ -217,22 +236,37 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 		purchaseDate = &s
 	}
 
+	var archivedAt *string
+	if item.ArchivedAt != nil {
+		s := item.ArchivedAt.UTC().Format(time.RFC3339)
+		archivedAt = &s
+	}
+
+	var disposalReason *string
+	if item.DisposalReason != nil {
+		s := string(*item.DisposalReason)
+		disposalReason = &s
+	}
+
 	const q = `
 		INSERT INTO items
 			(id, owner_id, name, brand, category_id, color, location_id,
-			 purchase_price, purchase_date, created_at, metadata)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 purchase_price, purchase_date, created_at, metadata,
+			 archived_at, disposal_reason)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-			owner_id       = excluded.owner_id,
-			name           = excluded.name,
-			brand          = excluded.brand,
-			category_id    = excluded.category_id,
-			color          = excluded.color,
-			location_id    = excluded.location_id,
-			purchase_price = excluded.purchase_price,
-			purchase_date  = excluded.purchase_date,
-			created_at     = excluded.created_at,
-			metadata       = excluded.metadata`
+			owner_id        = excluded.owner_id,
+			name            = excluded.name,
+			brand           = excluded.brand,
+			category_id     = excluded.category_id,
+			color           = excluded.color,
+			location_id     = excluded.location_id,
+			purchase_price  = excluded.purchase_price,
+			purchase_date   = excluded.purchase_date,
+			created_at      = excluded.created_at,
+			metadata        = excluded.metadata,
+			archived_at     = excluded.archived_at,
+			disposal_reason = excluded.disposal_reason`
 
 	_, err = tx.ExecContext(ctx, q,
 		item.ID,
@@ -246,6 +280,8 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 		purchaseDate,
 		item.CreatedAt.UTC().Format(time.RFC3339),
 		string(metadataRaw),
+		archivedAt,
+		disposalReason,
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)

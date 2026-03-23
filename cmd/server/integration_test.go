@@ -262,6 +262,42 @@ func TestIntegrationShouldReturn403WhenUserBDeletesUserALocation(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
+func TestIntegrationShouldReturn401WhenPostWearLogCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/wear-logs", map[string]any{"worn_on": "2026-01-01"}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationShouldReturn401WhenGetWearLogsCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodGet, "/items/some-id/wear-logs", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationShouldReturn401WhenDeleteWearLogCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodDelete, "/items/some-id/wear-logs/some-log-id", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationShouldReturn401WhenArchiveItemCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/archive", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationShouldReturn401WhenUnarchiveItemCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/unarchive", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationShouldReturn401WhenDisposeItemCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/dispose", map[string]any{"reason": "donated"}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
 // User B cannot delete User A's item.
 func TestIntegrationShouldReturn403WhenUserBDeletesUserAItem(t *testing.T) {
 	srv := startIntegrationServer(t)
@@ -273,5 +309,154 @@ func TestIntegrationShouldReturn403WhenUserBDeletesUserAItem(t *testing.T) {
 	itemID := createItem(t, srv, tokenA, "Red Dress", nil)
 
 	resp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID, nil, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestIntegrationWearLogCycle(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	token, _ := registerUser(t, srv, "wearuser", "password-wear-secure")
+	itemID := createItem(t, srv, token, "Navy Suit", nil)
+
+	// Log a wear entry.
+	logResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
+		map[string]any{"worn_on": "2026-03-01", "notes": "important meeting"}, token)
+	require.Equal(t, http.StatusCreated, logResp.StatusCode)
+	var entry struct {
+		ID     string  `json:"id"`
+		ItemID string  `json:"item_id"`
+		WornOn string  `json:"worn_on"`
+		Notes  *string `json:"notes"`
+	}
+	decodeJSON(t, logResp, &entry)
+	require.NotEmpty(t, entry.ID)
+	assert.Equal(t, itemID, entry.ItemID)
+	assert.Equal(t, "2026-03-01", entry.WornOn)
+	require.NotNil(t, entry.Notes)
+	assert.Equal(t, "important meeting", *entry.Notes)
+
+	// List wear logs — should contain the entry.
+	listResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID+"/wear-logs", nil, token)
+	require.Equal(t, http.StatusOK, listResp.StatusCode)
+	var logs []struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, listResp, &logs)
+	require.Len(t, logs, 1)
+	assert.Equal(t, entry.ID, logs[0].ID)
+
+	// Delete the wear log entry.
+	deleteResp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID+"/wear-logs/"+entry.ID, nil, token)
+	assert.Equal(t, http.StatusNoContent, deleteResp.StatusCode)
+
+	// List again — should be empty.
+	listResp2 := doJSON(t, srv, http.MethodGet, "/items/"+itemID+"/wear-logs", nil, token)
+	require.Equal(t, http.StatusOK, listResp2.StatusCode)
+	var logsAfter []any
+	decodeJSON(t, listResp2, &logsAfter)
+	assert.Empty(t, logsAfter)
+}
+
+func TestIntegrationArchiveCycle(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	token, _ := registerUser(t, srv, "archiveuser", "password-archive-secure")
+	itemID := createItem(t, srv, token, "Wool Trousers", nil)
+
+	// Item appears in active list by default.
+	activeResp := doJSON(t, srv, http.MethodGet, "/items", nil, token)
+	require.Equal(t, http.StatusOK, activeResp.StatusCode)
+	var activeItems []struct{ ID string `json:"id"` }
+	decodeJSON(t, activeResp, &activeItems)
+	require.Len(t, activeItems, 1)
+	assert.Equal(t, itemID, activeItems[0].ID)
+
+	// Archive the item.
+	archiveResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, token)
+	assert.Equal(t, http.StatusNoContent, archiveResp.StatusCode)
+
+	// Archived item no longer appears in default (active) list.
+	activeAfterResp := doJSON(t, srv, http.MethodGet, "/items", nil, token)
+	require.Equal(t, http.StatusOK, activeAfterResp.StatusCode)
+	var activeAfter []any
+	decodeJSON(t, activeAfterResp, &activeAfter)
+	assert.Empty(t, activeAfter)
+
+	// Archived item appears in archived list.
+	archivedResp := doJSON(t, srv, http.MethodGet, "/items?status=archived", nil, token)
+	require.Equal(t, http.StatusOK, archivedResp.StatusCode)
+	var archivedItems []struct{ ID string `json:"id"` }
+	decodeJSON(t, archivedResp, &archivedItems)
+	require.Len(t, archivedItems, 1)
+	assert.Equal(t, itemID, archivedItems[0].ID)
+
+	// Unarchive the item.
+	unarchiveResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/unarchive", nil, token)
+	assert.Equal(t, http.StatusNoContent, unarchiveResp.StatusCode)
+
+	// Item is back in active list.
+	backResp := doJSON(t, srv, http.MethodGet, "/items", nil, token)
+	require.Equal(t, http.StatusOK, backResp.StatusCode)
+	var backItems []struct{ ID string `json:"id"` }
+	decodeJSON(t, backResp, &backItems)
+	require.Len(t, backItems, 1)
+	assert.Equal(t, itemID, backItems[0].ID)
+}
+
+func TestIntegrationDisposeCycle(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	token, _ := registerUser(t, srv, "disposeuser", "password-dispose-secure")
+	itemID := createItem(t, srv, token, "Old Sneakers", nil)
+
+	// Dispose the item.
+	disposeResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/dispose",
+		map[string]any{"reason": "donated"}, token)
+	assert.Equal(t, http.StatusNoContent, disposeResp.StatusCode)
+
+	// Disposed item does not appear in active list.
+	activeResp := doJSON(t, srv, http.MethodGet, "/items", nil, token)
+	require.Equal(t, http.StatusOK, activeResp.StatusCode)
+	var activeItems []any
+	decodeJSON(t, activeResp, &activeItems)
+	assert.Empty(t, activeItems)
+
+	// Disposed item appears in archived list (disposed implies archived).
+	archivedResp := doJSON(t, srv, http.MethodGet, "/items?status=archived", nil, token)
+	require.Equal(t, http.StatusOK, archivedResp.StatusCode)
+	var archivedItems []struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, archivedResp, &archivedItems)
+	require.Len(t, archivedItems, 1)
+	assert.Equal(t, itemID, archivedItems[0].ID)
+}
+
+// User B cannot archive User A's item.
+func TestIntegrationShouldReturn403WhenUserBArchivesUserAItem(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	tokenA, _ := registerUser(t, srv, "alice4", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "bob4", "password-bob-secure")
+
+	itemID := createItem(t, srv, tokenA, "Green Coat", nil)
+
+	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+// User B cannot log wear for User A's item.
+func TestIntegrationShouldReturn403WhenUserBLogsWearForUserAItem(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	tokenA, _ := registerUser(t, srv, "alice5", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "bob5", "password-bob-secure")
+
+	itemID := createItem(t, srv, tokenA, "Yellow Shirt", nil)
+
+	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
+		map[string]any{"worn_on": "2026-01-15"}, tokenB)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
