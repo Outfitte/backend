@@ -120,6 +120,27 @@ func TestMediaDownloadShouldReturn500WhenProviderReturnsUnexpectedError(t *testi
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestMediaDownloadShouldReturn200WhenCopyFailsMidStream(t *testing.T) {
+	copyErr := errors.New("mid-stream copy error")
+	mp := &fakeMediaProvider{
+		downloadFn: func(_ context.Context, _ string) (io.ReadCloser, error) {
+			return io.NopCloser(errorReader{err: copyErr}), nil
+		},
+	}
+	h := handler.NewMediaHandler(mp, slog.New(slog.DiscardHandler))
+
+	// Status 200 is already written before io.Copy, so the response code is 200
+	// even though copying failed mid-stream.
+	w := getMedia(t, h, "photo.jpg")
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+// errorReader is a reader that always returns an error.
+type errorReader struct{ err error }
+
+func (e errorReader) Read(_ []byte) (int, error) { return 0, e.err }
+
 func TestMediaDownloadShouldReturn503WhenContextIsCancelled(t *testing.T) {
 	mp := &fakeMediaProvider{
 		downloadFn: func(_ context.Context, _ string) (io.ReadCloser, error) {
