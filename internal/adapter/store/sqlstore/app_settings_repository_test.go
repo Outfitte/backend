@@ -48,6 +48,17 @@ func TestAppSettingsRepositoryLoadShouldReturnSettingsWhenRowExists(t *testing.T
 	require.True(t, got.RegistrationEnabled)
 }
 
+func TestAppSettingsRepositoryLoadShouldReturnRegistrationDisabledWhenStoredAsFalse(t *testing.T) {
+	repo, db := newAppSettingsRepo(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO app_settings (id, registration_enabled) VALUES ('app_settings', 0)`)
+	require.NoError(t, err)
+
+	got, err := repo.Load(t.Context())
+	require.NoError(t, err)
+	require.False(t, got.RegistrationEnabled)
+}
+
 func TestAppSettingsRepositoryLoadShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
 	db := openMigratedDB(t)
 	repo := sqlstore.NewAppSettingsRepository(db)
