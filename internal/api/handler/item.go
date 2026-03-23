@@ -75,6 +75,9 @@ type itemService interface {
 	UploadPhoto(ctx context.Context, callerID, itemID string, r io.Reader, filename string) error
 	DeletePhoto(ctx context.Context, callerID, itemID, photoKey string) error
 	AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error
+	Archive(ctx context.Context, callerID, itemID string) error
+	Unarchive(ctx context.Context, callerID, itemID string) error
+	Dispose(ctx context.Context, callerID, itemID string, reason domain.DisposalReason) error
 }
 
 // ItemHandler handles item-related HTTP endpoints.
@@ -208,7 +211,11 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := h.items.ListByOwner(ctx, callerID, ports.ItemListFilter{})
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = ports.ItemStatusActive
+	}
+	items, err := h.items.ListByOwner(ctx, callerID, ports.ItemListFilter{Status: status})
 	if err != nil {
 		log.ErrorContext(ctx, "list items failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -409,5 +416,119 @@ func (h *ItemHandler) DeletePhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "item_id", itemID, "photo_key", photoKey)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Archive handles POST /items/{id}/archive.
+func (h *ItemHandler) Archive(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Archive")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	itemID := r.PathValue("id")
+	if err := h.items.Archive(ctx, callerID, itemID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrAlreadyArchived) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "already archived"})
+			return
+		}
+		log.ErrorContext(ctx, "archive item failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "item_id", itemID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Unarchive handles POST /items/{id}/unarchive.
+func (h *ItemHandler) Unarchive(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Unarchive")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	itemID := r.PathValue("id")
+	if err := h.items.Unarchive(ctx, callerID, itemID); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrNotArchived) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "not archived"})
+			return
+		}
+		log.ErrorContext(ctx, "unarchive item failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "item_id", itemID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type disposeItemRequest struct {
+	Reason string `json:"reason"`
+}
+
+// Dispose handles POST /items/{id}/dispose.
+func (h *ItemHandler) Dispose(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Dispose")
+	log.InfoContext(ctx, "started")
+
+	callerID, ok := middleware.UserIDFromContext(ctx)
+	if !ok {
+		log.ErrorContext(ctx, "missing caller ID in context")
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	var req disposeItemRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	itemID := r.PathValue("id")
+	if err := h.items.Dispose(ctx, callerID, itemID, domain.DisposalReason(req.Reason)); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		log.ErrorContext(ctx, "dispose item failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "item_id", itemID)
 	w.WriteHeader(http.StatusNoContent)
 }
