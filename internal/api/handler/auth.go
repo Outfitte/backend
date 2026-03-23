@@ -165,7 +165,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, newRefreshToken, err := h.refresh.Refresh(ctx, req.RefreshToken)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
+		if errors.Is(err, domain.ErrUnauthorized) || errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrSessionExpired) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired refresh token"})
 			return
 		}
@@ -198,7 +198,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.logout.Logout(ctx, req.RefreshToken); err != nil {
-		if errors.Is(err, domain.ErrUnauthorized) {
+		if errors.Is(err, domain.ErrUnauthorized) || errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
