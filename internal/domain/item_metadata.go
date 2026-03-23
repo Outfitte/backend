@@ -14,9 +14,9 @@ type ItemMetadata struct {
 }
 
 const (
-	metadataMaxKeys       = 50
-	metadataMaxKeyLen     = 64
-	metadataMaxValueLen   = 512
+	metadataMaxKeys     = 50
+	metadataMaxKeyLen   = 64
+	metadataMaxValueLen = 512
 )
 
 // ValidateMetadataKey validates a single metadata key against the rules:
