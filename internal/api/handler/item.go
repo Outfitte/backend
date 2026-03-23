@@ -215,6 +215,12 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 	if status == "" {
 		status = ports.ItemStatusActive
 	}
+	switch status {
+	case ports.ItemStatusActive, ports.ItemStatusArchived, ports.ItemStatusAll:
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid status filter"})
+		return
+	}
 	items, err := h.items.ListByOwner(ctx, callerID, ports.ItemListFilter{Status: status})
 	if err != nil {
 		log.ErrorContext(ctx, "list items failed", "error", err)
@@ -514,8 +520,16 @@ func (h *ItemHandler) Dispose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	reason := domain.DisposalReason(req.Reason)
+	switch reason {
+	case domain.DisposalDonated, domain.DisposalSold, domain.DisposalDiscarded, domain.DisposalLost, domain.DisposalOther:
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid disposal reason"})
+		return
+	}
+
 	itemID := r.PathValue("id")
-	if err := h.items.Dispose(ctx, callerID, itemID, domain.DisposalReason(req.Reason)); err != nil {
+	if err := h.items.Dispose(ctx, callerID, itemID, reason); err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
@@ -529,6 +543,6 @@ func (h *ItemHandler) Dispose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.InfoContext(ctx, "succeeded", "item_id", itemID)
+	log.InfoContext(ctx, "succeeded", "item_id", itemID, "reason", reason)
 	w.WriteHeader(http.StatusNoContent)
 }

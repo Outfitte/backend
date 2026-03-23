@@ -1335,6 +1335,16 @@ func TestDisposeHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestDisposeHandlerShouldReturn400WhenReasonIsEmpty(t *testing.T) {
+	w := postDispose(t, newItemHandler(&fakeItemService{}), "42", "user-1", `{"reason":""}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn400WhenReasonIsUnknown(t *testing.T) {
+	w := postDispose(t, newItemHandler(&fakeItemService{}), "42", "user-1", `{"reason":"unknown"}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestDisposeHandlerShouldReturn404WhenItemNotFound(t *testing.T) {
 	svc := &fakeItemService{
 		disposeFn: func(_ context.Context, _, _ string, _ domain.DisposalReason) error { return domain.ErrNotFound },
@@ -1388,6 +1398,11 @@ func listItemsWithStatus(t *testing.T, h *handler.ItemHandler, callerID, status 
 	w := httptest.NewRecorder()
 	h.List(w, req)
 	return w
+}
+
+func TestListHandlerShouldReturn400WhenStatusQueryParamIsUnknown(t *testing.T) {
+	w := listItemsWithStatus(t, newItemHandler(&fakeItemService{}), "user-1", "invalid")
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestListHandlerShouldPassActiveStatusFilterByDefaultWhenNoQueryParam(t *testing.T) {
