@@ -25,7 +25,7 @@ func NewRepositories(ctx context.Context, cfg config.Config) (ports.Repositories
 	}
 	switch cfg.DB.Driver {
 	case "json":
-		return storejson.NewRepositories(cfg.StorageDataPath), nopCloser{}, nil
+		return storejson.NewRepositories(cfg.DB.DSN), nopCloser{}, nil
 	case "sqlite":
 		return openSQLiteRepositories(ctx, cfg)
 	case "postgres":

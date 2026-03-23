@@ -53,8 +53,7 @@ func TestNewRepositoriesShouldReturnErrWhenSQLiteOpenFails(t *testing.T) {
 }
 
 func TestNewRepositoriesShouldReturnRepositoriesAndNopCloserWhenDriverIsJSON(t *testing.T) {
-	cfg := config.Config{StorageDataPath: t.TempDir()}
-	cfg.DB.Driver = "json"
+	cfg := config.Config{DB: config.DBConfig{Driver: "json", DSN: t.TempDir()}}
 	repos, closer, err := store.NewRepositories(t.Context(), cfg)
 	require.NoError(t, err)
 	require.NotNil(t, closer)
