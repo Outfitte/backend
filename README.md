@@ -31,7 +31,7 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 | `PATCH` | `/items/{id}/location` | JWT | Assign item to location |
 | `POST` | `/items/{id}/archive` | JWT | Archive item |
 | `POST` | `/items/{id}/unarchive` | JWT | Unarchive item |
-| `POST` | `/items/{id}/dispose` | JWT | Dispose item |
+| `POST` | `/items/{id}/dispose` | JWT | Dispose item (body: `{"reason": "donated\|sold\|discarded\|lost\|other"}`) |
 | `POST` | `/items/{id}/wear-logs` | JWT | Log a wear event |
 | `GET` | `/items/{id}/wear-logs` | JWT | List wear logs for an item |
 | `DELETE` | `/items/{id}/wear-logs/{logID}` | JWT | Delete a wear log |
