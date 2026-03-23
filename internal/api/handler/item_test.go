@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,12 +28,15 @@ import (
 type fakeItemService struct {
 	assignLocationFn func(ctx context.Context, callerID, itemID string, locationID *string) error
 	createFn         func(ctx context.Context, callerID string, input service.CreateItemInput) (domain.Item, error)
-	listByOwnerFn    func(ctx context.Context, callerID string) ([]domain.Item, error)
+	listByOwnerFn    func(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error)
 	getByIDFn        func(ctx context.Context, callerID, itemID string) (domain.Item, error)
 	updateFn         func(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error)
 	deleteFn         func(ctx context.Context, callerID, itemID string) error
 	uploadPhotoFn    func(ctx context.Context, callerID, itemID string, r io.Reader, filename string) error
 	deletePhotoFn    func(ctx context.Context, callerID, itemID, photoKey string) error
+	archiveFn        func(ctx context.Context, callerID, itemID string) error
+	unarchiveFn      func(ctx context.Context, callerID, itemID string) error
+	disposeFn        func(ctx context.Context, callerID, itemID string, reason domain.DisposalReason) error
 }
 
 func (f *fakeItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -46,9 +50,9 @@ func (f *fakeItemService) Create(ctx context.Context, callerID string, input ser
 	return domain.Item{}, nil
 }
 
-func (f *fakeItemService) ListByOwner(ctx context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
+func (f *fakeItemService) ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error) {
 	if f.listByOwnerFn != nil {
-		return f.listByOwnerFn(ctx, callerID)
+		return f.listByOwnerFn(ctx, callerID, filter)
 	}
 	return nil, nil
 }
@@ -84,6 +88,27 @@ func (f *fakeItemService) UploadPhoto(ctx context.Context, callerID, itemID stri
 func (f *fakeItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKey string) error {
 	if f.deletePhotoFn != nil {
 		return f.deletePhotoFn(ctx, callerID, itemID, photoKey)
+	}
+	return nil
+}
+
+func (f *fakeItemService) Archive(ctx context.Context, callerID, itemID string) error {
+	if f.archiveFn != nil {
+		return f.archiveFn(ctx, callerID, itemID)
+	}
+	return nil
+}
+
+func (f *fakeItemService) Unarchive(ctx context.Context, callerID, itemID string) error {
+	if f.unarchiveFn != nil {
+		return f.unarchiveFn(ctx, callerID, itemID)
+	}
+	return nil
+}
+
+func (f *fakeItemService) Dispose(ctx context.Context, callerID, itemID string, reason domain.DisposalReason) error {
+	if f.disposeFn != nil {
+		return f.disposeFn(ctx, callerID, itemID, reason)
 	}
 	return nil
 }
@@ -357,7 +382,7 @@ func TestListHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T
 
 func TestListHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, _ string) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, _ string, _ ports.ItemListFilter) ([]domain.Item, error) {
 			return nil, domain.ErrIO
 		},
 	}
@@ -378,7 +403,7 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	item2.Name = "Black Jeans"
 
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, callerID string) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
 			require.Equal(t, "user-1", callerID)
 			return []domain.Item{item1, item2}, nil
 		},
@@ -946,6 +971,27 @@ func (s *statefulFakeItemService) AssignLocation(ctx context.Context, _, _ strin
 	return nil
 }
 
+func (s *statefulFakeItemService) Archive(ctx context.Context, _, _ string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *statefulFakeItemService) Unarchive(ctx context.Context, _, _ string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *statefulFakeItemService) Dispose(ctx context.Context, _, _ string, _ domain.DisposalReason) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	const callerID = "user-1"
 	svc := newStatefulFakeItemService()
@@ -1124,3 +1170,274 @@ func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationClear
 	require.True(t, called)
 	require.Nil(t, gotLocationID)
 }
+
+// ── Archive ───────────────────────────────────────────────────────────────────
+
+func postArchive(t *testing.T, h *handler.ItemHandler, itemID, callerID string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx := ctxWithUser(t, callerID)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/items/"+itemID+"/archive", http.NoBody)
+	req.SetPathValue("id", itemID)
+	w := httptest.NewRecorder()
+	h.Archive(w, req)
+	return w
+}
+
+func TestArchiveHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/items/42/archive", http.NoBody)
+	req.SetPathValue("id", "42")
+	w := httptest.NewRecorder()
+	h.Archive(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestArchiveHandlerShouldReturn404WhenItemNotFound(t *testing.T) {
+	svc := &fakeItemService{
+		archiveFn: func(_ context.Context, _, _ string) error { return domain.ErrNotFound },
+	}
+	w := postArchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestArchiveHandlerShouldReturn403WhenCallerDoesNotOwnItem(t *testing.T) {
+	svc := &fakeItemService{
+		archiveFn: func(_ context.Context, _, _ string) error { return domain.ErrForbidden },
+	}
+	w := postArchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestArchiveHandlerShouldReturn409WhenItemAlreadyArchived(t *testing.T) {
+	svc := &fakeItemService{
+		archiveFn: func(_ context.Context, _, _ string) error { return domain.ErrAlreadyArchived },
+	}
+	w := postArchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestArchiveHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		archiveFn: func(_ context.Context, _, _ string) error { return errors.New("unexpected") },
+	}
+	w := postArchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestArchiveHandlerShouldReturn204WhenSuccessful(t *testing.T) {
+	var capturedItemID string
+	svc := &fakeItemService{
+		archiveFn: func(_ context.Context, _, itemID string) error {
+			capturedItemID = itemID
+			return nil
+		},
+	}
+	w := postArchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "42", capturedItemID)
+}
+
+// ── Unarchive ─────────────────────────────────────────────────────────────────
+
+func postUnarchive(t *testing.T, h *handler.ItemHandler, itemID, callerID string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx := ctxWithUser(t, callerID)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/items/"+itemID+"/unarchive", http.NoBody)
+	req.SetPathValue("id", itemID)
+	w := httptest.NewRecorder()
+	h.Unarchive(w, req)
+	return w
+}
+
+func TestUnarchiveHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/items/42/unarchive", http.NoBody)
+	req.SetPathValue("id", "42")
+	w := httptest.NewRecorder()
+	h.Unarchive(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUnarchiveHandlerShouldReturn404WhenItemNotFound(t *testing.T) {
+	svc := &fakeItemService{
+		unarchiveFn: func(_ context.Context, _, _ string) error { return domain.ErrNotFound },
+	}
+	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUnarchiveHandlerShouldReturn403WhenCallerDoesNotOwnItem(t *testing.T) {
+	svc := &fakeItemService{
+		unarchiveFn: func(_ context.Context, _, _ string) error { return domain.ErrForbidden },
+	}
+	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestUnarchiveHandlerShouldReturn409WhenItemNotArchived(t *testing.T) {
+	svc := &fakeItemService{
+		unarchiveFn: func(_ context.Context, _, _ string) error { return domain.ErrNotArchived },
+	}
+	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestUnarchiveHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		unarchiveFn: func(_ context.Context, _, _ string) error { return errors.New("unexpected") },
+	}
+	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestUnarchiveHandlerShouldReturn204WhenSuccessful(t *testing.T) {
+	var capturedItemID string
+	svc := &fakeItemService{
+		unarchiveFn: func(_ context.Context, _, itemID string) error {
+			capturedItemID = itemID
+			return nil
+		},
+	}
+	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "42", capturedItemID)
+}
+
+// ── Dispose ───────────────────────────────────────────────────────────────────
+
+func postDispose(t *testing.T, h *handler.ItemHandler, itemID, callerID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx := ctxWithUser(t, callerID)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/items/"+itemID+"/dispose", strings.NewReader(body))
+	req.SetPathValue("id", itemID)
+	w := httptest.NewRecorder()
+	h.Dispose(w, req)
+	return w
+}
+
+func TestDisposeHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/items/42/dispose", strings.NewReader(`{"reason":"donated"}`))
+	req.SetPathValue("id", "42")
+	w := httptest.NewRecorder()
+	h.Dispose(w, req)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
+	w := postDispose(t, newItemHandler(&fakeItemService{}), "42", "user-1", `not-json`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn400WhenReasonIsEmpty(t *testing.T) {
+	w := postDispose(t, newItemHandler(&fakeItemService{}), "42", "user-1", `{"reason":""}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn400WhenReasonIsUnknown(t *testing.T) {
+	w := postDispose(t, newItemHandler(&fakeItemService{}), "42", "user-1", `{"reason":"unknown"}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn404WhenItemNotFound(t *testing.T) {
+	svc := &fakeItemService{
+		disposeFn: func(_ context.Context, _, _ string, _ domain.DisposalReason) error { return domain.ErrNotFound },
+	}
+	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
+	require.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn403WhenCallerDoesNotOwnItem(t *testing.T) {
+	svc := &fakeItemService{
+		disposeFn: func(_ context.Context, _, _ string, _ domain.DisposalReason) error { return domain.ErrForbidden },
+	}
+	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
+	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn500WhenServiceFails(t *testing.T) {
+	svc := &fakeItemService{
+		disposeFn: func(_ context.Context, _, _ string, _ domain.DisposalReason) error { return errors.New("unexpected") },
+	}
+	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn204WhenSuccessful(t *testing.T) {
+	var capturedItemID string
+	var capturedReason domain.DisposalReason
+	svc := &fakeItemService{
+		disposeFn: func(_ context.Context, _, itemID string, reason domain.DisposalReason) error {
+			capturedItemID = itemID
+			capturedReason = reason
+			return nil
+		},
+	}
+	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
+	require.Equal(t, http.StatusNoContent, w.Code)
+	require.Equal(t, "42", capturedItemID)
+	require.Equal(t, domain.DisposalDonated, capturedReason)
+}
+
+// ── List with status filter ───────────────────────────────────────────────────
+
+func listItemsWithStatus(t *testing.T, h *handler.ItemHandler, callerID, status string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx := ctxWithUser(t, callerID)
+	url := "/items"
+	if status != "" {
+		url += "?status=" + status
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+	return w
+}
+
+func TestListHandlerShouldReturn400WhenStatusQueryParamIsUnknown(t *testing.T) {
+	w := listItemsWithStatus(t, newItemHandler(&fakeItemService{}), "user-1", "invalid")
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestListHandlerShouldPassActiveStatusFilterByDefaultWhenNoQueryParam(t *testing.T) {
+	var gotFilter ports.ItemListFilter
+	svc := &fakeItemService{
+		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]domain.Item, error) {
+			gotFilter = filter
+			return nil, nil
+		},
+	}
+	listItemsWithStatus(t, newItemHandler(svc), "user-1", "")
+	require.Equal(t, ports.ItemStatusActive, gotFilter.Status)
+}
+
+func TestListHandlerShouldPassArchivedStatusFilterWhenQueryParamIsArchived(t *testing.T) {
+	var gotFilter ports.ItemListFilter
+	svc := &fakeItemService{
+		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]domain.Item, error) {
+			gotFilter = filter
+			return nil, nil
+		},
+	}
+	listItemsWithStatus(t, newItemHandler(svc), "user-1", "archived")
+	require.Equal(t, ports.ItemStatusArchived, gotFilter.Status)
+}
+
+func TestListHandlerShouldPassAllStatusFilterWhenQueryParamIsAll(t *testing.T) {
+	var gotFilter ports.ItemListFilter
+	svc := &fakeItemService{
+		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]domain.Item, error) {
+			gotFilter = filter
+			return nil, nil
+		},
+	}
+	listItemsWithStatus(t, newItemHandler(svc), "user-1", "all")
+	require.Equal(t, ports.ItemStatusAll, gotFilter.Status)
+}
+

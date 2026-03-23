@@ -59,6 +59,9 @@ func New(
 	mux.Handle("POST /items/{id}/photos", auth(http.HandlerFunc(itemHandler.UploadPhoto)))
 	mux.Handle("DELETE /items/{id}/photos/{key...}", auth(http.HandlerFunc(itemHandler.DeletePhoto)))
 	mux.Handle("PATCH /items/{id}/location", auth(http.HandlerFunc(itemHandler.AssignLocation)))
+	mux.Handle("POST /items/{id}/archive", auth(http.HandlerFunc(itemHandler.Archive)))
+	mux.Handle("POST /items/{id}/unarchive", auth(http.HandlerFunc(itemHandler.Unarchive)))
+	mux.Handle("POST /items/{id}/dispose", auth(http.HandlerFunc(itemHandler.Dispose)))
 
 	mux.Handle("GET /locations", auth(http.HandlerFunc(locationHandler.List)))
 	mux.Handle("POST /locations", auth(http.HandlerFunc(locationHandler.Create)))
