@@ -23,4 +23,10 @@ type WearLogRepository interface {
 
 	// ListByItem returns all wear logs for itemID, ordered by worn_on descending.
 	ListByItem(ctx context.Context, itemID string) ([]domain.WearLog, error)
+
+	// LatestByItem returns the most recent wear log for itemID, or nil if none exist.
+	LatestByItem(ctx context.Context, itemID string) (*domain.WearLog, error)
+
+	// CountByItem returns the number of wear logs for itemID.
+	CountByItem(ctx context.Context, itemID string) (int, error)
 }
