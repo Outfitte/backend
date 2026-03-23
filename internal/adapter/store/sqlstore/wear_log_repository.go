@@ -96,7 +96,7 @@ func (r *WearLogRepository) ListByItem(ctx context.Context, itemID string) ([]do
 		SELECT id, item_id, owner_id, worn_on, notes, created_at
 		FROM wear_logs
 		WHERE item_id = ?
-		ORDER BY worn_on DESC`
+		ORDER BY worn_on DESC, created_at DESC`
 	rows, err := r.db.QueryContext(ctx, q, itemID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
@@ -114,7 +114,7 @@ func (r *WearLogRepository) LatestByItem(ctx context.Context, itemID string) (*d
 		SELECT id, item_id, owner_id, worn_on, notes, created_at
 		FROM wear_logs
 		WHERE item_id = ?
-		ORDER BY worn_on DESC
+		ORDER BY worn_on DESC, created_at DESC
 		LIMIT 1`
 	log, err := scanWearLogRow(r.db.QueryRowContext(ctx, q, itemID))
 	if err != nil {
