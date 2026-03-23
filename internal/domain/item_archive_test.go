@@ -79,14 +79,13 @@ func TestItemShouldBeConsideredDisposedWhenDisposalReasonIsNonNil(t *testing.T) 
 	assert.Equal(t, domain.DisposalDonated, *item.DisposalReason)
 }
 
-func TestItemDisposalShouldImplyArchivedWhenDisposalReasonIsSet(t *testing.T) {
+func TestItemFieldsShouldRepresentDisposedStateWhenBothAreSet(t *testing.T) {
 	var item domain.Item
 	item.ID = "42"
 	now := time.Now()
 	reason := domain.DisposalSold
 	item.ArchivedAt = &now
 	item.DisposalReason = &reason
-	// disposal implies archived: both fields are set
 	assert.NotNil(t, item.ArchivedAt)
 	assert.NotNil(t, item.DisposalReason)
 }
