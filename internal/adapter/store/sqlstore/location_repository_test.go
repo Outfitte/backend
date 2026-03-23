@@ -149,11 +149,13 @@ func TestLocationRepositorySaveShouldUpdateExistingLocation(t *testing.T) {
 	require.NoError(t, repo.Save(t.Context(), loc))
 
 	loc.Label = "New Label"
+	loc.CreatedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) // different from seeded value
 	require.NoError(t, repo.Save(t.Context(), loc))
 
 	got, err := repo.Get(t.Context(), "loc-upd-1")
 	require.NoError(t, err)
 	require.Equal(t, "New Label", got.Label)
+	require.Equal(t, time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC), got.CreatedAt) // must not change
 }
 
 func TestLocationRepositorySaveShouldPersistParentID(t *testing.T) {
