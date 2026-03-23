@@ -104,6 +104,7 @@ func TestSessionRepositorySaveShouldInsertNewSession(t *testing.T) {
 func TestSessionRepositorySaveShouldUpdateExistingSession(t *testing.T) {
 	repo, db := newSessionRepo(t)
 	seedUser(t, db, "user-upd-1", "upd@example.com")
+	// seedSession inserts created_at = 2025-01-01; the upsert must not change it.
 	seedSession(t, db, "session-upd-1", "user-upd-1", "old-hash")
 
 	var s domain.Session
@@ -111,7 +112,7 @@ func TestSessionRepositorySaveShouldUpdateExistingSession(t *testing.T) {
 	s.UserID = "user-upd-1"
 	s.TokenHash = "new-hash"
 	s.ExpiresAt = time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC)
-	s.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	s.CreatedAt = time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC) // different from seeded value
 
 	require.NoError(t, repo.Save(t.Context(), s))
 
@@ -119,6 +120,7 @@ func TestSessionRepositorySaveShouldUpdateExistingSession(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "new-hash", got.TokenHash)
 	require.Equal(t, time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC), got.ExpiresAt)
+	require.Equal(t, time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), got.CreatedAt) // must not change
 }
 
 // ── DeleteOldestByUser ────────────────────────────────────────────────────────
