@@ -51,6 +51,34 @@ func TestListCategoriesHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestListCategoriesHandlerShouldReturnEmptyFieldHintsArrayWhenCategoryHasNoFieldHints(t *testing.T) {
+	var cat domain.Category
+	cat.ID = "cat-1"
+	cat.Label = "Tops"
+	cat.IsPreset = true
+	// FieldHints intentionally not set — should serialize as [] not null.
+
+	svc := &fakeCategoryService{
+		listAllFn: func(_ context.Context) ([]domain.Category, error) {
+			return []domain.Category{cat}, nil
+		},
+	}
+	h := newCategoryHandler(svc)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/categories", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got []struct {
+		FieldHints []struct{} `json:"field_hints"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].FieldHints)
+	require.Empty(t, got[0].FieldHints)
+}
+
 func TestListCategoriesHandlerShouldIncludeFieldHintsWhenCategoryHasFieldHints(t *testing.T) {
 	var cat domain.Category
 	cat.ID = "cat-1"

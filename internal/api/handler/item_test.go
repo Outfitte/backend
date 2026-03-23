@@ -253,7 +253,7 @@ func TestCreateHandlerShouldReturn201WithItemWhenCreatedSuccessfully(t *testing.
 	w := postItem(t, h, "user-1", `{"name":"Blue Shirt"}`)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	var got domain.Item
+	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Blue Shirt", got.Name)
@@ -388,7 +388,7 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	w := listItems(t, h, "user-1")
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got []domain.Item
+	var got []testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Len(t, got, 2)
 	require.Equal(t, "item-1", got[0].ID)
@@ -465,7 +465,7 @@ func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T
 	w := getItem(t, h, "item-42", "user-1")
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Item
+	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Blue Shirt", got.Name)
@@ -565,7 +565,7 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 	w := patchItem(t, h, "item-42", "user-1", `{"name":"Red Jacket","purchase_price":"49.99"}`)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Item
+	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Red Jacket", got.Name)

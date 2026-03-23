@@ -33,7 +33,8 @@ type itemResponse struct {
 	Photos        []photoResponse   `json:"photos"`
 	LocationID    *string           `json:"location_id"`
 	PurchasePrice *string           `json:"purchase_price"`
-	CreatedAt     time.Time         `json:"created_at"`
+	// PurchaseDate is omitted intentionally — it is deferred to M4+.
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func toItemResponse(item domain.Item) itemResponse {
