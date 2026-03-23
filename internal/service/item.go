@@ -268,6 +268,54 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 	return s.items.Delete(ctx, itemID)
 }
 
+func (s *ItemService) Archive(ctx context.Context, callerID, itemID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item, err := s.getOwnedItem(ctx, callerID, itemID)
+	if err != nil {
+		return err
+	}
+	if item.ArchivedAt != nil {
+		return domain.ErrAlreadyArchived
+	}
+	now := time.Now().UTC()
+	item.ArchivedAt = &now
+	return s.items.Save(ctx, item)
+}
+
+func (s *ItemService) Unarchive(ctx context.Context, callerID, itemID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item, err := s.getOwnedItem(ctx, callerID, itemID)
+	if err != nil {
+		return err
+	}
+	if item.ArchivedAt == nil {
+		return domain.ErrNotArchived
+	}
+	item.ArchivedAt = nil
+	item.DisposalReason = nil
+	return s.items.Save(ctx, item)
+}
+
+func (s *ItemService) Dispose(ctx context.Context, callerID, itemID string, reason domain.DisposalReason) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	item, err := s.getOwnedItem(ctx, callerID, itemID)
+	if err != nil {
+		return err
+	}
+	if item.ArchivedAt == nil {
+		now := time.Now().UTC()
+		item.ArchivedAt = &now
+	}
+	item.DisposalReason = &reason
+	return s.items.Save(ctx, item)
+}
+
 // validateNameAndCategory checks that name is non-empty and, if categoryID is
 // provided, that the referenced category exists.
 func (s *ItemService) validateNameAndCategory(ctx context.Context, name string, categoryID *string) error {
