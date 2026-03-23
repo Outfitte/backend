@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/outfitte/outfitte/internal/ports"
@@ -1055,4 +1056,207 @@ func TestMakeItemPhotosShouldShareCreatedAtWhenMultipleKeysGiven(t *testing.T) {
 	photos := makeItemPhotos([]string{"a.jpg", "b.jpg", "c.jpg"})
 	require.Equal(t, photos[0].CreatedAt, photos[1].CreatedAt)
 	require.Equal(t, photos[1].CreatedAt, photos[2].CreatedAt)
+}
+
+// ── Archive ───────────────────────────────────────────────────────────────────
+
+func TestItemServiceArchiveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.Archive(ctx, "owner-1", "item-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemServiceArchiveShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Archive(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestItemServiceArchiveShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Archive(t.Context(), "other-owner", "item-1")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestItemServiceArchiveShouldReturnErrAlreadyArchivedWhenItemIsAlreadyArchived(t *testing.T) {
+	now := time.Now().UTC()
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.ArchivedAt = &now
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Archive(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrAlreadyArchived)
+}
+
+func TestItemServiceArchiveShouldReturnErrorWhenSaveFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Archive(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceArchiveShouldSetArchivedAtWhenItemIsNotArchived(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Archive(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.NotNil(t, repo.items[0].ArchivedAt)
+}
+
+// ── Unarchive ─────────────────────────────────────────────────────────────────
+
+func TestItemServiceUnarchiveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.Unarchive(ctx, "owner-1", "item-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemServiceUnarchiveShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestItemServiceUnarchiveShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Unarchive(t.Context(), "other-owner", "item-1")
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestItemServiceUnarchiveShouldReturnErrNotArchivedWhenItemIsNotArchived(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrNotArchived)
+}
+
+func TestItemServiceUnarchiveShouldReturnErrorWhenSaveFails(t *testing.T) {
+	now := time.Now().UTC()
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.ArchivedAt = &now
+	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceUnarchiveShouldClearArchivedAtAndDisposalReasonWhenArchived(t *testing.T) {
+	now := time.Now().UTC()
+	reason := domain.DisposalDonated
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.ArchivedAt = &now
+	item.DisposalReason = &reason
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Nil(t, repo.items[0].ArchivedAt)
+	require.Nil(t, repo.items[0].DisposalReason)
+}
+
+// ── Dispose ───────────────────────────────────────────────────────────────────
+
+func TestItemServiceDisposeShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.Dispose(ctx, "owner-1", "item-1", domain.DisposalDonated)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemServiceDisposeShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestItemServiceDisposeShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Dispose(t.Context(), "other-owner", "item-1", domain.DisposalDonated)
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestItemServiceDisposeShouldReturnErrorWhenSaveFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalSold)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDisposeShouldSetDisposalReasonAndArchivedAtWhenItemIsNotArchived(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
+	require.NoError(t, err)
+	require.NotNil(t, repo.items[0].ArchivedAt)
+	require.Equal(t, domain.DisposalDonated, *repo.items[0].DisposalReason)
+}
+
+func TestItemServiceDisposeShouldSetDisposalReasonWithoutChangingArchivedAtWhenAlreadyArchived(t *testing.T) {
+	archivedAt := time.Now().Add(-24 * time.Hour).UTC()
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.ArchivedAt = &archivedAt
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalSold)
+	require.NoError(t, err)
+	require.Equal(t, archivedAt, *repo.items[0].ArchivedAt)
+	require.Equal(t, domain.DisposalSold, *repo.items[0].DisposalReason)
 }
