@@ -253,7 +253,7 @@ func TestCreateHandlerShouldReturn201WithItemWhenCreatedSuccessfully(t *testing.
 	w := postItem(t, h, "user-1", `{"name":"Blue Shirt"}`)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	var got domain.Item
+	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Blue Shirt", got.Name)
@@ -388,7 +388,7 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	w := listItems(t, h, "user-1")
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got []domain.Item
+	var got []testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Len(t, got, 2)
 	require.Equal(t, "item-1", got[0].ID)
@@ -465,7 +465,7 @@ func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T
 	w := getItem(t, h, "item-42", "user-1")
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Item
+	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Blue Shirt", got.Name)
@@ -565,7 +565,7 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 	w := patchItem(t, h, "item-42", "user-1", `{"name":"Red Jacket","purchase_price":"49.99"}`)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Item
+	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Red Jacket", got.Name)
@@ -808,6 +808,16 @@ func TestDeletePhotoHandlerShouldReturn204WhenPhotoDeletedSuccessfully(t *testin
 
 // ── Full lifecycle integration ────────────────────────────────────────────────
 
+// testItemResp mirrors the snake_case JSON shape returned by the item handlers.
+type testItemResp struct {
+	ID      string            `json:"id"`
+	OwnerID string            `json:"owner_id"`
+	Name    string            `json:"name"`
+	Brand   *string           `json:"brand"`
+	Color   *string           `json:"color"`
+	Meta    map[string]string `json:"metadata"`
+}
+
 // statefulFakeItemService is an in-memory item store used in the lifecycle integration test.
 type statefulFakeItemService struct {
 	mu     sync.Mutex
@@ -967,7 +977,7 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var created domain.Item
+	var created testItemResp
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&created))
 	require.NotEmpty(t, created.ID)
 	require.Equal(t, callerID, created.OwnerID)
@@ -986,7 +996,7 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	var listed []domain.Item
+	var listed []testItemResp
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&listed))
 	require.Len(t, listed, 1)
 	require.Equal(t, itemID, listed[0].ID)
@@ -999,7 +1009,7 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	var fetched domain.Item
+	var fetched testItemResp
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&fetched))
 	require.Equal(t, itemID, fetched.ID)
 	require.Equal(t, callerID, fetched.OwnerID)
@@ -1015,7 +1025,7 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	var updated domain.Item
+	var updated testItemResp
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&updated))
 	require.Equal(t, itemID, updated.ID)
 	require.Equal(t, "Red Jacket", updated.Name)
@@ -1037,6 +1047,63 @@ func TestItemHandlerShouldHandleFullItemLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestGetByIDHandlerShouldIncludePhotosInResponseWhenItemHasPhotos(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.Photos = []domain.ItemPhoto{
+		{ID: "photo-1", MediaKey: "media/photo.jpg", Position: 0},
+	}
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Photos []struct {
+			ID       string `json:"id"`
+			MediaKey string `json:"media_key"`
+			Position int    `json:"position"`
+		} `json:"photos"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Len(t, got.Photos, 1)
+	require.Equal(t, "photo-1", got.Photos[0].ID)
+	require.Equal(t, "media/photo.jpg", got.Photos[0].MediaKey)
+	require.Equal(t, 0, got.Photos[0].Position)
+}
+
+func TestGetByIDHandlerShouldIncludeMetadataAsFlatMapWhenItemHasMetadataFields(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.Metadata = domain.ItemMetadata{Fields: map[string]string{"size": "M", "material": "cotton"}}
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got struct {
+		Metadata map[string]string `json:"metadata"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, map[string]string{"size": "M", "material": "cotton"}, got.Metadata)
 }
 
 func TestAssignLocationHandlerShouldReturn204WhenLocationIDIsNilAndLocationCleared(t *testing.T) {

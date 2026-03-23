@@ -138,8 +138,8 @@ func uploadPhoto(t *testing.T, srv *httptest.Server, token, itemID string) strin
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 	var item struct {
 		Photos []struct {
-			MediaKey string
-		}
+			MediaKey string `json:"media_key"`
+		} `json:"photos"`
 	}
 	decodeJSON(t, getResp, &item)
 	require.Len(t, item.Photos, 1)
@@ -204,7 +204,7 @@ func TestIntegrationFullCycle(t *testing.T) {
 	getResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenA)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 	var item struct {
-		LocationID *string `json:"LocationID"`
+		LocationID *string `json:"location_id"`
 	}
 	decodeJSON(t, getResp, &item)
 	require.NotNil(t, item.LocationID)

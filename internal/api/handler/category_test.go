@@ -51,6 +51,72 @@ func TestListCategoriesHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestListCategoriesHandlerShouldReturnEmptyFieldHintsArrayWhenCategoryHasNoFieldHints(t *testing.T) {
+	var cat domain.Category
+	cat.ID = "cat-1"
+	cat.Label = "Tops"
+	cat.IsPreset = true
+	// FieldHints intentionally not set — should serialize as [] not null.
+
+	svc := &fakeCategoryService{
+		listAllFn: func(_ context.Context) ([]domain.Category, error) {
+			return []domain.Category{cat}, nil
+		},
+	}
+	h := newCategoryHandler(svc)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/categories", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got []struct {
+		FieldHints []struct{} `json:"field_hints"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].FieldHints)
+	require.Empty(t, got[0].FieldHints)
+}
+
+func TestListCategoriesHandlerShouldIncludeFieldHintsWhenCategoryHasFieldHints(t *testing.T) {
+	var cat domain.Category
+	cat.ID = "cat-1"
+	cat.Label = "Tops"
+	cat.IsPreset = true
+	cat.FieldHints = []domain.FieldHint{
+		{Key: "size", Label: "Size", Placeholder: "e.g. M"},
+	}
+
+	svc := &fakeCategoryService{
+		listAllFn: func(_ context.Context) ([]domain.Category, error) {
+			return []domain.Category{cat}, nil
+		},
+	}
+	h := newCategoryHandler(svc)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/categories", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got []struct {
+		ID         string `json:"id"`
+		FieldHints []struct {
+			Key         string `json:"key"`
+			Label       string `json:"label"`
+			Placeholder string `json:"placeholder"`
+		} `json:"field_hints"`
+	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Len(t, got, 1)
+	require.Equal(t, "cat-1", got[0].ID)
+	require.Len(t, got[0].FieldHints, 1)
+	require.Equal(t, "size", got[0].FieldHints[0].Key)
+	require.Equal(t, "Size", got[0].FieldHints[0].Label)
+	require.Equal(t, "e.g. M", got[0].FieldHints[0].Placeholder)
+}
+
 func TestListCategoriesHandlerShouldReturn200WithCategoriesWhenSuccessful(t *testing.T) {
 	var cat1, cat2 domain.Category
 	cat1.ID = "cat-1"
@@ -72,7 +138,11 @@ func TestListCategoriesHandlerShouldReturn200WithCategoriesWhenSuccessful(t *tes
 	h.List(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got []domain.Category
+	var got []struct {
+		ID       string `json:"id"`
+		Label    string `json:"label"`
+		IsPreset bool   `json:"is_preset"`
+	}
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Len(t, got, 2)
 	require.Equal(t, "cat-1", got[0].ID)

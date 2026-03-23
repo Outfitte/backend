@@ -23,6 +23,32 @@ func NewCategoryHandler(categories categoryService, log *slog.Logger) *CategoryH
 	return &CategoryHandler{categories: categories, log: log.With("handler", "category")}
 }
 
+type fieldHintResponse struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	Placeholder string `json:"placeholder"`
+}
+
+type categoryResponse struct {
+	ID         string              `json:"id"`
+	Label      string              `json:"label"`
+	IsPreset   bool                `json:"is_preset"`
+	FieldHints []fieldHintResponse `json:"field_hints"`
+}
+
+func toCategoryResponse(cat domain.Category) categoryResponse {
+	hints := make([]fieldHintResponse, len(cat.FieldHints))
+	for i, h := range cat.FieldHints {
+		hints[i] = fieldHintResponse{Key: h.Key, Label: h.Label, Placeholder: h.Placeholder}
+	}
+	return categoryResponse{
+		ID:         cat.ID,
+		Label:      cat.Label,
+		IsPreset:   cat.IsPreset,
+		FieldHints: hints,
+	}
+}
+
 // List handles GET /categories.
 func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -36,6 +62,10 @@ func (h *CategoryHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	responses := make([]categoryResponse, len(cats))
+	for i, cat := range cats {
+		responses[i] = toCategoryResponse(cat)
+	}
 	log.InfoContext(ctx, "succeeded", "count", len(cats))
-	writeJSON(w, http.StatusOK, cats)
+	writeJSON(w, http.StatusOK, responses)
 }
