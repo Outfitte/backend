@@ -20,15 +20,6 @@ func newSessionRepo(t *testing.T) (*sqlstore.SessionRepository, *sql.DB) {
 	return sqlstore.NewSessionRepository(db), db
 }
 
-func seedUser2(t *testing.T, db *sql.DB, id, email string) {
-	t.Helper()
-	_, err := db.ExecContext(t.Context(), `
-		INSERT INTO users (id, email, password_hash, role, created_at)
-		VALUES (?, ?, 'hash', 'member', '2025-01-01T00:00:00Z')`,
-		id, email)
-	require.NoError(t, err)
-}
-
 func seedSession(t *testing.T, db *sql.DB, id, userID, tokenHash string) {
 	t.Helper()
 	_, err := db.ExecContext(t.Context(), `
@@ -91,7 +82,7 @@ func TestSessionRepositorySaveShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
 
 func TestSessionRepositorySaveShouldInsertNewSession(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-save-1", "save@example.com")
+	seedUser(t, db, "user-save-1", "save@example.com")
 
 	var s domain.Session
 	s.ID = "session-save-1"
@@ -112,7 +103,7 @@ func TestSessionRepositorySaveShouldInsertNewSession(t *testing.T) {
 
 func TestSessionRepositorySaveShouldUpdateExistingSession(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-upd-1", "upd@example.com")
+	seedUser(t, db, "user-upd-1", "upd@example.com")
 	seedSession(t, db, "session-upd-1", "user-upd-1", "old-hash")
 
 	var s domain.Session
@@ -159,7 +150,7 @@ func TestSessionRepositoryDeleteOldestByUserShouldReturnErrIOWhenDBIsClosed(t *t
 
 func TestSessionRepositoryDeleteOldestByUserShouldRemoveOldestSession(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-dob-1", "dob@example.com")
+	seedUser(t, db, "user-dob-1", "dob@example.com")
 
 	// Insert two sessions with different created_at timestamps.
 	_, err := db.ExecContext(t.Context(), `
@@ -212,7 +203,7 @@ func TestSessionRepositoryCountByUserShouldReturnZeroWhenUserHasNoSessions(t *te
 
 func TestSessionRepositoryCountByUserShouldReturnCorrectCount(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-cnt-1", "cnt@example.com")
+	seedUser(t, db, "user-cnt-1", "cnt@example.com")
 	seedSession(t, db, "session-cnt-1", "user-cnt-1", "hash-cnt-1")
 	seedSession(t, db, "session-cnt-2", "user-cnt-1", "hash-cnt-2")
 
@@ -250,7 +241,7 @@ func TestSessionRepositoryFindByTokenHashShouldReturnErrIOWhenDBIsClosed(t *test
 
 func TestSessionRepositoryFindByTokenHashShouldReturnSessionWhenHashExists(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-fth-1", "fth@example.com")
+	seedUser(t, db, "user-fth-1", "fth@example.com")
 	seedSession(t, db, "session-fth-1", "user-fth-1", "token-hash-fth")
 
 	got, err := repo.FindByTokenHash(t.Context(), "token-hash-fth")
@@ -289,7 +280,7 @@ func TestSessionRepositoryDeleteShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
 
 func TestSessionRepositoryDeleteShouldRemoveSessionWhenRowExists(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-del-1", "del@example.com")
+	seedUser(t, db, "user-del-1", "del@example.com")
 	seedSession(t, db, "session-del-1", "user-del-1", "hash-del-1")
 
 	require.NoError(t, repo.Delete(t.Context(), "session-del-1"))
@@ -300,7 +291,7 @@ func TestSessionRepositoryDeleteShouldRemoveSessionWhenRowExists(t *testing.T) {
 
 func TestSessionRepositoryGetShouldReturnSessionWhenRowExists(t *testing.T) {
 	repo, db := newSessionRepo(t)
-	seedUser2(t, db, "user-get-1", "get@example.com")
+	seedUser(t, db, "user-get-1", "get@example.com")
 	seedSession(t, db, "session-get-1", "user-get-1", "hash-get-1")
 
 	got, err := repo.Get(t.Context(), "session-get-1")
