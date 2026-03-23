@@ -274,6 +274,42 @@ func TestRefreshHandlerShouldReturn401WhenTokenIsInvalidOrExpired(t *testing.T) 
 	require.Equal(t, "invalid or expired refresh token", body["error"])
 }
 
+func TestRefreshHandlerShouldReturn401WhenTokenNotFound(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
+			return "", "", domain.ErrNotFound
+		},
+	}
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `{"refresh_token":"deleted-tok"}`)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "invalid or expired refresh token", body["error"])
+}
+
+func TestRefreshHandlerShouldReturn401WhenSessionExpired(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
+			return "", "", domain.ErrSessionExpired
+		},
+	}
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `{"refresh_token":"expired-tok"}`)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "invalid or expired refresh token", body["error"])
+}
+
 func TestRefreshHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}

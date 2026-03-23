@@ -174,6 +174,49 @@ func enableRegistration(t *testing.T, srv *httptest.Server, adminToken string) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
+// --- auth cycle ---
+
+func TestIntegrationAuthCycleShouldLoginRefreshAndLogout(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	// Register creates the account and returns tokens.
+	_, refreshToken := registerUser(t, srv, "authcycleuser", "password-authcycle-secure")
+
+	// Login with credentials returns a fresh token pair.
+	loginResp := doJSON(t, srv, http.MethodPost, "/auth/login",
+		map[string]string{"username": "authcycleuser", "password": "password-authcycle-secure"}, "")
+	require.Equal(t, http.StatusOK, loginResp.StatusCode)
+	var loginResult struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	decodeJSON(t, loginResp, &loginResult)
+	require.NotEmpty(t, loginResult.AccessToken)
+	require.NotEmpty(t, loginResult.RefreshToken)
+
+	// Refresh using the token obtained at registration.
+	refreshResp := doJSON(t, srv, http.MethodPost, "/auth/refresh",
+		map[string]string{"refresh_token": refreshToken}, "")
+	require.Equal(t, http.StatusOK, refreshResp.StatusCode)
+	var refreshResult struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	decodeJSON(t, refreshResp, &refreshResult)
+	require.NotEmpty(t, refreshResult.AccessToken)
+	require.NotEmpty(t, refreshResult.RefreshToken)
+
+	// Logout invalidates the refresh token.
+	logoutResp := doJSON(t, srv, http.MethodPost, "/auth/logout",
+		map[string]string{"refresh_token": refreshResult.RefreshToken}, "")
+	assert.Equal(t, http.StatusNoContent, logoutResp.StatusCode)
+
+	// Using the invalidated refresh token must fail.
+	staleResp := doJSON(t, srv, http.MethodPost, "/auth/refresh",
+		map[string]string{"refresh_token": refreshResult.RefreshToken}, "")
+	assert.Equal(t, http.StatusUnauthorized, staleResp.StatusCode)
+}
+
 // --- full cycle ---
 
 func TestIntegrationFullCycle(t *testing.T) {
@@ -446,6 +489,21 @@ func TestIntegrationShouldReturn403WhenUserBArchivesUserAItem(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
+// User B cannot dispose User A's item.
+func TestIntegrationShouldReturn403WhenUserBDisposesUserAItem(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	tokenA, _ := registerUser(t, srv, "alice6", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "bob6", "password-bob-secure")
+
+	itemID := createItem(t, srv, tokenA, "Velvet Blazer", nil)
+
+	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/dispose",
+		map[string]any{"reason": "donated"}, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
 // User B cannot log wear for User A's item.
 func TestIntegrationShouldReturn403WhenUserBLogsWearForUserAItem(t *testing.T) {
 	srv := startIntegrationServer(t)
@@ -458,5 +516,29 @@ func TestIntegrationShouldReturn403WhenUserBLogsWearForUserAItem(t *testing.T) {
 
 	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
 		map[string]any{"worn_on": "2026-01-15"}, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+// User B cannot delete User A's wear log.
+func TestIntegrationShouldReturn403WhenUserBDeletesWearLogForUserAItem(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	tokenA, _ := registerUser(t, srv, "alice7", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "bob7", "password-bob-secure")
+
+	itemID := createItem(t, srv, tokenA, "Plaid Scarf", nil)
+
+	// User A logs a wear entry.
+	logResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
+		map[string]any{"worn_on": "2026-02-10"}, tokenA)
+	require.Equal(t, http.StatusCreated, logResp.StatusCode)
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, logResp, &entry)
+
+	// User B tries to delete that entry.
+	resp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID+"/wear-logs/"+entry.ID, nil, tokenB)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
