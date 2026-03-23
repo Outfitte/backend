@@ -88,7 +88,8 @@ func (r *ItemRepository) ListByOwner(ctx context.Context, ownerID string, filter
 func (r *ItemRepository) queryItemsByOwner(ctx context.Context, ownerID string, filter ports.ItemListFilter) ([]domain.Item, error) {
 	q := `
 		SELECT id, owner_id, name, brand, category_id, color,
-		       location_id, purchase_price, purchase_date, created_at, metadata
+		       location_id, purchase_price, purchase_date, created_at, metadata,
+		       archived_at, disposal_reason
 		FROM items
 		WHERE owner_id = ?`
 
