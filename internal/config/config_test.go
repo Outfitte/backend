@@ -11,10 +11,11 @@ import (
 )
 
 func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
+	t.Setenv("DB_DRIVER", "json")
 	t.Setenv("STORAGE_DATA_PATH", "")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
-	t.Setenv("DB_DSN", "/data/outfitte.db")
+	t.Setenv("DB_DSN", "")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -23,10 +24,11 @@ func TestLoadShouldErrorWhenRequiredVarsAreMissing(t *testing.T) {
 }
 
 func TestLoadShouldErrorWhenOnlyOneRequiredVarIsMissing(t *testing.T) {
+	t.Setenv("DB_DRIVER", "json")
 	t.Setenv("STORAGE_DATA_PATH", "/data")
 	t.Setenv("MEDIA_STORAGE_PATH", "")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
-	t.Setenv("DB_DSN", "/data/outfitte.db")
+	t.Setenv("DB_DSN", "")
 
 	_, err := config.Load()
 	require.Error(t, err)
@@ -128,6 +130,52 @@ func TestLoadShouldReadJWTSecretWhenSetAndLongEnough(t *testing.T) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 	assert.Equal(t, "a-secure-random-string-that-is-32-chars!!", cfg.JWTSecret)
+}
+
+func TestLoadShouldSucceedWhenStorageDataPathMissingForSQLiteDriver(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("DB_DSN", "/data/outfitte.db")
+
+	_, err := config.Load()
+	require.NoError(t, err)
+}
+
+func TestLoadShouldErrorWhenStorageDataPathMissingForJSONDriver(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "json")
+	t.Setenv("DB_DSN", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "STORAGE_DATA_PATH")
+}
+
+func TestLoadShouldSucceedWhenDBDSNMissingForJSONDriver(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "/data")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "json")
+	t.Setenv("DB_DSN", "")
+
+	_, err := config.Load()
+	require.NoError(t, err)
+}
+
+func TestLoadShouldErrorWhenDBDSNMissingForSQLiteDriver(t *testing.T) {
+	t.Setenv("STORAGE_DATA_PATH", "")
+	t.Setenv("MEDIA_STORAGE_PATH", "/media")
+	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")
+	t.Setenv("DB_DRIVER", "sqlite")
+	t.Setenv("DB_DSN", "")
+
+	_, err := config.Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
 func TestLoadShouldReadDBConfigWhenBothVarsAreSet(t *testing.T) {

@@ -68,7 +68,7 @@ func parseLogLevel(s string) (slog.Level, error) {
 
 func (c *Config) validate() error {
 	var missing []string
-	if c.StorageDataPath == "" {
+	if c.DB.Driver == "json" && c.StorageDataPath == "" {
 		missing = append(missing, "STORAGE_DATA_PATH")
 	}
 	if c.MediaStoragePath == "" {
@@ -77,7 +77,7 @@ func (c *Config) validate() error {
 	if c.JWTSecret == "" {
 		missing = append(missing, "JWT_SECRET")
 	}
-	if c.DB.DSN == "" {
+	if c.DB.Driver != "json" && c.DB.DSN == "" {
 		missing = append(missing, "DB_DSN")
 	}
 	if len(missing) > 0 {

@@ -21,7 +21,7 @@ const integrationJWTSecret = "integration-test-jwt-secret-32-chars-long!!"
 func newIntegrationConfig(t *testing.T) *config.Config {
 	t.Helper()
 	return &config.Config{
-		StorageDataPath:  t.TempDir(),
+		DB:               config.DBConfig{Driver: "sqlite", DSN: ":memory:"},
 		MediaStoragePath: t.TempDir(),
 		ServerPort:       "8080",
 		JWTSecret:        integrationJWTSecret,
@@ -30,9 +30,14 @@ func newIntegrationConfig(t *testing.T) *config.Config {
 
 func startIntegrationServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(newServer(newIntegrationConfig(t), slog.New(slog.DiscardHandler)).Handler)
-	t.Cleanup(srv.Close)
-	return srv
+	srv, cleanup, err := newServer(t.Context(), newIntegrationConfig(t), slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	ts := httptest.NewServer(srv.Handler)
+	t.Cleanup(func() {
+		ts.Close()
+		cleanup()
+	})
+	return ts
 }
 
 // --- helpers ---
