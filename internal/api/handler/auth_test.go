@@ -376,6 +376,22 @@ func TestLogoutHandlerShouldReturn401WhenServiceReturnsUnauthorized(t *testing.T
 	require.Equal(t, "unauthorized", body["error"])
 }
 
+func TestLogoutHandlerShouldReturn401WhenTokenNotFound(t *testing.T) {
+	logout := &fakeTokenLogout{
+		logoutFn: func(_ context.Context, _ string) error {
+			return domain.ErrNotFound
+		},
+	}
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, &fakeTokenIssuer{}, &fakeTokenRefresher{}, logout, slog.New(slog.DiscardHandler))
+
+	w := postLogout(t, h, `{"refresh_token":"deleted-tok"}`)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "unauthorized", body["error"])
+}
+
 func TestLogoutHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	logout := &fakeTokenLogout{
 		logoutFn: func(_ context.Context, _ string) error {

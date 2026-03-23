@@ -120,7 +120,7 @@ func TestMediaDownloadShouldReturn500WhenProviderReturnsUnexpectedError(t *testi
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestMediaDownloadShouldReturn200WhenCopyFailsMidStream(t *testing.T) {
+func TestMediaDownloadCommits200BeforeCopyError(t *testing.T) {
 	copyErr := errors.New("mid-stream copy error")
 	mp := &fakeMediaProvider{
 		downloadFn: func(_ context.Context, _ string) (io.ReadCloser, error) {
@@ -129,8 +129,8 @@ func TestMediaDownloadShouldReturn200WhenCopyFailsMidStream(t *testing.T) {
 	}
 	h := handler.NewMediaHandler(mp, slog.New(slog.DiscardHandler))
 
-	// Status 200 is already written before io.Copy, so the response code is 200
-	// even though copying failed mid-stream.
+	// Status 200 is written before io.Copy starts; a mid-stream read failure
+	// cannot change the already-committed status code.
 	w := getMedia(t, h, "photo.jpg")
 
 	require.Equal(t, http.StatusOK, w.Code)

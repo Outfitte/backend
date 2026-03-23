@@ -194,7 +194,8 @@ func TestIntegrationAuthCycleShouldLoginRefreshAndLogout(t *testing.T) {
 	require.NotEmpty(t, loginResult.AccessToken)
 	require.NotEmpty(t, loginResult.RefreshToken)
 
-	// Refresh using the token obtained at registration.
+	// Refresh using the token obtained at registration (not the one from login above),
+	// confirming both independent token lineages are valid.
 	refreshResp := doJSON(t, srv, http.MethodPost, "/auth/refresh",
 		map[string]string{"refresh_token": refreshToken}, "")
 	require.Equal(t, http.StatusOK, refreshResp.StatusCode)
