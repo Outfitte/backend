@@ -2,7 +2,6 @@ package domain_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/stretchr/testify/assert"
@@ -12,9 +11,6 @@ import (
 func TestOutfitLogShouldHaveNilNotesWhenNotSet(t *testing.T) {
 	var ol domain.OutfitLog
 	ol.ID = "42"
-	ol.OutfitID = "outfit-1"
-	ol.OwnerID = "owner-1"
-	ol.WornOn = time.Now()
 	assert.Nil(t, ol.Notes)
 }
 
@@ -29,6 +25,7 @@ func TestOutfitLogShouldHoldNotesWhenSet(t *testing.T) {
 	ol.ID = "42"
 	notes := "casual day"
 	ol.Notes = &notes
+	require.NotNil(t, ol.Notes)
 	assert.Equal(t, "casual day", *ol.Notes)
 }
 
