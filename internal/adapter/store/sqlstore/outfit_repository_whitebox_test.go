@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -11,6 +12,17 @@ import (
 )
 
 // ── batchLoadItems ────────────────────────────────────────────────────────────
+
+func TestBatchLoadItemsShouldReturnErrWhenContextCancelled(t *testing.T) {
+	db := openTestDB(t)
+	repo := &OutfitRepository{db: db}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var o domain.Outfit
+	o.ID = "outfit-1"
+	err := repo.batchLoadItems(ctx, []domain.Outfit{o})
+	require.ErrorIs(t, err, context.Canceled)
+}
 
 func TestBatchLoadItemsShouldReturnErrIOWhenQueryFails(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
@@ -51,6 +63,17 @@ func TestBatchLoadItemsRowsErrInternal(t *testing.T) {
 
 // ── batchLoadOutfitPhotos ─────────────────────────────────────────────────────
 
+func TestBatchLoadOutfitPhotosShouldReturnErrWhenContextCancelled(t *testing.T) {
+	db := openTestDB(t)
+	repo := &OutfitRepository{db: db}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var o domain.Outfit
+	o.ID = "outfit-1"
+	err := repo.batchLoadOutfitPhotos(ctx, []domain.Outfit{o})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestBatchLoadOutfitPhotosShouldReturnErrIOWhenQueryFails(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
@@ -88,6 +111,15 @@ func TestBatchLoadOutfitPhotosRowsErrInternal(t *testing.T) {
 }
 
 // ── queryOutfitsByOwner ───────────────────────────────────────────────────────
+
+func TestQueryOutfitsByOwnerShouldReturnErrWhenContextCancelled(t *testing.T) {
+	db := openTestDB(t)
+	repo := &OutfitRepository{db: db}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := repo.queryOutfitsByOwner(ctx, "owner-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
 
 func TestQueryOutfitsByOwnerRowsErrInternal(t *testing.T) {
 	db := openFakeDB(t, "fake-rows-err")

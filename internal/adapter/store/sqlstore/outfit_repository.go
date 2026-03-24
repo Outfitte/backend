@@ -251,6 +251,9 @@ func buildOutfit(id, ownerID string, name, notes sql.NullString, createdAt time.
 }
 
 func (r *OutfitRepository) batchLoadItems(ctx context.Context, outfits []domain.Outfit) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(outfits) == 0 {
 		return nil
 	}
@@ -304,6 +307,9 @@ func (r *OutfitRepository) batchLoadItems(ctx context.Context, outfits []domain.
 }
 
 func (r *OutfitRepository) batchLoadOutfitPhotos(ctx context.Context, outfits []domain.Outfit) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if len(outfits) == 0 {
 		return nil
 	}
@@ -363,6 +369,9 @@ func (r *OutfitRepository) batchLoadOutfitPhotos(ctx context.Context, outfits []
 }
 
 func (r *OutfitRepository) queryOutfitsByOwner(ctx context.Context, ownerID string) ([]domain.Outfit, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	const q = `
 		SELECT id, owner_id, name, notes, created_at
 		FROM outfits
