@@ -61,4 +61,36 @@ func TestEntitiesImplementPortsEntity(t *testing.T) {
 	assert.Implements(t, iface, domain.Category{})
 	assert.Implements(t, iface, domain.Session{})
 	assert.Implements(t, iface, domain.WearLog{})
+	assert.Implements(t, iface, domain.Outfit{})
+}
+
+func TestOutfitShouldHaveNameAndNotesAsOptionalPointersWhenAbsent(t *testing.T) {
+	var o domain.Outfit
+	o.ID = "42"
+	o.OwnerID = "owner-1"
+	assert.Nil(t, o.Name)
+	assert.Nil(t, o.Notes)
+	name := "Summer Look"
+	notes := "casual"
+	o.Name = &name
+	o.Notes = &notes
+	assert.Equal(t, "Summer Look", *o.Name)
+	assert.Equal(t, "casual", *o.Notes)
+}
+
+func TestUniqueEntityShouldReturnIDWhenGetIDCalled(t *testing.T) {
+	var o domain.Outfit
+	o.ID = "outfit-99"
+	assert.Equal(t, "outfit-99", o.GetID())
+}
+
+func TestOutfitShouldHoldItemsAndPhotosWhenSet(t *testing.T) {
+	var o domain.Outfit
+	o.ID = "42"
+	o.Items = []domain.OutfitItem{{OutfitID: "42", ItemID: "item-1", Position: 0}}
+	o.Photos = []domain.OutfitPhoto{{ID: "photo-1", MediaKey: "key", Position: 0}}
+	assert.Len(t, o.Items, 1)
+	assert.Equal(t, "item-1", o.Items[0].ItemID)
+	assert.Len(t, o.Photos, 1)
+	assert.Equal(t, "photo-1", o.Photos[0].ID)
 }
