@@ -49,5 +49,8 @@ type OutfitRepository interface {
 	SavePhoto(ctx context.Context, outfitID, photoID, mediaKey string, position int) error
 
 	// DeletePhoto removes the photo record identified by outfitID + mediaKey.
+	// mediaKey is used as the deletion key (rather than photoID) because it is
+	// the stable identifier that callers receive from the media provider and
+	// can reliably supply without a prior Get round-trip.
 	DeletePhoto(ctx context.Context, outfitID, mediaKey string) error
 }
