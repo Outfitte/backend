@@ -4,12 +4,13 @@ package ports
 // It is the single dependency that run.go passes to service constructors
 // and is populated by the adapter factory.
 type Repositories struct {
-	Items       ItemRepository
-	Users       UserRepository
-	Sessions    SessionRepository
-	Locations   LocationRepository
-	WearLogs    WearLogRepository
-	OutfitLogs  OutfitLogRepository
-	AppSettings AppSettingsRepository
-	Outfits     OutfitRepository
+	Items               ItemRepository
+	Users               UserRepository
+	Sessions            SessionRepository
+	Locations           LocationRepository
+	WearLogs            WearLogRepository
+	AppSettings         AppSettingsRepository
+	Outfits             OutfitRepository
+	OutfitLogs          OutfitLogRepository
+	OutfitLogTransactor OutfitLogTransactor
 }
