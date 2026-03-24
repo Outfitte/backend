@@ -9,5 +9,6 @@ type Repositories struct {
 	Sessions    SessionRepository
 	Locations   LocationRepository
 	WearLogs    WearLogRepository
+	OutfitLogs  OutfitLogRepository
 	AppSettings AppSettingsRepository
 }
