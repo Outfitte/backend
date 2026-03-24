@@ -200,7 +200,7 @@ func TestMigration004DownShouldDropAllOutfitTables(t *testing.T) {
 	m, err := newMigrateRunner(src, db)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(4))
 	require.NoError(t, m.Steps(-1))
 
 	for _, tbl := range []string{"outfit_log_wear_logs", "outfit_logs", "outfit_photos", "outfit_items", "outfits"} {
@@ -284,7 +284,19 @@ func TestMigration004UpShouldCascadeDeleteOutfitChildRowsWhenOutfitDeleted(t *te
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO items (id, owner_id, name, created_at) VALUES ('i1', 'u1', 'shirt', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO wear_logs (id, item_id, owner_id, worn_on, created_at) VALUES ('w1', 'i1', 'u1', '2024-01-01', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
 		`INSERT INTO outfits (id, owner_id, created_at) VALUES ('o1', 'u1', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfit_items (outfit_id, item_id) VALUES ('o1', 'i1')`)
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(t.Context(),
@@ -292,14 +304,26 @@ func TestMigration004UpShouldCascadeDeleteOutfitChildRowsWhenOutfitDeleted(t *te
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(t.Context(),
-		`DELETE FROM outfits WHERE id = 'o1'`)
+		`INSERT INTO outfit_logs (id, outfit_id, owner_id, worn_on, created_at) VALUES ('ol1', 'o1', 'u1', '2024-01-01', '2024-01-01')`)
 	require.NoError(t, err)
 
-	var count int
-	require.NoError(t, db.QueryRowContext(t.Context(),
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfit_log_wear_logs (outfit_log_id, wear_log_id) VALUES ('ol1', 'w1')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `DELETE FROM outfits WHERE id = 'o1'`)
+	require.NoError(t, err)
+
+	for _, query := range []string{
+		`SELECT COUNT(*) FROM outfit_items WHERE outfit_id = 'o1'`,
 		`SELECT COUNT(*) FROM outfit_photos WHERE outfit_id = 'o1'`,
-	).Scan(&count))
-	require.Equal(t, 0, count, "outfit_photos rows should be cascade-deleted")
+		`SELECT COUNT(*) FROM outfit_logs WHERE outfit_id = 'o1'`,
+		`SELECT COUNT(*) FROM outfit_log_wear_logs WHERE outfit_log_id = 'ol1'`,
+	} {
+		var count int
+		require.NoError(t, db.QueryRowContext(t.Context(), query).Scan(&count))
+		require.Equal(t, 0, count, "expected 0 rows for: %s", query)
+	}
 }
 
 func TestTokenHashIndexIsUsedForLookup(t *testing.T) {
