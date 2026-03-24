@@ -29,7 +29,8 @@ type OutfitRepository interface {
 	Delete(ctx context.Context, id string) error
 
 	// ListByOwner returns all outfits belonging to ownerID, each including
-	// its items and photos. Implementations must avoid N+1 queries.
+	// its items and photos. Implementations must load all items and photos in
+	// a single batched call rather than one per outfit.
 	ListByOwner(ctx context.Context, ownerID string) ([]domain.Outfit, error)
 
 	// SaveItem creates or updates the association between outfitID and itemID,
