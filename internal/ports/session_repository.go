@@ -14,10 +14,10 @@ type SessionRepository interface {
 	// Returns domain.ErrNotFound if no session with that ID exists.
 	Get(ctx context.Context, id string) (domain.Session, error)
 
-	// Save upserts the session row.
+	// Save creates or updates the session.
 	Save(ctx context.Context, session domain.Session) error
 
-	// Delete removes the session row identified by id.
+	// Delete removes the session identified by id.
 	// Returns domain.ErrNotFound if no session with that ID exists.
 	Delete(ctx context.Context, id string) error
 

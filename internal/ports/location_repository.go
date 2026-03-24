@@ -14,10 +14,10 @@ type LocationRepository interface {
 	// Returns domain.ErrNotFound if no location with that ID exists.
 	Get(ctx context.Context, id string) (domain.Location, error)
 
-	// Save upserts the location row.
+	// Save creates or updates the location.
 	Save(ctx context.Context, location domain.Location) error
 
-	// Delete removes the location row identified by id.
+	// Delete removes the location identified by id.
 	// Returns domain.ErrNotFound if no location with that ID exists.
 	Delete(ctx context.Context, id string) error
 
