@@ -223,7 +223,7 @@ func TestMigration004UpShouldCreateAllOutfitTables(t *testing.T) {
 	m, err := newMigrateRunner(src, db)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(4))
 
 	for _, tbl := range []string{"outfits", "outfit_items", "outfit_photos", "outfit_logs", "outfit_log_wear_logs"} {
 		var count int
@@ -245,7 +245,7 @@ func TestMigration004UpShouldCreateAllOutfitIndexes(t *testing.T) {
 	m, err := newMigrateRunner(src, db)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(4))
 
 	for _, idx := range []string{
 		"idx_outfits_owner_id",
