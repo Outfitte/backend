@@ -9,7 +9,7 @@ type OutfitLog struct {
 	uniqueEntity
 	OutfitID   string
 	OwnerID    string
-	WornOn     time.Time // calendar date, stored as YYYY-MM-DD
+	WornOn     time.Time // calendar date; store as YYYY-MM-DD string in the database
 	Notes      *string   // optional
 	WearLogIDs []string  // IDs of auto-generated wear logs linked via join table
 	CreatedAt  time.Time

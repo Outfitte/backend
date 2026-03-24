@@ -6,6 +6,7 @@ import (
 
 	"github.com/outfitte/outfitte/internal/domain"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOutfitLogShouldHaveNilNotesWhenNotSet(t *testing.T) {
@@ -35,6 +36,6 @@ func TestOutfitLogShouldHoldWearLogIDsWhenPopulated(t *testing.T) {
 	var ol domain.OutfitLog
 	ol.ID = "42"
 	ol.WearLogIDs = []string{"wl-1", "wl-2"}
-	assert.Len(t, ol.WearLogIDs, 2)
+	require.Len(t, ol.WearLogIDs, 2)
 	assert.Equal(t, "wl-1", ol.WearLogIDs[0])
 }
