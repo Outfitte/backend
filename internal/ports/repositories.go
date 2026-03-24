@@ -10,4 +10,5 @@ type Repositories struct {
 	Locations   LocationRepository
 	WearLogs    WearLogRepository
 	AppSettings AppSettingsRepository
+	Outfits     OutfitRepository
 }
