@@ -81,7 +81,7 @@ func TestMigrateDownShouldDropTokenHashIndex(t *testing.T) {
 	).Scan(&count))
 	require.Equal(t, 1, count, "index should exist after up migration")
 
-	require.NoError(t, m.Steps(-1))
+	require.NoError(t, m.Steps(-2))
 
 	require.NoError(t, db.QueryRow(
 		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_sessions_token_hash'`,
@@ -102,6 +102,61 @@ func TestRunMigrationsShouldReturnErrIOWhenMigrationsAreDirty(t *testing.T) {
 
 	err = RunMigrations(t.Context(), db)
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func itemColumnNames(t *testing.T, db *sql.DB) []string {
+	t.Helper()
+	rows, err := db.Query(`PRAGMA table_info(items)`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var cols []string
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, colType string
+		var dfltValue sql.NullString
+		require.NoError(t, rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk))
+		cols = append(cols, name)
+	}
+	require.NoError(t, rows.Err())
+	return cols
+}
+
+func TestMigration003UpShouldRemoveWearCountAndLastWornAtFromItems(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Up())
+
+	cols := itemColumnNames(t, db)
+	require.NotContains(t, cols, "wear_count")
+	require.NotContains(t, cols, "last_worn_at")
+}
+
+func TestMigration003DownShouldRestoreWearCountAndLastWornAtToItems(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(-1))
+
+	cols := itemColumnNames(t, db)
+	require.Contains(t, cols, "wear_count")
+	require.Contains(t, cols, "last_worn_at")
 }
 
 func TestTokenHashIndexIsUsedForLookup(t *testing.T) {
