@@ -78,6 +78,12 @@ func TestOutfitShouldHaveNameAndNotesAsOptionalPointersWhenAbsent(t *testing.T) 
 	assert.Equal(t, "casual", *o.Notes)
 }
 
+func TestUniqueEntityShouldReturnIDWhenGetIDCalled(t *testing.T) {
+	var o domain.Outfit
+	o.ID = "outfit-99"
+	assert.Equal(t, "outfit-99", o.GetID())
+}
+
 func TestOutfitShouldHoldItemsAndPhotosWhenSet(t *testing.T) {
 	var o domain.Outfit
 	o.ID = "42"
