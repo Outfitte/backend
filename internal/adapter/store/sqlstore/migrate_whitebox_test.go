@@ -180,13 +180,150 @@ func TestMigration003DownShouldRestoreWearCountAndLastWornAtToItems(t *testing.T
 	m, err := newMigrateRunner(src, db)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(3))
 	require.NoError(t, m.Steps(-1))
 
 	cols, err := itemColumnNames(t.Context(), db)
 	require.NoError(t, err)
 	require.Contains(t, cols, "wear_count")
 	require.Contains(t, cols, "last_worn_at")
+}
+
+func TestMigration004DownShouldDropAllOutfitTables(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(4))
+	require.NoError(t, m.Steps(-1))
+
+	for _, tbl := range []string{"outfit_log_wear_logs", "outfit_logs", "outfit_photos", "outfit_items", "outfits"} {
+		var count int
+		require.NoError(t, db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, tbl,
+		).Scan(&count))
+		require.Equal(t, 0, count, "table %s should be dropped after down migration", tbl)
+	}
+}
+
+func TestMigration004UpShouldCreateAllOutfitTables(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(4))
+
+	for _, tbl := range []string{"outfits", "outfit_items", "outfit_photos", "outfit_logs", "outfit_log_wear_logs"} {
+		var count int
+		require.NoError(t, db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, tbl,
+		).Scan(&count))
+		require.Equal(t, 1, count, "table %s should exist after up migration", tbl)
+	}
+}
+
+func TestMigration004UpShouldCreateAllOutfitIndexes(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(4))
+
+	for _, idx := range []string{
+		"idx_outfits_owner_id",
+		"idx_outfit_items_item_id",
+		"idx_outfit_photos_outfit_id",
+		"idx_outfit_logs_outfit_id",
+		"idx_outfit_logs_owner_worn",
+		"idx_outfit_log_wear_logs_wear_log_id",
+	} {
+		var count int
+		require.NoError(t, db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?`, idx,
+		).Scan(&count))
+		require.Equal(t, 1, count, "index %s should exist after up migration", idx)
+	}
+}
+
+func TestMigration004UpShouldCascadeDeleteOutfitChildRowsWhenOutfitDeleted(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Up())
+
+	_, err = db.ExecContext(t.Context(), `PRAGMA foreign_keys = ON`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO items (id, owner_id, name, created_at) VALUES ('i1', 'u1', 'shirt', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO wear_logs (id, item_id, owner_id, worn_on, created_at) VALUES ('w1', 'i1', 'u1', '2024-01-01', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfits (id, owner_id, created_at) VALUES ('o1', 'u1', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfit_items (outfit_id, item_id) VALUES ('o1', 'i1')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfit_photos (id, outfit_id, media_key, created_at) VALUES ('p1', 'o1', 'key', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfit_logs (id, outfit_id, owner_id, worn_on, created_at) VALUES ('ol1', 'o1', 'u1', '2024-01-01', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO outfit_log_wear_logs (outfit_log_id, wear_log_id) VALUES ('ol1', 'w1')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `DELETE FROM outfits WHERE id = 'o1'`)
+	require.NoError(t, err)
+
+	for _, query := range []string{
+		`SELECT COUNT(*) FROM outfit_items WHERE outfit_id = 'o1'`,
+		`SELECT COUNT(*) FROM outfit_photos WHERE outfit_id = 'o1'`,
+		`SELECT COUNT(*) FROM outfit_logs WHERE outfit_id = 'o1'`,
+		`SELECT COUNT(*) FROM outfit_log_wear_logs WHERE outfit_log_id = 'ol1'`,
+	} {
+		var count int
+		require.NoError(t, db.QueryRowContext(t.Context(), query).Scan(&count))
+		require.Equal(t, 0, count, "expected 0 rows for: %s", query)
+	}
 }
 
 func TestTokenHashIndexIsUsedForLookup(t *testing.T) {
