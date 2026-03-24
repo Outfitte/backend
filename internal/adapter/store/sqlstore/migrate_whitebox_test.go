@@ -73,7 +73,7 @@ func TestMigrateDownShouldDropTokenHashIndex(t *testing.T) {
 	m, err := newMigrateRunner(src, db)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(2))
 
 	var count int
 	require.NoError(t, db.QueryRow(
@@ -81,7 +81,7 @@ func TestMigrateDownShouldDropTokenHashIndex(t *testing.T) {
 	).Scan(&count))
 	require.Equal(t, 1, count, "index should exist after up migration")
 
-	require.NoError(t, m.Steps(-2))
+	require.NoError(t, m.Steps(-1))
 
 	require.NoError(t, db.QueryRow(
 		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_sessions_token_hash'`,
