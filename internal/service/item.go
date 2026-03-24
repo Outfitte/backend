@@ -156,6 +156,7 @@ func (s *ItemService) ListByOwner(ctx context.Context, callerID string, filter p
 	if err != nil {
 		return nil, err
 	}
+	// N+1 accepted at personal scale; a batch stats query can be added later if needed.
 	rich := make([]RichItem, len(items))
 	for i, item := range items {
 		r, err := s.enrichItem(ctx, item)
@@ -168,11 +169,11 @@ func (s *ItemService) ListByOwner(ctx context.Context, callerID string, filter p
 }
 
 func (s *ItemService) enrichItem(ctx context.Context, item domain.Item) (RichItem, error) {
-	count, err := s.wearLogs.CountByItem(ctx, item.GetID())
+	count, err := s.wearLogs.CountByItem(ctx, item.ID)
 	if err != nil {
 		return RichItem{}, err
 	}
-	latest, err := s.wearLogs.LatestByItem(ctx, item.GetID())
+	latest, err := s.wearLogs.LatestByItem(ctx, item.ID)
 	if err != nil {
 		return RichItem{}, err
 	}
