@@ -133,6 +133,7 @@ func (r *OutfitRepository) SaveItem(ctx context.Context, outfitID, itemID string
 }
 
 // DeleteItem removes the association between outfitID and itemID.
+// This operation is idempotent: deleting a non-existent association is not an error.
 func (r *OutfitRepository) DeleteItem(ctx context.Context, outfitID, itemID string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -365,7 +366,8 @@ func (r *OutfitRepository) queryOutfitsByOwner(ctx context.Context, ownerID stri
 	const q = `
 		SELECT id, owner_id, name, notes, created_at
 		FROM outfits
-		WHERE owner_id = ?`
+		WHERE owner_id = ?
+		ORDER BY created_at ASC`
 
 	rows, err := r.db.QueryContext(ctx, q, ownerID)
 	if err != nil {
