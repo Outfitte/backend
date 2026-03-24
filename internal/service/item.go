@@ -44,17 +44,25 @@ type categoryGetter interface {
 	GetByID(ctx context.Context, id string) (domain.Category, error)
 }
 
+// RichItem is a domain.Item enriched with computed wear statistics.
+type RichItem struct {
+	domain.Item
+	WearCount  int
+	LastWornAt *time.Time
+}
+
 // ItemService manages wardrobe items.
 type ItemService struct {
 	items      ports.ItemRepository
 	locations  ports.LocationRepository
 	media      ports.MediaProvider
 	categories categoryGetter
+	wearLogs   ports.WearLogRepository
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media, categories: categories}
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, wearLogs ports.WearLogRepository) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, wearLogs: wearLogs}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -126,25 +134,53 @@ func (s *ItemService) Create(ctx context.Context, callerID string, input CreateI
 	return item, nil
 }
 
-func (s *ItemService) GetByID(ctx context.Context, callerID, itemID string) (domain.Item, error) {
+func (s *ItemService) GetByID(ctx context.Context, callerID, itemID string) (RichItem, error) {
 	if err := ctx.Err(); err != nil {
-		return domain.Item{}, err
+		return RichItem{}, err
 	}
 	item, err := s.items.Get(ctx, itemID)
 	if err != nil {
-		return domain.Item{}, err
+		return RichItem{}, err
 	}
 	if item.OwnerID != callerID {
-		return domain.Item{}, domain.ErrForbidden
+		return RichItem{}, domain.ErrForbidden
 	}
-	return item, nil
+	return s.enrichItem(ctx, item)
 }
 
-func (s *ItemService) ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error) {
+func (s *ItemService) ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]RichItem, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return s.items.ListByOwner(ctx, callerID, filter)
+	items, err := s.items.ListByOwner(ctx, callerID, filter)
+	if err != nil {
+		return nil, err
+	}
+	rich := make([]RichItem, len(items))
+	for i, item := range items {
+		r, err := s.enrichItem(ctx, item)
+		if err != nil {
+			return nil, err
+		}
+		rich[i] = r
+	}
+	return rich, nil
+}
+
+func (s *ItemService) enrichItem(ctx context.Context, item domain.Item) (RichItem, error) {
+	count, err := s.wearLogs.CountByItem(ctx, item.GetID())
+	if err != nil {
+		return RichItem{}, err
+	}
+	latest, err := s.wearLogs.LatestByItem(ctx, item.GetID())
+	if err != nil {
+		return RichItem{}, err
+	}
+	rich := RichItem{Item: item, WearCount: count}
+	if latest != nil {
+		rich.LastWornAt = &latest.WornOn
+	}
+	return rich, nil
 }
 
 func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input UpdateItemInput) (domain.Item, error) {

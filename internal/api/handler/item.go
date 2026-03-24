@@ -34,7 +34,9 @@ type itemResponse struct {
 	LocationID    *string           `json:"location_id"`
 	PurchasePrice *string           `json:"purchase_price"`
 	// PurchaseDate is omitted intentionally — it is deferred to M4+.
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt  time.Time `json:"created_at"`
+	WearCount  int       `json:"wear_count"`
+	LastWornAt *string   `json:"last_worn_at"`
 }
 
 func toItemResponse(item domain.Item) itemResponse {
@@ -66,10 +68,20 @@ func toItemResponse(item domain.Item) itemResponse {
 	}
 }
 
+func toRichItemResponse(item service.RichItem) itemResponse {
+	r := toItemResponse(item.Item)
+	r.WearCount = item.WearCount
+	if item.LastWornAt != nil {
+		s := item.LastWornAt.Format("2006-01-02")
+		r.LastWornAt = &s
+	}
+	return r
+}
+
 type itemService interface {
 	Create(ctx context.Context, callerID string, input service.CreateItemInput) (domain.Item, error)
-	ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error)
-	GetByID(ctx context.Context, callerID, itemID string) (domain.Item, error)
+	ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]service.RichItem, error)
+	GetByID(ctx context.Context, callerID, itemID string) (service.RichItem, error)
 	Update(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error)
 	Delete(ctx context.Context, callerID, itemID string) error
 	UploadPhoto(ctx context.Context, callerID, itemID string, r io.Reader, filename string) error
@@ -230,7 +242,7 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	responses := make([]itemResponse, len(items))
 	for i, item := range items {
-		responses[i] = toItemResponse(item)
+		responses[i] = toRichItemResponse(item)
 	}
 	log.InfoContext(ctx, "succeeded", "count", len(items))
 	writeJSON(w, http.StatusOK, responses)
@@ -266,7 +278,7 @@ func (h *ItemHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "item_id", item.ID)
-	writeJSON(w, http.StatusOK, toItemResponse(item))
+	writeJSON(w, http.StatusOK, toRichItemResponse(item))
 }
 
 // Update handles PATCH /items/{id}.

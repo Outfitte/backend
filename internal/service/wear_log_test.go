@@ -16,7 +16,9 @@ type mockWearLogRepo struct {
 	saveErr error
 	delErr  error
 
-	listByItemErr error
+	listByItemErr   error
+	countByItemErr  error
+	latestByItemErr error
 }
 
 func (m *mockWearLogRepo) Get(_ context.Context, id string) (domain.WearLog, error) {
@@ -72,6 +74,9 @@ func (m *mockWearLogRepo) ListByItem(_ context.Context, itemID string) ([]domain
 }
 
 func (m *mockWearLogRepo) LatestByItem(_ context.Context, itemID string) (*domain.WearLog, error) {
+	if m.latestByItemErr != nil {
+		return nil, m.latestByItemErr
+	}
 	for _, l := range m.logs {
 		if l.ItemID == itemID {
 			return &l, nil
@@ -81,6 +86,9 @@ func (m *mockWearLogRepo) LatestByItem(_ context.Context, itemID string) (*domai
 }
 
 func (m *mockWearLogRepo) CountByItem(_ context.Context, itemID string) (int, error) {
+	if m.countByItemErr != nil {
+		return 0, m.countByItemErr
+	}
 	count := 0
 	for _, l := range m.logs {
 		if l.ItemID == itemID {

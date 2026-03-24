@@ -26,7 +26,7 @@ func New(
 	userSvc := service.NewUserService(repos.Users, repos.AppSettings)
 	authSvc := service.NewAuthService(repos.Users, repos.Sessions, []byte(cfg.JWTSecret))
 	categorySvc := service.NewCategoryService()
-	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc)
+	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc, repos.WearLogs)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items)
 	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items)
 

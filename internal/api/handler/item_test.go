@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/outfitte/outfitte/internal/api/handler"
 	"github.com/outfitte/outfitte/internal/api/middleware"
@@ -28,8 +29,8 @@ import (
 type fakeItemService struct {
 	assignLocationFn func(ctx context.Context, callerID, itemID string, locationID *string) error
 	createFn         func(ctx context.Context, callerID string, input service.CreateItemInput) (domain.Item, error)
-	listByOwnerFn    func(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error)
-	getByIDFn        func(ctx context.Context, callerID, itemID string) (domain.Item, error)
+	listByOwnerFn    func(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]service.RichItem, error)
+	getByIDFn        func(ctx context.Context, callerID, itemID string) (service.RichItem, error)
 	updateFn         func(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error)
 	deleteFn         func(ctx context.Context, callerID, itemID string) error
 	uploadPhotoFn    func(ctx context.Context, callerID, itemID string, r io.Reader, filename string) error
@@ -50,18 +51,18 @@ func (f *fakeItemService) Create(ctx context.Context, callerID string, input ser
 	return domain.Item{}, nil
 }
 
-func (f *fakeItemService) ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]domain.Item, error) {
+func (f *fakeItemService) ListByOwner(ctx context.Context, callerID string, filter ports.ItemListFilter) ([]service.RichItem, error) {
 	if f.listByOwnerFn != nil {
 		return f.listByOwnerFn(ctx, callerID, filter)
 	}
 	return nil, nil
 }
 
-func (f *fakeItemService) GetByID(ctx context.Context, callerID, itemID string) (domain.Item, error) {
+func (f *fakeItemService) GetByID(ctx context.Context, callerID, itemID string) (service.RichItem, error) {
 	if f.getByIDFn != nil {
 		return f.getByIDFn(ctx, callerID, itemID)
 	}
-	return domain.Item{}, nil
+	return service.RichItem{}, nil
 }
 
 func (f *fakeItemService) Update(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error) {
@@ -382,7 +383,7 @@ func TestListHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T
 
 func TestListHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, _ string, _ ports.ItemListFilter) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, _ string, _ ports.ItemListFilter) ([]service.RichItem, error) {
 			return nil, domain.ErrIO
 		},
 	}
@@ -403,9 +404,9 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	item2.Name = "Black Jeans"
 
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, callerID string, _ ports.ItemListFilter) ([]service.RichItem, error) {
 			require.Equal(t, "user-1", callerID)
-			return []domain.Item{item1, item2}, nil
+			return []service.RichItem{{Item: item1}, {Item: item2}}, nil
 		},
 	}
 	h := newItemHandler(svc)
@@ -435,8 +436,8 @@ func TestGetByIDHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testin
 
 func TestGetByIDHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
 	svc := &fakeItemService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
-			return domain.Item{}, domain.ErrNotFound
+		getByIDFn: func(_ context.Context, _, _ string) (service.RichItem, error) {
+			return service.RichItem{}, domain.ErrNotFound
 		},
 	}
 	h := newItemHandler(svc)
@@ -448,8 +449,8 @@ func TestGetByIDHandlerShouldReturn404WhenItemDoesNotExist(t *testing.T) {
 
 func TestGetByIDHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
 	svc := &fakeItemService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
-			return domain.Item{}, domain.ErrForbidden
+		getByIDFn: func(_ context.Context, _, _ string) (service.RichItem, error) {
+			return service.RichItem{}, domain.ErrForbidden
 		},
 	}
 	h := newItemHandler(svc)
@@ -461,8 +462,8 @@ func TestGetByIDHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
 
 func TestGetByIDHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
-			return domain.Item{}, domain.ErrIO
+		getByIDFn: func(_ context.Context, _, _ string) (service.RichItem, error) {
+			return service.RichItem{}, domain.ErrIO
 		},
 	}
 	h := newItemHandler(svc)
@@ -479,10 +480,10 @@ func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T
 	item.Name = "Blue Shirt"
 
 	svc := &fakeItemService{
-		getByIDFn: func(_ context.Context, callerID, itemID string) (domain.Item, error) {
+		getByIDFn: func(_ context.Context, callerID, itemID string) (service.RichItem, error) {
 			require.Equal(t, "user-1", callerID)
 			require.Equal(t, "item-42", itemID)
-			return item, nil
+			return service.RichItem{Item: item}, nil
 		},
 	}
 	h := newItemHandler(svc)
@@ -835,12 +836,14 @@ func TestDeletePhotoHandlerShouldReturn204WhenPhotoDeletedSuccessfully(t *testin
 
 // testItemResp mirrors the snake_case JSON shape returned by the item handlers.
 type testItemResp struct {
-	ID      string            `json:"id"`
-	OwnerID string            `json:"owner_id"`
-	Name    string            `json:"name"`
-	Brand   *string           `json:"brand"`
-	Color   *string           `json:"color"`
-	Meta    map[string]string `json:"metadata"`
+	ID         string            `json:"id"`
+	OwnerID    string            `json:"owner_id"`
+	Name       string            `json:"name"`
+	Brand      *string           `json:"brand"`
+	Color      *string           `json:"color"`
+	Meta       map[string]string `json:"metadata"`
+	WearCount  int               `json:"wear_count"`
+	LastWornAt *string           `json:"last_worn_at"`
 }
 
 // statefulFakeItemService is an in-memory item store used in the lifecycle integration test.
@@ -872,35 +875,35 @@ func (s *statefulFakeItemService) Create(ctx context.Context, callerID string, i
 	return item, nil
 }
 
-func (s *statefulFakeItemService) ListByOwner(ctx context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
+func (s *statefulFakeItemService) ListByOwner(ctx context.Context, callerID string, _ ports.ItemListFilter) ([]service.RichItem, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var result []domain.Item
+	var result []service.RichItem
 	for _, item := range s.items {
 		if item.OwnerID == callerID {
-			result = append(result, item)
+			result = append(result, service.RichItem{Item: item})
 		}
 	}
 	return result, nil
 }
 
-func (s *statefulFakeItemService) GetByID(ctx context.Context, callerID, itemID string) (domain.Item, error) {
+func (s *statefulFakeItemService) GetByID(ctx context.Context, callerID, itemID string) (service.RichItem, error) {
 	if err := ctx.Err(); err != nil {
-		return domain.Item{}, err
+		return service.RichItem{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	item, ok := s.items[itemID]
 	if !ok {
-		return domain.Item{}, domain.ErrNotFound
+		return service.RichItem{}, domain.ErrNotFound
 	}
 	if item.OwnerID != callerID {
-		return domain.Item{}, domain.ErrForbidden
+		return service.RichItem{}, domain.ErrForbidden
 	}
-	return item, nil
+	return service.RichItem{Item: item}, nil
 }
 
 func (s *statefulFakeItemService) Update(ctx context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error) {
@@ -1105,8 +1108,8 @@ func TestGetByIDHandlerShouldIncludePhotosInResponseWhenItemHasPhotos(t *testing
 	}
 
 	svc := &fakeItemService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
-			return item, nil
+		getByIDFn: func(_ context.Context, _, _ string) (service.RichItem, error) {
+			return service.RichItem{Item: item}, nil
 		},
 	}
 	h := newItemHandler(svc)
@@ -1136,8 +1139,8 @@ func TestGetByIDHandlerShouldIncludeMetadataAsFlatMapWhenItemHasMetadataFields(t
 	item.Metadata = domain.ItemMetadata{Fields: map[string]string{"size": "M", "material": "cotton"}}
 
 	svc := &fakeItemService{
-		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
-			return item, nil
+		getByIDFn: func(_ context.Context, _, _ string) (service.RichItem, error) {
+			return service.RichItem{Item: item}, nil
 		},
 	}
 	h := newItemHandler(svc)
@@ -1408,7 +1411,7 @@ func TestListHandlerShouldReturn400WhenStatusQueryParamIsUnknown(t *testing.T) {
 func TestListHandlerShouldPassActiveStatusFilterByDefaultWhenNoQueryParam(t *testing.T) {
 	var gotFilter ports.ItemListFilter
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]service.RichItem, error) {
 			gotFilter = filter
 			return nil, nil
 		},
@@ -1420,7 +1423,7 @@ func TestListHandlerShouldPassActiveStatusFilterByDefaultWhenNoQueryParam(t *tes
 func TestListHandlerShouldPassArchivedStatusFilterWhenQueryParamIsArchived(t *testing.T) {
 	var gotFilter ports.ItemListFilter
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]service.RichItem, error) {
 			gotFilter = filter
 			return nil, nil
 		},
@@ -1432,7 +1435,7 @@ func TestListHandlerShouldPassArchivedStatusFilterWhenQueryParamIsArchived(t *te
 func TestListHandlerShouldPassAllStatusFilterWhenQueryParamIsAll(t *testing.T) {
 	var gotFilter ports.ItemListFilter
 	svc := &fakeItemService{
-		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]domain.Item, error) {
+		listByOwnerFn: func(_ context.Context, _ string, filter ports.ItemListFilter) ([]service.RichItem, error) {
 			gotFilter = filter
 			return nil, nil
 		},
@@ -1441,3 +1444,33 @@ func TestListHandlerShouldPassAllStatusFilterWhenQueryParamIsAll(t *testing.T) {
 	require.Equal(t, ports.ItemStatusAll, gotFilter.Status)
 }
 
+func TestGetByIDHandlerShouldIncludeWearCountAndLastWornAtInResponse(t *testing.T) {
+	lastWorn := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	var item domain.Item
+	item.ID = "item-99"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+
+	rich := service.RichItem{
+		Item:       item,
+		WearCount:  2,
+		LastWornAt: &lastWorn,
+	}
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (service.RichItem, error) {
+			return rich, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-99", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, 2, got.WearCount)
+	require.NotNil(t, got.LastWornAt)
+	require.Equal(t, "2024-01-15", *got.LastWornAt)
+}

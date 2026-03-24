@@ -231,7 +231,7 @@ func (m *mockMediaProvider) GetURL(_ context.Context, _ string) (string, error) 
 // ── AssignLocation ────────────────────────────────────────────────────────────
 
 func TestItemServiceAssignLocationShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -240,7 +240,7 @@ func TestItemServiceAssignLocationShouldReturnErrorWhenContextIsCancelled(t *tes
 }
 
 func TestItemServiceAssignLocationShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", nil)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -248,7 +248,7 @@ func TestItemServiceAssignLocationShouldReturnErrNotFoundWhenItemDoesNotExist(t 
 
 func TestItemServiceAssignLocationShouldReturnErrorWhenItemStoreGetFails(t *testing.T) {
 	repo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -260,7 +260,7 @@ func TestItemServiceAssignLocationShouldReturnErrForbiddenWhenCallerIsNotItemOwn
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-2", "item-1", nil)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -273,7 +273,7 @@ func TestItemServiceAssignLocationShouldReturnErrNotFoundWhenLocationDoesNotExis
 
 	locID := "loc-1"
 	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(itemRepo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(itemRepo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", &locID)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -291,7 +291,7 @@ func TestItemServiceAssignLocationShouldReturnErrForbiddenWhenLocationBelongsToD
 	locID := "loc-1"
 	itemRepo := &mockItemRepo{items: []domain.Item{item}}
 	locRepo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewItemService(itemRepo, &mockMediaProvider{}, locRepo, NewCategoryService())
+	svc := NewItemService(itemRepo, &mockMediaProvider{}, locRepo, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", &locID)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -303,7 +303,7 @@ func TestItemServiceAssignLocationShouldReturnErrorWhenItemStoreSaveFails(t *tes
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -321,7 +321,7 @@ func TestItemServiceAssignLocationShouldAssignLocationIDWhenLocationBelongsToCal
 	locID := "loc-1"
 	itemRepo := &mockItemRepo{items: []domain.Item{item}}
 	locRepo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewItemService(itemRepo, &mockMediaProvider{}, locRepo, NewCategoryService())
+	svc := NewItemService(itemRepo, &mockMediaProvider{}, locRepo, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", &locID)
 	require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestItemServiceAssignLocationShouldClearLocationIDWhenLocationIDIsNil(t *te
 	item.LocationID = &existingLocID
 
 	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(itemRepo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(itemRepo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", nil)
 	require.NoError(t, err)
@@ -351,14 +351,14 @@ func TestItemServiceAssignLocationShouldClearLocationIDWhenLocationIDIsNil(t *te
 }
 
 func TestItemServiceCreateShouldReturnErrValidationWhenNameIsEmpty(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: ""})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
 func TestItemServiceCreateShouldReturnErrNotFoundWhenCategoryIDIsUnknown(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	catID := "unknown-cat-id"
 	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", CategoryID: &catID})
@@ -366,7 +366,7 @@ func TestItemServiceCreateShouldReturnErrNotFoundWhenCategoryIDIsUnknown(t *test
 }
 
 func TestItemServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -376,14 +376,14 @@ func TestItemServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) 
 
 func TestItemServiceCreateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	repo := &mockItemRepo{saveErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket"})
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestItemServiceCreateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{
 		Name:     "Jacket",
@@ -393,7 +393,7 @@ func TestItemServiceCreateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *t
 }
 
 func TestItemServiceCreateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	fields := make(map[string]string, 51)
 	for i := range 51 {
@@ -409,7 +409,7 @@ func TestItemServiceCreateShouldReturnErrValidationWhenMetadataExceedsMaxFields(
 func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 	repo := &mockItemRepo{}
 	catSvc := NewCategoryService()
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, catSvc)
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, catSvc, &mockWearLogRepo{})
 
 	cats, err := catSvc.ListAll(t.Context())
 	require.NoError(t, err)
@@ -444,7 +444,7 @@ func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 // ── GetByID ───────────────────────────────────────────────────────────────────
 
 func TestItemServiceGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -453,7 +453,7 @@ func TestItemServiceGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T)
 }
 
 func TestItemServiceGetByIDShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.GetByID(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -461,7 +461,7 @@ func TestItemServiceGetByIDShouldReturnErrNotFoundWhenItemDoesNotExist(t *testin
 
 func TestItemServiceGetByIDShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.GetByID(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -473,7 +473,7 @@ func TestItemServiceGetByIDShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testi
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.GetByID(t.Context(), "owner-2", "item-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -486,17 +486,17 @@ func TestItemServiceGetByIDShouldReturnItemWhenCallerIsOwner(t *testing.T) {
 	item.Name = "Jacket"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	got, err := svc.GetByID(t.Context(), "owner-1", "item-1")
 	require.NoError(t, err)
-	require.Equal(t, item, got)
+	require.Equal(t, item, got.Item)
 }
 
 // ── ListByOwner ───────────────────────────────────────────────────────────────
 
 func TestItemServiceListByOwnerShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -506,7 +506,7 @@ func TestItemServiceListByOwnerShouldReturnErrorWhenContextIsCancelled(t *testin
 
 func TestItemServiceListByOwnerShouldReturnErrorWhenListFails(t *testing.T) {
 	repo := &mockItemRepo{listByOwnerErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -518,7 +518,7 @@ func TestItemServiceListByOwnerShouldReturnEmptySliceWhenCallerHasNoItems(t *tes
 	other.OwnerID = "owner-2"
 
 	repo := &mockItemRepo{items: []domain.Item{other}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	got, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
 	require.NoError(t, err)
@@ -540,25 +540,25 @@ func TestItemServiceListByOwnerShouldReturnOnlyCallerItems(t *testing.T) {
 	item3.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item1, item2, item3}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	got, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
 	require.NoError(t, err)
 	require.Len(t, got, 2)
-	require.Equal(t, []domain.Item{item1, item3}, got)
+	require.Equal(t, []domain.Item{item1, item3}, []domain.Item{got[0].Item, got[1].Item})
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func TestItemServiceUpdateShouldReturnErrValidationWhenNameIsEmpty(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: ""})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
 func TestItemServiceUpdateShouldReturnErrNotFoundWhenCategoryIDIsUnknown(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	catID := "unknown-cat-id"
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", CategoryID: &catID})
@@ -571,7 +571,7 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *t
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
 		Name:     "Jacket",
@@ -586,7 +586,7 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataExceedsMaxFields(
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	fields := make(map[string]string, 51)
 	for i := range 51 {
@@ -600,7 +600,7 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataExceedsMaxFields(
 }
 
 func TestItemServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -609,7 +609,7 @@ func TestItemServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) 
 }
 
 func TestItemServiceUpdateShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -617,7 +617,7 @@ func TestItemServiceUpdateShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing
 
 func TestItemServiceUpdateShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -629,7 +629,7 @@ func TestItemServiceUpdateShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testin
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Update(t.Context(), "owner-2", "item-1", UpdateItemInput{Name: "Jacket"})
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -641,7 +641,7 @@ func TestItemServiceUpdateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Updated"})
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -655,7 +655,7 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 
 	catSvc := NewCategoryService()
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, catSvc)
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, catSvc, &mockWearLogRepo{})
 
 	cats, err := catSvc.ListAll(t.Context())
 	require.NoError(t, err)
@@ -693,7 +693,7 @@ func TestItemServiceUpdateShouldPreserveExistingMetadataKeysNotInPatch(t *testin
 	item.Metadata = domain.ItemMetadata{Fields: map[string]string{"color": "red", "size": "M"}}
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
 		Name:     "Jacket",
@@ -712,7 +712,7 @@ func TestItemServiceUpdateShouldDeleteMetadataKeyWhenValueIsEmptyString(t *testi
 	item.Metadata = domain.ItemMetadata{Fields: map[string]string{"color": "red", "size": "M"}}
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
 		Name:     "Jacket",
@@ -735,7 +735,7 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMergedMetadataExceeds50Fi
 	item.Metadata = domain.ItemMetadata{Fields: existingFields}
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	// Adding a new key would push the merged count to 51.
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
@@ -748,7 +748,7 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMergedMetadataExceeds50Fi
 // ── UploadPhoto ───────────────────────────────────────────────────────────────
 
 func TestItemServiceUploadPhotoShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -757,7 +757,7 @@ func TestItemServiceUploadPhotoShouldReturnErrorWhenContextIsCancelled(t *testin
 }
 
 func TestItemServiceUploadPhotoShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -765,7 +765,7 @@ func TestItemServiceUploadPhotoShouldReturnErrNotFoundWhenItemDoesNotExist(t *te
 
 func TestItemServiceUploadPhotoShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -777,7 +777,7 @@ func TestItemServiceUploadPhotoShouldReturnErrForbiddenWhenCallerIsNotOwner(t *t
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.UploadPhoto(t.Context(), "owner-2", "item-1", nil, "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -790,7 +790,7 @@ func TestItemServiceUploadPhotoShouldReturnErrorWhenUploadFails(t *testing.T) {
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	media := &mockMediaProvider{uploadErr: domain.ErrIO}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -802,7 +802,7 @@ func TestItemServiceUploadPhotoShouldReturnErrorWhenSavePhotoFails(t *testing.T)
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}, savePhotoErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -816,7 +816,7 @@ func TestItemServiceUploadPhotoShouldCallSavePhotoWithCorrectArgsWhenSuccessful(
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	media := &mockMediaProvider{}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "new.jpg")
 	require.NoError(t, err)
@@ -837,7 +837,7 @@ func TestItemServiceUploadPhotoShouldCallSavePhotoWithCorrectArgsWhenSuccessful(
 // ── DeletePhoto ───────────────────────────────────────────────────────────────
 
 func TestItemServiceDeletePhotoShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -847,14 +847,14 @@ func TestItemServiceDeletePhotoShouldReturnErrorWhenContextIsCancelled(t *testin
 
 func TestItemServiceDeletePhotoShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestItemServiceDeletePhotoShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -866,7 +866,7 @@ func TestItemServiceDeletePhotoShouldReturnErrForbiddenWhenCallerIsNotOwner(t *t
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-2", "item-1", "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -879,7 +879,7 @@ func TestItemServiceDeletePhotoShouldReturnErrNotFoundWhenPhotoKeyIsNotInItem(t 
 	item.Photos = []domain.ItemPhoto{{ID: "photo-other", MediaKey: "other.jpg", Position: 0}}
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "missing.jpg")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -893,7 +893,7 @@ func TestItemServiceDeletePhotoShouldReturnErrorWhenMediaDeleteFails(t *testing.
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	media := &mockMediaProvider{deleteErr: domain.ErrIO}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -906,7 +906,7 @@ func TestItemServiceDeletePhotoShouldReturnErrorWhenDeletePhotoFails(t *testing.
 	item.Photos = []domain.ItemPhoto{{ID: "photo-p", MediaKey: "photo.jpg", Position: 0}}
 
 	repo := &mockItemRepo{items: []domain.Item{item}, deletePhotoErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -924,7 +924,7 @@ func TestItemServiceDeletePhotoShouldDeleteMediaAndCallDeletePhotoWhenSuccessful
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	media := &mockMediaProvider{}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "remove.jpg")
 	require.NoError(t, err)
@@ -937,7 +937,7 @@ func TestItemServiceDeletePhotoShouldDeleteMediaAndCallDeletePhotoWhenSuccessful
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 func TestItemServiceDeleteShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -946,7 +946,7 @@ func TestItemServiceDeleteShouldReturnErrorWhenContextIsCancelled(t *testing.T) 
 }
 
 func TestItemServiceDeleteShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Delete(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -958,7 +958,7 @@ func TestItemServiceDeleteShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testin
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Delete(t.Context(), "owner-2", "item-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -970,7 +970,7 @@ func TestItemServiceDeleteShouldReturnErrorWhenListPhotoKeysFails(t *testing.T) 
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}, listPhotoErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Delete(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -983,7 +983,7 @@ func TestItemServiceDeleteShouldReturnErrorWhenMediaDeleteFails(t *testing.T) {
 
 	repo := &mockItemRepo{items: []domain.Item{item}, photoKeys: []string{"photo-1.jpg"}}
 	media := &mockMediaProvider{deleteErr: domain.ErrIO}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Delete(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -995,7 +995,7 @@ func TestItemServiceDeleteShouldReturnErrorWhenStoreDeleteFails(t *testing.T) {
 	item.OwnerID = "owner-1"
 
 	repo := &mockItemRepo{items: []domain.Item{item}, deleteErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Delete(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -1011,7 +1011,7 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 		photoKeys: []string{"photo-1.jpg", "photo-2.jpg"},
 	}
 	media := &mockMediaProvider{}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Delete(t.Context(), "owner-1", "item-1")
 	require.NoError(t, err)
@@ -1061,7 +1061,7 @@ func TestMakeItemPhotosShouldShareCreatedAtWhenMultipleKeysGiven(t *testing.T) {
 // ── Archive ───────────────────────────────────────────────────────────────────
 
 func TestItemServiceArchiveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -1070,7 +1070,7 @@ func TestItemServiceArchiveShouldReturnErrorWhenContextIsCancelled(t *testing.T)
 }
 
 func TestItemServiceArchiveShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Archive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -1081,7 +1081,7 @@ func TestItemServiceArchiveShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testi
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Archive(t.Context(), "other-owner", "item-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -1094,7 +1094,7 @@ func TestItemServiceArchiveShouldReturnErrAlreadyArchivedWhenItemIsAlreadyArchiv
 	item.OwnerID = "owner-1"
 	item.ArchivedAt = &now
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Archive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrAlreadyArchived)
@@ -1105,7 +1105,7 @@ func TestItemServiceArchiveShouldReturnErrorWhenSaveFails(t *testing.T) {
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Archive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -1116,7 +1116,7 @@ func TestItemServiceArchiveShouldSetArchivedAtWhenItemIsNotArchived(t *testing.T
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Archive(t.Context(), "owner-1", "item-1")
 	require.NoError(t, err)
@@ -1126,7 +1126,7 @@ func TestItemServiceArchiveShouldSetArchivedAtWhenItemIsNotArchived(t *testing.T
 // ── Unarchive ─────────────────────────────────────────────────────────────────
 
 func TestItemServiceUnarchiveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -1135,7 +1135,7 @@ func TestItemServiceUnarchiveShouldReturnErrorWhenContextIsCancelled(t *testing.
 }
 
 func TestItemServiceUnarchiveShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -1146,7 +1146,7 @@ func TestItemServiceUnarchiveShouldReturnErrForbiddenWhenCallerIsNotOwner(t *tes
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Unarchive(t.Context(), "other-owner", "item-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -1157,7 +1157,7 @@ func TestItemServiceUnarchiveShouldReturnErrNotArchivedWhenItemIsNotArchived(t *
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrNotArchived)
@@ -1170,7 +1170,7 @@ func TestItemServiceUnarchiveShouldReturnErrorWhenSaveFails(t *testing.T) {
 	item.OwnerID = "owner-1"
 	item.ArchivedAt = &now
 	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -1185,7 +1185,7 @@ func TestItemServiceUnarchiveShouldClearArchivedAtAndDisposalReasonWhenArchived(
 	item.ArchivedAt = &now
 	item.DisposalReason = &reason
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
 	require.NoError(t, err)
@@ -1196,7 +1196,7 @@ func TestItemServiceUnarchiveShouldClearArchivedAtAndDisposalReasonWhenArchived(
 // ── Dispose ───────────────────────────────────────────────────────────────────
 
 func TestItemServiceDisposeShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -1205,7 +1205,7 @@ func TestItemServiceDisposeShouldReturnErrorWhenContextIsCancelled(t *testing.T)
 }
 
 func TestItemServiceDisposeShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -1216,7 +1216,7 @@ func TestItemServiceDisposeShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testi
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Dispose(t.Context(), "other-owner", "item-1", domain.DisposalDonated)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -1227,7 +1227,7 @@ func TestItemServiceDisposeShouldReturnErrorWhenSaveFails(t *testing.T) {
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalSold)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -1238,7 +1238,7 @@ func TestItemServiceDisposeShouldSetDisposalReasonAndArchivedAtWhenItemIsNotArch
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
 	require.NoError(t, err)
@@ -1253,10 +1253,116 @@ func TestItemServiceDisposeShouldSetDisposalReasonWithoutChangingArchivedAtWhenA
 	item.OwnerID = "owner-1"
 	item.ArchivedAt = &archivedAt
 	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
 
 	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalSold)
 	require.NoError(t, err)
 	require.Equal(t, archivedAt, *repo.items[0].ArchivedAt)
 	require.Equal(t, domain.DisposalSold, *repo.items[0].DisposalReason)
+}
+
+// ── GetByID enrichment ────────────────────────────────────────────────────────
+
+func TestItemServiceGetByIDShouldReturnErrorWhenCountByItemFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	wearRepo := &mockWearLogRepo{countByItemErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), wearRepo)
+
+	_, err := svc.GetByID(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceGetByIDShouldReturnErrorWhenLatestByItemFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	wearRepo := &mockWearLogRepo{latestByItemErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), wearRepo)
+
+	_, err := svc.GetByID(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceGetByIDShouldEnrichWithZeroWearCountAndNilLastWornAtWhenNoWearLogs(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockWearLogRepo{})
+
+	got, err := svc.GetByID(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Equal(t, 0, got.WearCount)
+	require.Nil(t, got.LastWornAt)
+}
+
+func TestItemServiceGetByIDShouldEnrichWithWearCountAndLastWornAtWhenWearLogsExist(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	wornOn := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	var log1 domain.WearLog
+	log1.ID = "log-1"
+	log1.ItemID = "item-1"
+	log1.WornOn = wornOn
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	wearRepo := &mockWearLogRepo{logs: []domain.WearLog{log1}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), wearRepo)
+
+	got, err := svc.GetByID(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Equal(t, 1, got.WearCount)
+	require.NotNil(t, got.LastWornAt)
+	require.Equal(t, wornOn, *got.LastWornAt)
+}
+
+// ── ListByOwner enrichment ────────────────────────────────────────────────────
+
+func TestItemServiceListByOwnerShouldReturnErrorWhenCountByItemFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	wearRepo := &mockWearLogRepo{countByItemErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), wearRepo)
+
+	_, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceListByOwnerShouldEnrichItemsWithWearStatsWhenWearLogsExist(t *testing.T) {
+	var item1, item2 domain.Item
+	item1.ID = "item-1"
+	item1.OwnerID = "owner-1"
+	item2.ID = "item-2"
+	item2.OwnerID = "owner-1"
+
+	wornOn := time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC)
+	var log1 domain.WearLog
+	log1.ID = "log-1"
+	log1.ItemID = "item-1"
+	log1.WornOn = wornOn
+
+	repo := &mockItemRepo{items: []domain.Item{item1, item2}}
+	wearRepo := &mockWearLogRepo{logs: []domain.WearLog{log1}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), wearRepo)
+
+	got, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, 1, got[0].WearCount)
+	require.NotNil(t, got[0].LastWornAt)
+	require.Equal(t, wornOn, *got[0].LastWornAt)
+	require.Equal(t, 0, got[1].WearCount)
+	require.Nil(t, got[1].LastWornAt)
 }

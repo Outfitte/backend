@@ -16,7 +16,8 @@ func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T)
 	itemRepo := jsonstore.NewItemRepository(t.TempDir())
 	media := local.NewProvider(t.TempDir())
 	locRepo := jsonstore.NewLocationRepository(t.TempDir())
-	svc := service.NewItemService(itemRepo, media, locRepo, service.NewCategoryService())
+	wearLogRepo := jsonstore.NewWearLogRepository(t.TempDir())
+	svc := service.NewItemService(itemRepo, media, locRepo, service.NewCategoryService(), wearLogRepo)
 
 	ctx := t.Context()
 
