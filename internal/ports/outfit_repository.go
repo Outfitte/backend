@@ -22,8 +22,8 @@ type OutfitRepository interface {
 	// SaveItem / DeleteItem and SavePhoto / DeletePhoto for those.
 	Save(ctx context.Context, outfit domain.Outfit) error
 
-	// Delete removes the outfit row identified by id.
-	// Items and photos are removed via FK cascade.
+	// Delete removes the outfit identified by id, including all its associated
+	// items and photos.
 	// Returns domain.ErrNotFound if no outfit with that ID exists.
 	Delete(ctx context.Context, id string) error
 
