@@ -1340,6 +1340,19 @@ func TestItemServiceListByOwnerShouldReturnErrorWhenCountByItemFails(t *testing.
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemServiceListByOwnerShouldReturnErrorWhenLatestByItemFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	wearRepo := &mockWearLogRepo{latestByItemErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), wearRepo)
+
+	_, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestItemServiceListByOwnerShouldEnrichItemsWithWearStatsWhenWearLogsExist(t *testing.T) {
 	var item1, item2 domain.Item
 	item1.ID = "item-1"
