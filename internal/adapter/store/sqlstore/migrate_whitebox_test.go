@@ -1,8 +1,10 @@
 package sqlstore
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -73,7 +75,7 @@ func TestMigrateDownShouldDropTokenHashIndex(t *testing.T) {
 	m, err := newMigrateRunner(src, db)
 	require.NoError(t, err)
 
-	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(2))
 
 	var count int
 	require.NoError(t, db.QueryRow(
@@ -102,6 +104,89 @@ func TestRunMigrationsShouldReturnErrIOWhenMigrationsAreDirty(t *testing.T) {
 
 	err = RunMigrations(t.Context(), db)
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func itemColumnNames(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `PRAGMA table_info(items)`)
+	if err != nil {
+		return nil, fmt.Errorf("query table_info: %w", err)
+	}
+	defer rows.Close()
+
+	var cols []string
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, colType string
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			return nil, fmt.Errorf("scan table_info row: %w", err)
+		}
+		cols = append(cols, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return cols, nil
+}
+
+func TestItemColumnNamesShouldReturnErrWhenQueryFails(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	_, err = itemColumnNames(t.Context(), db)
+	require.Error(t, err)
+}
+
+func TestItemColumnNamesShouldReturnErrWhenScanFails(t *testing.T) {
+	db := openFakeDB(t, "fake-scan-err")
+	_, err := itemColumnNames(t.Context(), db)
+	require.Error(t, err)
+}
+
+func TestItemColumnNamesShouldReturnErrWhenRowsErrFails(t *testing.T) {
+	db := openFakeDB(t, "fake-rows-err")
+	_, err := itemColumnNames(t.Context(), db)
+	require.Error(t, err)
+}
+
+func TestMigration003UpShouldRemoveWearCountAndLastWornAtFromItems(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Up())
+
+	cols, err := itemColumnNames(t.Context(), db)
+	require.NoError(t, err)
+	require.NotContains(t, cols, "wear_count")
+	require.NotContains(t, cols, "last_worn_at")
+}
+
+func TestMigration003DownShouldRestoreWearCountAndLastWornAtToItems(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Up())
+	require.NoError(t, m.Steps(-1))
+
+	cols, err := itemColumnNames(t.Context(), db)
+	require.NoError(t, err)
+	require.Contains(t, cols, "wear_count")
+	require.Contains(t, cols, "last_worn_at")
 }
 
 func TestTokenHashIndexIsUsedForLookup(t *testing.T) {
