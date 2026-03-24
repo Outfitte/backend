@@ -12,8 +12,8 @@ type Entity interface {
 // Implementations must translate all infrastructure errors into domain errors
 // before returning them.
 //
-// Save is an upsert keyed on entity.GetID(): it creates the record if no record
-// with that id exists, or replaces it if one does.
+// Save creates or updates the entity keyed on entity.GetID(): it creates the
+// entity if none with that id exists, or replaces it if one does.
 type StorageProvider[T Entity] interface {
 	// Get retrieves the entity with the given id.
 	// Returns a domain not-found error if no entity with that id exists.

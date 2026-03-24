@@ -14,7 +14,7 @@ type UserRepository interface {
 	// Returns domain.ErrNotFound if no user with that ID exists.
 	Get(ctx context.Context, id string) (domain.User, error)
 
-	// Save upserts the user row.
+	// Save creates or updates the user.
 	// Returns domain.ErrConflict if the email is already in use by a different user.
 	Save(ctx context.Context, user domain.User) error
 

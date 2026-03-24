@@ -14,6 +14,6 @@ type AppSettingsRepository interface {
 	// Returns domain.ErrNotFound if no settings have been saved yet.
 	Load(ctx context.Context) (domain.AppSettings, error)
 
-	// Save upserts the singleton application settings.
+	// Save creates or updates the singleton application settings.
 	Save(ctx context.Context, settings domain.AppSettings) error
 }

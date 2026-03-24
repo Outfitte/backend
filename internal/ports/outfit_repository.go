@@ -10,7 +10,8 @@ import (
 // Implementations must translate all infrastructure errors into domain errors
 // before returning them.
 //
-// Get and ListByOwner must eagerly load outfit items and photos to avoid N+1 queries.
+// Get and ListByOwner must eagerly load outfit items and photos in a single
+// batched call rather than one per outfit.
 // Item and photo methods are kept separate from Save so callers can manage them
 // independently without re-saving the full outfit.
 type OutfitRepository interface {
@@ -18,7 +19,7 @@ type OutfitRepository interface {
 	// Returns domain.ErrNotFound if no outfit with that ID exists.
 	Get(ctx context.Context, id string) (domain.Outfit, error)
 
-	// Save upserts the outfit row. It does NOT touch item or photo records; use
+	// Save creates or updates the outfit. It does NOT touch item or photo entries; use
 	// SaveItem / DeleteItem and SavePhoto / DeletePhoto for those.
 	Save(ctx context.Context, outfit domain.Outfit) error
 
@@ -31,24 +32,24 @@ type OutfitRepository interface {
 	// its items and photos. Implementations must avoid N+1 queries.
 	ListByOwner(ctx context.Context, ownerID string) ([]domain.Outfit, error)
 
-	// SaveItem upserts the outfit-item link for outfitID + itemID, setting
-	// position to the provided value. If the link already exists the position
-	// is updated in place.
+	// SaveItem creates or updates the association between outfitID and itemID,
+	// setting position to the provided value. If the association already exists
+	// the position is updated in place.
 	SaveItem(ctx context.Context, outfitID, itemID string, position int) error
 
-	// DeleteItem removes the outfit-item link for outfitID + itemID.
+	// DeleteItem removes the association between outfitID and itemID.
 	DeleteItem(ctx context.Context, outfitID, itemID string) error
 
 	// ListItemIDs returns the ordered item IDs for outfitID. Use this when
 	// only IDs are needed; prefer Get when the full outfit is required.
 	ListItemIDs(ctx context.Context, outfitID string) ([]string, error)
 
-	// SavePhoto upserts a photo record linking photoID and mediaKey to outfitID
-	// at the given position. If a record for (outfitID, mediaKey) already exists
+	// SavePhoto saves a photo entry linking photoID and mediaKey to outfitID
+	// at the given position. If an entry for (outfitID, mediaKey) already exists
 	// the position is updated in place.
 	SavePhoto(ctx context.Context, outfitID, photoID, mediaKey string, position int) error
 
-	// DeletePhoto removes the photo record identified by outfitID + mediaKey.
+	// DeletePhoto removes the photo entry identified by outfitID + mediaKey.
 	// mediaKey is used as the deletion key (rather than photoID) because it is
 	// the stable identifier that callers receive from the media provider and
 	// can reliably supply without a prior Get round-trip.
