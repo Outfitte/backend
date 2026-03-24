@@ -1,6 +1,6 @@
 package ports
 
-// Repositories bundles all repository interfaces into a single struct.
+// Repositories bundles all repository and transactor interfaces into a single struct.
 // It is the single dependency that run.go passes to service constructors
 // and is populated by the adapter factory.
 type Repositories struct {
