@@ -12,12 +12,12 @@ import (
 // before returning them.
 type OutfitLogTransactor interface {
 	// CreateOutfitLog atomically creates the outfit log, creates one wear log
-	// per item in wearLogs, inserts join table entries linking them, and returns
+	// per item in wearLogs, creates the associations linking them, and returns
 	// the persisted outfit log with its WearLogIDs populated.
 	CreateOutfitLog(ctx context.Context, log domain.OutfitLog, wearLogs []domain.WearLog) (domain.OutfitLog, error)
 
-	// DeleteOutfitLog atomically deletes the outfit log, its join table entries,
-	// and all linked wear logs.
+	// DeleteOutfitLog atomically deletes the outfit log, all of its wear log
+	// associations, and all linked wear logs.
 	DeleteOutfitLog(ctx context.Context, outfitLogID string) error
 
 	// UpdateOutfitLogDate atomically updates the outfit log's worn_on date
