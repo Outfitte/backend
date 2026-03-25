@@ -16,5 +16,6 @@ func NewRepositories(db *sql.DB) ports.Repositories {
 		WearLogs:    NewWearLogRepository(db),
 		AppSettings: NewAppSettingsRepository(db),
 		Outfits:     NewOutfitRepository(db),
+		OutfitLogs:  NewOutfitLogRepository(db),
 	}
 }
