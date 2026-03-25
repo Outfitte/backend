@@ -220,6 +220,18 @@ func TestSelectLinkedWearLogIDsShouldReturnErrIOWhenScanFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+// ── deleteWearLogsByIDs: empty slice ──────────────────────────────────────────
+
+func TestDeleteWearLogsByIDsShouldBeNoOpWhenIDsIsEmpty(t *testing.T) {
+	db := openTestDB(t)
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	require.NoError(t, deleteWearLogsByIDs(t.Context(), tx, nil))
+	require.NoError(t, deleteWearLogsByIDs(t.Context(), tx, []string{}))
+}
+
 // ── deleteWearLogsByIDs: ExecContext error ────────────────────────────────────
 
 func TestDeleteWearLogsByIDsShouldReturnErrIOWhenExecFails(t *testing.T) {
@@ -278,9 +290,45 @@ func TestUpdateOutfitLogDateShouldReturnErrIOWhenExecFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+// ── updateOutfitLogDate: not found ────────────────────────────────────────────
+
+func TestUpdateOutfitLogDateShouldReturnErrNotFoundWhenOutfitLogDoesNotExist(t *testing.T) {
+	db := openTestDB(t)
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	err = updateOutfitLogDate(t.Context(), tx, "nonexistent-id", time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+// ── updateOutfitLogDate: RowsAffected error ───────────────────────────────────
+
+func TestUpdateOutfitLogDateShouldReturnErrIOWhenRowsAffectedFails(t *testing.T) {
+	db := openFakeDB(t, "fake-tx-rows-aff-err")
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	err = updateOutfitLogDate(t.Context(), tx, "ol-1", time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+// ── updateWearLogsDates: empty slice ──────────────────────────────────────────
+
+func TestUpdateWearLogsDatesShouldBeNoOpWhenIDsIsEmpty(t *testing.T) {
+	db := openTestDB(t)
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	require.NoError(t, updateWearLogsDates(t.Context(), tx, nil, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)))
+	require.NoError(t, updateWearLogsDates(t.Context(), tx, []string{}, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)))
+}
+
 // ── updateWearLogsDates: ExecContext error ────────────────────────────────────
 
-func TestUpdateWearLogsDatessShouldReturnErrIOWhenExecFails(t *testing.T) {
+func TestUpdateWearLogsDatesShouldReturnErrIOWhenExecFails(t *testing.T) {
 	db := openTestDB(t)
 	tx, err := db.BeginTx(t.Context(), nil)
 	require.NoError(t, err)

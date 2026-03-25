@@ -123,18 +123,8 @@ func (t *OutfitLogTransactor) DeleteOutfitLog(ctx context.Context, outfitLogID s
 		return err
 	}
 
-	// Delete the outfit log first so the ON DELETE CASCADE on outfit_log_wear_logs
-	// cleans up the join table before we remove the wear logs themselves.
-	// This avoids cascading into another outfit log's join rows if a wear log were
-	// ever shared (which the schema does not prevent).
-	if err := deleteOutfitLogByID(ctx, tx, outfitLogID); err != nil {
+	if err := deleteOutfitLogThenCascadedWearLogs(ctx, tx, outfitLogID, wearLogIDs); err != nil {
 		return err
-	}
-
-	if len(wearLogIDs) > 0 {
-		if err := deleteWearLogsByIDs(ctx, tx, wearLogIDs); err != nil {
-			return err
-		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -166,6 +156,9 @@ func selectLinkedWearLogIDs(ctx context.Context, tx *sql.Tx, outfitLogID string)
 }
 
 func deleteWearLogsByIDs(ctx context.Context, tx *sql.Tx, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
 	placeholders := strings.Repeat("?,", len(ids))
 	placeholders = placeholders[:len(placeholders)-1]
 	q := fmt.Sprintf("DELETE FROM wear_logs WHERE id IN (%s)", placeholders)
@@ -195,6 +188,16 @@ func deleteOutfitLogByID(ctx context.Context, tx *sql.Tx, outfitLogID string) er
 	return nil
 }
 
+// deleteOutfitLogThenCascadedWearLogs deletes the outfit log first so the
+// ON DELETE CASCADE on outfit_log_wear_logs fires before we remove the wear
+// logs, then deletes the now-unlinked wear logs.
+func deleteOutfitLogThenCascadedWearLogs(ctx context.Context, tx *sql.Tx, outfitLogID string, wearLogIDs []string) error {
+	if err := deleteOutfitLogByID(ctx, tx, outfitLogID); err != nil {
+		return err
+	}
+	return deleteWearLogsByIDs(ctx, tx, wearLogIDs)
+}
+
 // UpdateOutfitLogDate atomically updates the outfit log's worn_on date
 // and propagates the new date to all linked wear logs.
 func (t *OutfitLogTransactor) UpdateOutfitLogDate(ctx context.Context, outfitLogID string, newDate time.Time) error {
@@ -216,10 +219,8 @@ func (t *OutfitLogTransactor) UpdateOutfitLogDate(ctx context.Context, outfitLog
 		return err
 	}
 
-	if len(wearLogIDs) > 0 {
-		if err := updateWearLogsDates(ctx, tx, wearLogIDs, newDate); err != nil {
-			return err
-		}
+	if err := updateWearLogsDates(ctx, tx, wearLogIDs, newDate); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -230,13 +231,24 @@ func (t *OutfitLogTransactor) UpdateOutfitLogDate(ctx context.Context, outfitLog
 
 func updateOutfitLogDate(ctx context.Context, tx *sql.Tx, outfitLogID string, newDate time.Time) error {
 	const q = `UPDATE outfit_logs SET worn_on = ? WHERE id = ?`
-	if _, err := tx.ExecContext(ctx, q, newDate.Format("2006-01-02"), outfitLogID); err != nil {
+	result, err := tx.ExecContext(ctx, q, newDate.Format("2006-01-02"), outfitLogID)
+	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: id %s", domain.ErrNotFound, outfitLogID)
 	}
 	return nil
 }
 
 func updateWearLogsDates(ctx context.Context, tx *sql.Tx, ids []string, newDate time.Time) error {
+	if len(ids) == 0 {
+		return nil
+	}
 	placeholders := strings.Repeat("?,", len(ids))
 	placeholders = placeholders[:len(placeholders)-1]
 	q := fmt.Sprintf("UPDATE wear_logs SET worn_on = ? WHERE id IN (%s)", placeholders)

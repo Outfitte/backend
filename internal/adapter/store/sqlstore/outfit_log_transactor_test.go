@@ -111,6 +111,13 @@ func TestOutfitLogTransactorUpdateOutfitLogDateShouldReturnErrIOWhenDBIsClosed(t
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestOutfitLogTransactorUpdateOutfitLogDateShouldReturnErrNotFoundWhenIDDoesNotExist(t *testing.T) {
+	tr, _, _ := newOutfitLogTransactor(t)
+
+	err := tr.UpdateOutfitLogDate(t.Context(), "nonexistent-id", time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC))
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func TestOutfitLogTransactorUpdateOutfitLogDateShouldUpdateDateOnOutfitLogAndWearLogs(t *testing.T) {
 	tr, repo, db := newOutfitLogTransactor(t)
 	seedUserForOutfit(t, db, "user-upd-tx")
