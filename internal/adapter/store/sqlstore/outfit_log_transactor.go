@@ -101,7 +101,7 @@ func insertOutfitLogWearLink(ctx context.Context, tx *sql.Tx, outfitLogID, wearL
 	// outfit_log_wear_logs.wear_log_id has a UNIQUE index (migration 000005).
 	// A UNIQUE violation here means the caller is attempting to link a wear log
 	// that is already owned by a different outfit log — this indicates a logic
-	// error upstream, not a normal not-found or IO condition.
+	// error upstream and is surfaced as ErrConflict.
 	const q = `INSERT INTO outfit_log_wear_logs (outfit_log_id, wear_log_id) VALUES (?, ?)`
 	_, err := tx.ExecContext(ctx, q, outfitLogID, wearLogID)
 	if err != nil {
