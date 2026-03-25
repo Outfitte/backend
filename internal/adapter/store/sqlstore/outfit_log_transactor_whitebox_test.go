@@ -170,7 +170,7 @@ func TestInsertOutfitLogWearLinkShouldReturnErrIOWhenWearLogAlreadyLinkedToAnoth
 	defer tx2.Rollback() //nolint:errcheck
 
 	err = insertOutfitLogWearLink(t.Context(), tx2, "ol-uniq-2", "wl-uniq")
-	require.ErrorIs(t, err, domain.ErrIO)
+	require.ErrorIs(t, err, domain.ErrConflict)
 }
 
 // ── CreateOutfitLog: commit error ─────────────────────────────────────────────
