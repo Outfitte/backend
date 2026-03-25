@@ -18,6 +18,7 @@ func init() {
 	sql.Register("fake-tx-rows-err", &fakeTxRowsErrDriver{})
 	sql.Register("fake-tx-scan-err", &fakeTxScanErrDriver{})
 	// Transaction-level drivers: Begin succeeds, Query returns 0 rows.
+	sql.Register("fake-tx-rows-aff-err", &fakeTxRowsAffErrDriver{})
 	sql.Register("fake-tx-first-exec-fail", &fakeTxFirstExecFailDriver{})
 	sql.Register("fake-tx-exec-ok-commit-fail", &fakeTxExecOKCommitFailDriver{})
 	// Transaction-level drivers: Begin succeeds, Query returns 1 row ("wl-fake").
@@ -214,6 +215,35 @@ func (s *fakeTxScanErrStmt) NumInput() int                                 { ret
 func (s *fakeTxScanErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return &fakeOKResult{}, nil }
 func (s *fakeTxScanErrStmt) Query(_ []driver.Value) (driver.Rows, error) {
 	return &fakeScanErrRows{}, nil
+}
+
+// ── fake-tx-rows-aff-err ──────────────────────────────────────────────────────
+// Begin succeeds; Query returns 0 rows; Exec returns a result where RowsAffected() fails.
+
+type (
+	fakeTxRowsAffErrDriver struct{}
+	fakeTxRowsAffErrConn   struct{}
+	fakeTxRowsAffErrTx     struct{}
+	fakeTxRowsAffErrStmt   struct{}
+)
+
+func (d *fakeTxRowsAffErrDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxRowsAffErrConn{}, nil
+}
+func (c *fakeTxRowsAffErrConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxRowsAffErrStmt{}, nil
+}
+func (c *fakeTxRowsAffErrConn) Close() error              { return nil }
+func (c *fakeTxRowsAffErrConn) Begin() (driver.Tx, error) { return &fakeTxRowsAffErrTx{}, nil }
+func (tx *fakeTxRowsAffErrTx) Commit() error              { return nil }
+func (tx *fakeTxRowsAffErrTx) Rollback() error            { return nil }
+func (s *fakeTxRowsAffErrStmt) Close() error              { return nil }
+func (s *fakeTxRowsAffErrStmt) NumInput() int             { return -1 }
+func (s *fakeTxRowsAffErrStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	return &fakeRowsAffErrResult{}, nil
+}
+func (s *fakeTxRowsAffErrStmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeEmptyRows{}, nil
 }
 
 // ── fake-tx-first-exec-fail ───────────────────────────────────────────────────

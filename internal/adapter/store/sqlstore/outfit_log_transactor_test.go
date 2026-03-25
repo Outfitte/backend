@@ -20,11 +20,6 @@ func newOutfitLogTransactor(t *testing.T) (*sqlstore.OutfitLogTransactor, *sqlst
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func newOutfitLogTransactorWithDB(t *testing.T, db *sql.DB) *sqlstore.OutfitLogTransactor {
-	t.Helper()
-	return sqlstore.NewOutfitLogTransactor(db)
-}
-
 // ── CreateOutfitLog ───────────────────────────────────────────────────────────
 
 func TestOutfitLogTransactorCreateOutfitLogShouldReturnErrWhenContextCancelled(t *testing.T) {
@@ -63,6 +58,13 @@ func TestOutfitLogTransactorDeleteOutfitLogShouldReturnErrIOWhenDBIsClosed(t *te
 
 	err := tr.DeleteOutfitLog(t.Context(), "ol-1")
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestOutfitLogTransactorDeleteOutfitLogShouldReturnErrNotFoundWhenIDDoesNotExist(t *testing.T) {
+	tr, _, _ := newOutfitLogTransactor(t)
+
+	err := tr.DeleteOutfitLog(t.Context(), "nonexistent-id")
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestOutfitLogTransactorDeleteOutfitLogShouldRemoveOutfitLogAndLinkedWearLogs(t *testing.T) {

@@ -242,6 +242,18 @@ func TestDeleteOutfitLogByIDShouldReturnErrIOWhenExecFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+// ── deleteOutfitLogByID: RowsAffected error ───────────────────────────────────
+
+func TestDeleteOutfitLogByIDShouldReturnErrIOWhenRowsAffectedFails(t *testing.T) {
+	db := openFakeDB(t, "fake-tx-rows-aff-err")
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	err = deleteOutfitLogByID(t.Context(), tx, "ol-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 // ── DeleteOutfitLog: selectLinkedWearLogIDs error ────────────────────────────
 
 func TestOutfitLogTransactorDeleteOutfitLogShouldReturnErrIOWhenSelectWearLogIDsFails(t *testing.T) {

@@ -177,8 +177,16 @@ func deleteWearLogsByIDs(ctx context.Context, tx *sql.Tx, ids []string) error {
 
 func deleteOutfitLogByID(ctx context.Context, tx *sql.Tx, outfitLogID string) error {
 	const q = `DELETE FROM outfit_logs WHERE id = ?`
-	if _, err := tx.ExecContext(ctx, q, outfitLogID); err != nil {
+	result, err := tx.ExecContext(ctx, q, outfitLogID)
+	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: id %s", domain.ErrNotFound, outfitLogID)
 	}
 	return nil
 }
