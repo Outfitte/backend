@@ -23,6 +23,7 @@ func TestOutfitLogTransactorCreateOutfitLogShouldReturnErrIOWhenInsertOutfitLogF
 // ── CreateOutfitLog: insertOutfitLogWearLink error ────────────────────────────
 
 func TestOutfitLogTransactorCreateOutfitLogShouldReturnErrIOWhenInsertWearLinkFails(t *testing.T) {
+	// Assumed exec order: insertOutfitLog (1), insertWearLog (2), insertOutfitLogWearLink (3, fails).
 	db := openFakeDB(t, "fake-tx-exec-fail-after-2")
 	tr := &OutfitLogTransactor{db: db}
 
@@ -35,7 +36,8 @@ func TestOutfitLogTransactorCreateOutfitLogShouldReturnErrIOWhenInsertWearLinkFa
 // ── DeleteOutfitLog: deleteWearLogsByIDs error ────────────────────────────────
 
 func TestOutfitLogTransactorDeleteOutfitLogShouldReturnErrIOWhenDeleteWearLogsFails(t *testing.T) {
-	db := openFakeDB(t, "fake-tx-with-row-first-exec-fail")
+	// New order: deleteOutfitLogByID (exec 1, succeeds), deleteWearLogsByIDs (exec 2, fails).
+	db := openFakeDB(t, "fake-tx-with-row-exec-fail-after-1")
 	tr := &OutfitLogTransactor{db: db}
 
 	err := tr.DeleteOutfitLog(t.Context(), "ol-1")

@@ -337,7 +337,7 @@ func (s *fakeTxWithRowFirstExecFailStmt) Exec(_ []driver.Value) (driver.Result, 
 	return nil, errFakeDB
 }
 func (s *fakeTxWithRowFirstExecFailStmt) Query(_ []driver.Value) (driver.Rows, error) {
-	return &fakeOneRow{}, nil
+	return &fakeOneRow{}, nil // fresh instance per call; done resets automatically
 }
 func (r *fakeOneRow) Columns() []string { return []string{"wear_log_id"} }
 func (r *fakeOneRow) Close() error      { return nil }
@@ -383,7 +383,7 @@ func (s *fakeTxWithRowExecFailAfter1Stmt) Exec(_ []driver.Value) (driver.Result,
 	return &fakeOKResult{}, nil
 }
 func (s *fakeTxWithRowExecFailAfter1Stmt) Query(_ []driver.Value) (driver.Rows, error) {
-	return &fakeOneRow{}, nil
+	return &fakeOneRow{}, nil // fresh instance per call; done resets automatically
 }
 
 // ── fake-tx-exec-fail-after-2 ────────────────────────────────────────────────

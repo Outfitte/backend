@@ -123,14 +123,18 @@ func (t *OutfitLogTransactor) DeleteOutfitLog(ctx context.Context, outfitLogID s
 		return err
 	}
 
+	// Delete the outfit log first so the ON DELETE CASCADE on outfit_log_wear_logs
+	// cleans up the join table before we remove the wear logs themselves.
+	// This avoids cascading into another outfit log's join rows if a wear log were
+	// ever shared (which the schema does not prevent).
+	if err := deleteOutfitLogByID(ctx, tx, outfitLogID); err != nil {
+		return err
+	}
+
 	if len(wearLogIDs) > 0 {
 		if err := deleteWearLogsByIDs(ctx, tx, wearLogIDs); err != nil {
 			return err
 		}
-	}
-
-	if err := deleteOutfitLogByID(ctx, tx, outfitLogID); err != nil {
-		return err
 	}
 
 	if err := tx.Commit(); err != nil {
