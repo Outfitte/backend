@@ -26,10 +26,10 @@ type UpdateOutfitInput struct {
 
 // OutfitService manages outfits, item linking, and photo management.
 type OutfitService struct {
-	outfits     ports.OutfitRepository
-	items       ports.ItemRepository
-	media       ports.MediaProvider
-	outfitLogs  ports.OutfitLogRepository
+	outfits    ports.OutfitRepository
+	items      ports.ItemRepository
+	media      ports.MediaProvider
+	outfitLogs ports.OutfitLogRepository
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
@@ -222,6 +222,9 @@ func (s *OutfitService) ListByDateRange(ctx context.Context, callerID string, fr
 	return s.outfitsForLogs(ctx, logs)
 }
 
+// outfitsForLogs fetches the unique outfits referenced by logs.
+// TODO: replace per-outfit Get calls with a batch fetch once OutfitRepository
+// exposes a ListByIDs method.
 func (s *OutfitService) outfitsForLogs(ctx context.Context, logs []domain.OutfitLog) ([]domain.Outfit, error) {
 	seen := make(map[string]struct{}, len(logs))
 	outfits := make([]domain.Outfit, 0, len(logs))

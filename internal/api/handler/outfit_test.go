@@ -306,6 +306,16 @@ func TestOutfitListShouldReturn200WithOutfitsWhenSuccessful(t *testing.T) {
 	require.Len(t, resp, 2)
 }
 
+func TestOutfitListShouldReturn400WhenOnlyFromProvided(t *testing.T) {
+	w := listOutfits(t, newOutfitHandler(&fakeOutfitService{}), "user1", "from=2024-06-01")
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOutfitListShouldReturn400WhenOnlyToProvided(t *testing.T) {
+	w := listOutfits(t, newOutfitHandler(&fakeOutfitService{}), "user1", "to=2024-06-30")
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestOutfitListShouldReturn400WhenFromDateInvalid(t *testing.T) {
 	w := listOutfits(t, newOutfitHandler(&fakeOutfitService{}), "user1", "from=not-a-date&to=2024-06-30")
 	require.Equal(t, http.StatusBadRequest, w.Code)

@@ -144,6 +144,10 @@ func (h *OutfitHandler) List(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if fromStr != "" || toStr != "" {
+		if fromStr == "" || toStr == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from and to must both be provided"})
+			return
+		}
 		outfits, err = h.listByDateRange(ctx, w, log, callerID, fromStr, toStr)
 		if err != nil {
 			return // response already written by listByDateRange
