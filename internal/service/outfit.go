@@ -147,7 +147,7 @@ func (s *OutfitService) DeletePhoto(ctx context.Context, callerID, outfitID, med
 	if err != nil {
 		return err
 	}
-	if !outfitHasPhoto(outfit, mediaKey) {
+	if !s.outfitHasPhoto(outfit, mediaKey) {
 		return domain.ErrNotFound
 	}
 	if err := s.media.Delete(ctx, mediaKey); err != nil {
@@ -195,7 +195,7 @@ func (s *OutfitService) nextItemPosition(ctx context.Context, outfitID string) (
 	return len(ids), nil
 }
 
-func outfitHasPhoto(outfit domain.Outfit, mediaKey string) bool {
+func (s *OutfitService) outfitHasPhoto(outfit domain.Outfit, mediaKey string) bool {
 	for _, p := range outfit.Photos {
 		if p.MediaKey == mediaKey {
 			return true

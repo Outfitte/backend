@@ -67,7 +67,7 @@ func (m *mockOutfitRepo) Save(_ context.Context, outfit domain.Outfit) error {
 	return nil
 }
 
-func (m *mockOutfitRepo) Delete(_ context.Context, id string) (error) {
+func (m *mockOutfitRepo) Delete(_ context.Context, id string) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
