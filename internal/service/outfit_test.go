@@ -618,28 +618,22 @@ func TestListByDateRangeShouldReturnRepoErrorWhenLogsFetchFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestListByDateRangeShouldReturnOutfitsWithLogsInRangeWhenSuccessful(t *testing.T) {
+func TestListByDateRangeShouldReturnRepoErrorWhenOutfitFetchFails(t *testing.T) {
 	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
-	wornOn := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
-
-	outfit1 := outfitWithOwner("o1", "user1")
-	outfit2 := outfitWithOwner("o2", "user1")
 
 	var log1 domain.OutfitLog
 	log1.ID = "l1"
 	log1.OutfitID = "o1"
 	log1.OwnerID = "user1"
-	log1.WornOn = wornOn
+	log1.WornOn = time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
 
 	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
-	outfitsRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit1, outfit2}}
+	outfitsRepo := &mockOutfitRepo{getErr: domain.ErrIO}
 	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo)
 
-	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
-	require.NoError(t, err)
-	require.Len(t, got, 1)
-	require.Equal(t, "o1", got[0].GetID())
+	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestListByDateRangeShouldDeduplicateOutfitsWhenMultipleLogsForSameOutfit(t *testing.T) {
@@ -686,20 +680,26 @@ func TestListByDateRangeShouldSkipOutfitsNotFoundWhenDeletedAfterLog(t *testing.
 	require.Empty(t, got)
 }
 
-func TestListByDateRangeShouldReturnRepoErrorWhenOutfitFetchFails(t *testing.T) {
+func TestListByDateRangeShouldReturnOutfitsWithLogsInRangeWhenSuccessful(t *testing.T) {
 	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+	wornOn := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	outfit1 := outfitWithOwner("o1", "user1")
+	outfit2 := outfitWithOwner("o2", "user1")
 
 	var log1 domain.OutfitLog
 	log1.ID = "l1"
 	log1.OutfitID = "o1"
 	log1.OwnerID = "user1"
-	log1.WornOn = time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+	log1.WornOn = wornOn
 
 	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
-	outfitsRepo := &mockOutfitRepo{getErr: domain.ErrIO}
+	outfitsRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit1, outfit2}}
 	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo)
 
-	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
-	require.ErrorIs(t, err, domain.ErrIO)
+	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "o1", got[0].GetID())
 }
