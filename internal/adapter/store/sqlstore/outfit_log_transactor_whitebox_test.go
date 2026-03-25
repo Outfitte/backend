@@ -134,6 +134,45 @@ func TestInsertOutfitLogWearLinkShouldReturnErrIOWhenExecFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestInsertOutfitLogWearLinkShouldReturnErrIOWhenWearLogAlreadyLinkedToAnotherOutfitLog(t *testing.T) {
+	db := openTestDB(t)
+	db.SetMaxOpenConns(1)
+	_, err := db.ExecContext(t.Context(), "PRAGMA foreign_keys = ON")
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-uniq', 'uniq@example.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO outfits (id, owner_id, created_at) VALUES ('outfit-uniq', 'user-uniq', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('item-uniq', 'user-uniq', 'Item', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO wear_logs (id, item_id, owner_id, worn_on, created_at)
+		VALUES ('wl-uniq', 'item-uniq', 'user-uniq', '2025-06-01', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO outfit_logs (id, outfit_id, owner_id, worn_on, created_at)
+		VALUES ('ol-uniq-1', 'outfit-uniq', 'user-uniq', '2025-06-01', '2025-01-01T00:00:00Z'),
+		       ('ol-uniq-2', 'outfit-uniq', 'user-uniq', '2025-06-02', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	tx1, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	require.NoError(t, insertOutfitLogWearLink(t.Context(), tx1, "ol-uniq-1", "wl-uniq"))
+	require.NoError(t, tx1.Commit())
+
+	tx2, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx2.Rollback() //nolint:errcheck
+
+	err = insertOutfitLogWearLink(t.Context(), tx2, "ol-uniq-2", "wl-uniq")
+	require.ErrorIs(t, err, domain.ErrConflict)
+}
+
 // ── CreateOutfitLog: commit error ─────────────────────────────────────────────
 
 func TestOutfitLogTransactorCreateOutfitLogShouldReturnErrIOWhenCommitFails(t *testing.T) {
