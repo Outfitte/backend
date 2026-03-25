@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -25,14 +26,15 @@ type UpdateOutfitInput struct {
 
 // OutfitService manages outfits, item linking, and photo management.
 type OutfitService struct {
-	outfits ports.OutfitRepository
-	items   ports.ItemRepository
-	media   ports.MediaProvider
+	outfits     ports.OutfitRepository
+	items       ports.ItemRepository
+	media       ports.MediaProvider
+	outfitLogs  ports.OutfitLogRepository
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
-func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider) *OutfitService {
-	return &OutfitService{outfits: outfits, items: items, media: media}
+func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository) *OutfitService {
+	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs}
 }
 
 func (s *OutfitService) Create(ctx context.Context, callerID string, input CreateOutfitInput) (domain.Outfit, error) {
@@ -202,4 +204,40 @@ func (s *OutfitService) outfitHasPhoto(outfit domain.Outfit, mediaKey string) bo
 		}
 	}
 	return false
+}
+
+// ListByDateRange returns outfits owned by callerID that have at least one outfit log
+// in [from, to]. Returns domain.ErrValidation if from is after to.
+func (s *OutfitService) ListByDateRange(ctx context.Context, callerID string, from, to time.Time) ([]domain.Outfit, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if from.After(to) {
+		return nil, domain.ErrValidation
+	}
+	logs, err := s.outfitLogs.ListByOwnerDateRange(ctx, callerID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return s.outfitsForLogs(ctx, logs)
+}
+
+func (s *OutfitService) outfitsForLogs(ctx context.Context, logs []domain.OutfitLog) ([]domain.Outfit, error) {
+	seen := make(map[string]struct{}, len(logs))
+	outfits := make([]domain.Outfit, 0, len(logs))
+	for _, l := range logs {
+		if _, ok := seen[l.OutfitID]; ok {
+			continue
+		}
+		seen[l.OutfitID] = struct{}{}
+		o, err := s.outfits.Get(ctx, l.OutfitID)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				continue
+			}
+			return nil, err
+		}
+		outfits = append(outfits, o)
+	}
+	return outfits, nil
 }

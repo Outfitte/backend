@@ -29,6 +29,7 @@ func New(
 	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items)
 	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items)
+	outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 
@@ -39,6 +40,7 @@ func New(
 	mediaHandler := handler.NewMediaHandler(media, logger)
 	settingsHandler := handler.NewSettingsHandler(userSvc, logger)
 	wearLogHandler := handler.NewWearLogHandler(wearLogSvc, logger)
+	outfitHandler := handler.NewOutfitHandler(outfitSvc, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
@@ -78,6 +80,16 @@ func New(
 	mux.Handle("GET /categories", auth(http.HandlerFunc(categoryHandler.List)))
 
 	mux.Handle("GET /media/{key...}", auth(http.HandlerFunc(mediaHandler.Download)))
+
+	mux.Handle("POST /outfits", auth(http.HandlerFunc(outfitHandler.Create)))
+	mux.Handle("GET /outfits", auth(http.HandlerFunc(outfitHandler.List)))
+	mux.Handle("GET /outfits/{id}", auth(http.HandlerFunc(outfitHandler.GetByID)))
+	mux.Handle("PATCH /outfits/{id}", auth(http.HandlerFunc(outfitHandler.Update)))
+	mux.Handle("DELETE /outfits/{id}", auth(http.HandlerFunc(outfitHandler.Delete)))
+	mux.Handle("POST /outfits/{id}/items", auth(http.HandlerFunc(outfitHandler.AddItem)))
+	mux.Handle("DELETE /outfits/{id}/items/{itemID}", auth(http.HandlerFunc(outfitHandler.RemoveItem)))
+	mux.Handle("POST /outfits/{id}/photos", auth(http.HandlerFunc(outfitHandler.UploadPhoto)))
+	mux.Handle("DELETE /outfits/{id}/photos/{key...}", auth(http.HandlerFunc(outfitHandler.DeletePhoto)))
 
 	mux.Handle("GET /admin/settings", admin(http.HandlerFunc(settingsHandler.GetSettings)))
 	mux.Handle("PATCH /admin/settings", admin(http.HandlerFunc(settingsHandler.UpdateSettings)))
