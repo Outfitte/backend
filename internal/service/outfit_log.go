@@ -31,14 +31,14 @@ func (s *OutfitLogService) LogWear(ctx context.Context, callerID, outfitID strin
 	if err != nil {
 		return domain.OutfitLog{}, err
 	}
-	if wornOn.UTC().After(time.Now().UTC()) {
+	now := time.Now().UTC()
+	if wornOn.UTC().After(now) {
 		return domain.OutfitLog{}, domain.ErrFutureDateNotAllowed
 	}
-	return s.createOutfitLog(ctx, callerID, outfit, wornOn, notes)
+	return s.createOutfitLog(ctx, callerID, outfit, wornOn, notes, now)
 }
 
-func (s *OutfitLogService) createOutfitLog(ctx context.Context, callerID string, outfit domain.Outfit, wornOn time.Time, notes *string) (domain.OutfitLog, error) {
-	now := time.Now().UTC()
+func (s *OutfitLogService) createOutfitLog(ctx context.Context, callerID string, outfit domain.Outfit, wornOn time.Time, notes *string, now time.Time) (domain.OutfitLog, error) {
 	var outfitLog domain.OutfitLog
 	outfitLog.ID = uuid.NewString()
 	outfitLog.OutfitID = outfit.GetID()
@@ -85,9 +85,13 @@ func (s *OutfitLogService) ListByOutfit(ctx context.Context, callerID, outfitID 
 }
 
 // ListByDateRange returns all outfit logs for callerID within [from, to].
+// Returns domain.ErrValidation if from is after to.
 func (s *OutfitLogService) ListByDateRange(ctx context.Context, callerID string, from, to time.Time) ([]domain.OutfitLog, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if from.After(to) {
+		return nil, domain.ErrValidation
 	}
 	return s.outfitLogs.ListByOwnerDateRange(ctx, callerID, from, to)
 }

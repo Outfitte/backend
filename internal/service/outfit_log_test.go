@@ -99,13 +99,14 @@ func (m *mockOutfitLogRepo) LinkedWearLogIDs(_ context.Context, _ string) ([]str
 
 // mockOutfitLogTransactor is an in-memory ports.OutfitLogTransactor for tests.
 type mockOutfitLogTransactor struct {
-	createErr        error
-	deleteErr        error
-	updateDateErr    error
-	createdLog       domain.OutfitLog
-	deletedLogID     string
-	updatedLogID     string
-	updatedDate      time.Time
+	repo          *mockOutfitLogRepo // optional: when set, UpdateOutfitLogDate applies the change to repo.logs
+	createErr     error
+	deleteErr     error
+	updateDateErr error
+	createdLog    domain.OutfitLog
+	deletedLogID  string
+	updatedLogID  string
+	updatedDate   time.Time
 }
 
 func (m *mockOutfitLogTransactor) CreateOutfitLog(_ context.Context, log domain.OutfitLog, _ []domain.WearLog) (domain.OutfitLog, error) {
@@ -130,6 +131,14 @@ func (m *mockOutfitLogTransactor) UpdateOutfitLogDate(_ context.Context, outfitL
 	}
 	m.updatedLogID = outfitLogID
 	m.updatedDate = newDate
+	if m.repo != nil {
+		for i, l := range m.repo.logs {
+			if l.GetID() == outfitLogID {
+				m.repo.logs[i].WornOn = newDate
+				break
+			}
+		}
+	}
 	return nil
 }
 
@@ -251,17 +260,27 @@ func TestOutfitLogServiceUpdateDateShouldReturnUpdatedLogWhenSuccessful(t *testi
 	newDate := time.Now().Add(-48 * time.Hour).UTC()
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-1", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
-	transactor := &mockOutfitLogTransactor{}
+	transactor := &mockOutfitLogTransactor{repo: logRepo}
 	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor)
 
 	got, err := svc.UpdateDate(t.Context(), "owner-1", "log-1", newDate)
 	require.NoError(t, err)
 	require.Equal(t, "log-1", got.GetID())
+	require.Equal(t, newDate, got.WornOn)
 	require.Equal(t, "log-1", transactor.updatedLogID)
 	require.Equal(t, newDate.UTC(), transactor.updatedDate)
 }
 
 // ── ListByDateRange ───────────────────────────────────────────────────────────
+
+func TestOutfitLogServiceListByDateRangeShouldReturnValidationErrorWhenFromIsAfterTo(t *testing.T) {
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+
+	from := time.Now().UTC()
+	to := from.Add(-24 * time.Hour)
+	_, err := svc.ListByDateRange(t.Context(), "owner-1", from, to)
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
 
 func TestOutfitLogServiceListByDateRangeShouldReturnContextErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
