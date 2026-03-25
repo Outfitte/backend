@@ -27,13 +27,13 @@ func (s *OutfitLogService) LogWear(ctx context.Context, callerID, outfitID strin
 	if err := ctx.Err(); err != nil {
 		return domain.OutfitLog{}, err
 	}
-	outfit, err := s.getOwnedOutfit(ctx, callerID, outfitID)
-	if err != nil {
-		return domain.OutfitLog{}, err
-	}
 	now := time.Now().UTC()
 	if wornOn.UTC().After(now) {
 		return domain.OutfitLog{}, domain.ErrFutureDateNotAllowed
+	}
+	outfit, err := s.getOwnedOutfit(ctx, callerID, outfitID)
+	if err != nil {
+		return domain.OutfitLog{}, err
 	}
 	return s.createOutfitLog(ctx, callerID, outfit, wornOn, notes, now)
 }

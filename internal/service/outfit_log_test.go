@@ -11,14 +11,10 @@ import (
 
 // mockOutfitLogRepo is an in-memory ports.OutfitLogRepository for tests.
 type mockOutfitLogRepo struct {
-	logs                  []domain.OutfitLog
-	getErr                error
-	saveErr               error
-	deleteErr             error
-	listByOutfitErr       error
-	listByDateRangeErr    error
-	linkWearLogErr        error
-	linkedWearLogIDsErr   error
+	logs               []domain.OutfitLog
+	getErr             error
+	listByOutfitErr    error
+	listByDateRangeErr error
 }
 
 func (m *mockOutfitLogRepo) Get(_ context.Context, id string) (domain.OutfitLog, error) {
@@ -34,9 +30,6 @@ func (m *mockOutfitLogRepo) Get(_ context.Context, id string) (domain.OutfitLog,
 }
 
 func (m *mockOutfitLogRepo) Save(_ context.Context, log domain.OutfitLog) error {
-	if m.saveErr != nil {
-		return m.saveErr
-	}
 	for i, existing := range m.logs {
 		if existing.GetID() == log.GetID() {
 			m.logs[i] = log
@@ -48,9 +41,6 @@ func (m *mockOutfitLogRepo) Save(_ context.Context, log domain.OutfitLog) error 
 }
 
 func (m *mockOutfitLogRepo) Delete(_ context.Context, id string) error {
-	if m.deleteErr != nil {
-		return m.deleteErr
-	}
 	for i, l := range m.logs {
 		if l.GetID() == id {
 			m.logs = append(m.logs[:i], m.logs[i+1:]...)
@@ -87,13 +77,10 @@ func (m *mockOutfitLogRepo) ListByOwnerDateRange(_ context.Context, ownerID stri
 }
 
 func (m *mockOutfitLogRepo) LinkWearLog(_ context.Context, _, _ string) error {
-	return m.linkWearLogErr
+	return nil
 }
 
 func (m *mockOutfitLogRepo) LinkedWearLogIDs(_ context.Context, _ string) ([]string, error) {
-	if m.linkedWearLogIDsErr != nil {
-		return nil, m.linkedWearLogIDsErr
-	}
 	return nil, nil
 }
 
@@ -393,9 +380,8 @@ func TestOutfitLogServiceLogWearShouldReturnForbiddenWhenCallerIsNotOutfitOwner(
 }
 
 func TestOutfitLogServiceLogWearShouldReturnErrFutureDateNotAllowedWhenWornOnIsInFuture(t *testing.T) {
-	outfit := outfitWithOwner("outfit-1", "owner-1")
-	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
-	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	// Date guard fires before ownership lookup — no outfit needed in repo.
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
 
 	future := time.Now().Add(24 * time.Hour)
 	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", future, nil)
