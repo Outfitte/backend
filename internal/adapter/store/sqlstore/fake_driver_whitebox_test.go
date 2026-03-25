@@ -15,6 +15,16 @@ func init() {
 	sql.Register("fake-scan-err", &fakeScanErrDriver{})
 	sql.Register("fake-commit-err", &fakeCommitErrDriver{})
 	sql.Register("fake-rows-aff-err", &fakeRowsAffErrDriver{})
+	sql.Register("fake-tx-rows-err", &fakeTxRowsErrDriver{})
+	sql.Register("fake-tx-scan-err", &fakeTxScanErrDriver{})
+	// Transaction-level drivers: Begin succeeds, Query returns 0 rows.
+	sql.Register("fake-tx-first-exec-fail", &fakeTxFirstExecFailDriver{})
+	sql.Register("fake-tx-exec-ok-commit-fail", &fakeTxExecOKCommitFailDriver{})
+	// Transaction-level drivers: Begin succeeds, Query returns 1 row ("wl-fake").
+	sql.Register("fake-tx-with-row-first-exec-fail", &fakeTxWithRowFirstExecFailDriver{})
+	sql.Register("fake-tx-with-row-exec-fail-after-1", &fakeTxWithRowExecFailAfter1Driver{})
+	// Transaction-level drivers: Begin succeeds, Query returns 0 rows, first 2 execs ok, 3rd fails.
+	sql.Register("fake-tx-exec-fail-after-2", &fakeTxExecFailAfter2Driver{})
 }
 
 // openFakeDB opens a *sql.DB backed by the named fake driver.
@@ -149,3 +159,233 @@ func (s *fakeRowsAffErrStmt) Query(_ []driver.Value) (driver.Rows, error) { retu
 
 func (r *fakeRowsAffErrResult) LastInsertId() (int64, error) { return 0, nil }
 func (r *fakeRowsAffErrResult) RowsAffected() (int64, error) { return 0, errFakeDB }
+
+// ── fake-tx-rows-err ──────────────────────────────────────────────────────────
+// Begin() succeeds; Query returns rows whose Next() returns errFakeDB (rows.Err).
+
+type (
+	fakeTxRowsErrDriver struct{}
+	fakeTxRowsErrConn   struct{}
+	fakeTxRowsErrTx     struct{}
+	fakeTxRowsErrStmt   struct{}
+)
+
+func (d *fakeTxRowsErrDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxRowsErrConn{}, nil
+}
+func (c *fakeTxRowsErrConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxRowsErrStmt{}, nil
+}
+func (c *fakeTxRowsErrConn) Close() error             { return nil }
+func (c *fakeTxRowsErrConn) Begin() (driver.Tx, error) { return &fakeTxRowsErrTx{}, nil }
+
+func (tx *fakeTxRowsErrTx) Commit() error   { return nil }
+func (tx *fakeTxRowsErrTx) Rollback() error { return nil }
+
+func (s *fakeTxRowsErrStmt) Close() error                                 { return nil }
+func (s *fakeTxRowsErrStmt) NumInput() int                                 { return -1 }
+func (s *fakeTxRowsErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return &fakeOKResult{}, nil }
+func (s *fakeTxRowsErrStmt) Query(_ []driver.Value) (driver.Rows, error)  { return &fakeErrRows{}, nil }
+
+// ── fake-tx-scan-err ──────────────────────────────────────────────────────────
+// Begin() succeeds; Query returns rows where Scan fails.
+
+type (
+	fakeTxScanErrDriver struct{}
+	fakeTxScanErrConn   struct{}
+	fakeTxScanErrTx     struct{}
+	fakeTxScanErrStmt   struct{}
+)
+
+func (d *fakeTxScanErrDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxScanErrConn{}, nil
+}
+func (c *fakeTxScanErrConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxScanErrStmt{}, nil
+}
+func (c *fakeTxScanErrConn) Close() error             { return nil }
+func (c *fakeTxScanErrConn) Begin() (driver.Tx, error) { return &fakeTxScanErrTx{}, nil }
+
+func (tx *fakeTxScanErrTx) Commit() error   { return nil }
+func (tx *fakeTxScanErrTx) Rollback() error { return nil }
+
+func (s *fakeTxScanErrStmt) Close() error                                 { return nil }
+func (s *fakeTxScanErrStmt) NumInput() int                                 { return -1 }
+func (s *fakeTxScanErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return &fakeOKResult{}, nil }
+func (s *fakeTxScanErrStmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeScanErrRows{}, nil
+}
+
+// ── fake-tx-first-exec-fail ───────────────────────────────────────────────────
+// Begin succeeds; Query returns 0 rows; first ExecContext fails.
+
+type (
+	fakeTxFirstExecFailDriver struct{}
+	fakeTxFirstExecFailConn   struct{}
+	fakeTxFirstExecFailTx     struct{}
+	fakeTxFirstExecFailStmt   struct{}
+	fakeEmptyRows             struct{}
+)
+
+func (d *fakeTxFirstExecFailDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxFirstExecFailConn{}, nil
+}
+func (c *fakeTxFirstExecFailConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxFirstExecFailStmt{}, nil
+}
+func (c *fakeTxFirstExecFailConn) Close() error              { return nil }
+func (c *fakeTxFirstExecFailConn) Begin() (driver.Tx, error) { return &fakeTxFirstExecFailTx{}, nil }
+func (tx *fakeTxFirstExecFailTx) Commit() error              { return nil }
+func (tx *fakeTxFirstExecFailTx) Rollback() error            { return nil }
+func (s *fakeTxFirstExecFailStmt) Close() error              { return nil }
+func (s *fakeTxFirstExecFailStmt) NumInput() int             { return -1 }
+func (s *fakeTxFirstExecFailStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	return nil, errFakeDB
+}
+func (s *fakeTxFirstExecFailStmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeEmptyRows{}, nil
+}
+func (r *fakeEmptyRows) Columns() []string           { return []string{"col"} }
+func (r *fakeEmptyRows) Close() error                { return nil }
+func (r *fakeEmptyRows) Next(_ []driver.Value) error { return io.EOF }
+
+// ── fake-tx-exec-ok-commit-fail ──────────────────────────────────────────────
+// Begin succeeds; Query returns 0 rows; all Execs succeed; Commit fails.
+
+type (
+	fakeTxExecOKCommitFailDriver struct{}
+	fakeTxExecOKCommitFailConn   struct{}
+	fakeTxExecOKCommitFailTx     struct{}
+	fakeTxExecOKCommitFailStmt   struct{}
+)
+
+func (d *fakeTxExecOKCommitFailDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxExecOKCommitFailConn{}, nil
+}
+func (c *fakeTxExecOKCommitFailConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxExecOKCommitFailStmt{}, nil
+}
+func (c *fakeTxExecOKCommitFailConn) Close() error              { return nil }
+func (c *fakeTxExecOKCommitFailConn) Begin() (driver.Tx, error) { return &fakeTxExecOKCommitFailTx{}, nil }
+func (tx *fakeTxExecOKCommitFailTx) Commit() error              { return errFakeDB }
+func (tx *fakeTxExecOKCommitFailTx) Rollback() error            { return nil }
+func (s *fakeTxExecOKCommitFailStmt) Close() error              { return nil }
+func (s *fakeTxExecOKCommitFailStmt) NumInput() int             { return -1 }
+func (s *fakeTxExecOKCommitFailStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	return &fakeOKResult{}, nil
+}
+func (s *fakeTxExecOKCommitFailStmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeEmptyRows{}, nil
+}
+
+// ── fake-tx-with-row-first-exec-fail ─────────────────────────────────────────
+// Begin succeeds; Query returns 1 row ("wl-fake"); first ExecContext fails.
+
+type (
+	fakeTxWithRowFirstExecFailDriver struct{}
+	fakeTxWithRowFirstExecFailConn   struct{}
+	fakeTxWithRowFirstExecFailTx     struct{}
+	fakeTxWithRowFirstExecFailStmt   struct{}
+	fakeOneRow                       struct{ done bool }
+)
+
+func (d *fakeTxWithRowFirstExecFailDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxWithRowFirstExecFailConn{}, nil
+}
+func (c *fakeTxWithRowFirstExecFailConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxWithRowFirstExecFailStmt{}, nil
+}
+func (c *fakeTxWithRowFirstExecFailConn) Close() error { return nil }
+func (c *fakeTxWithRowFirstExecFailConn) Begin() (driver.Tx, error) {
+	return &fakeTxWithRowFirstExecFailTx{}, nil
+}
+func (tx *fakeTxWithRowFirstExecFailTx) Commit() error   { return nil }
+func (tx *fakeTxWithRowFirstExecFailTx) Rollback() error { return nil }
+func (s *fakeTxWithRowFirstExecFailStmt) Close() error   { return nil }
+func (s *fakeTxWithRowFirstExecFailStmt) NumInput() int  { return -1 }
+func (s *fakeTxWithRowFirstExecFailStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	return nil, errFakeDB
+}
+func (s *fakeTxWithRowFirstExecFailStmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeOneRow{}, nil
+}
+func (r *fakeOneRow) Columns() []string { return []string{"wear_log_id"} }
+func (r *fakeOneRow) Close() error      { return nil }
+func (r *fakeOneRow) Next(dest []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	dest[0] = "wl-fake"
+	return nil
+}
+
+// ── fake-tx-with-row-exec-fail-after-1 ───────────────────────────────────────
+// Begin succeeds; Query returns 1 row; first Exec succeeds; second Exec fails.
+// The exec counter is on the connection so it persists across prepared statements.
+
+type (
+	fakeTxWithRowExecFailAfter1Driver struct{}
+	fakeTxWithRowExecFailAfter1Conn   struct{ execCount int }
+	fakeTxWithRowExecFailAfter1Tx     struct{}
+	fakeTxWithRowExecFailAfter1Stmt   struct{ conn *fakeTxWithRowExecFailAfter1Conn }
+)
+
+func (d *fakeTxWithRowExecFailAfter1Driver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxWithRowExecFailAfter1Conn{}, nil
+}
+func (c *fakeTxWithRowExecFailAfter1Conn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxWithRowExecFailAfter1Stmt{conn: c}, nil
+}
+func (c *fakeTxWithRowExecFailAfter1Conn) Close() error { return nil }
+func (c *fakeTxWithRowExecFailAfter1Conn) Begin() (driver.Tx, error) {
+	return &fakeTxWithRowExecFailAfter1Tx{}, nil
+}
+func (tx *fakeTxWithRowExecFailAfter1Tx) Commit() error   { return nil }
+func (tx *fakeTxWithRowExecFailAfter1Tx) Rollback() error { return nil }
+func (s *fakeTxWithRowExecFailAfter1Stmt) Close() error   { return nil }
+func (s *fakeTxWithRowExecFailAfter1Stmt) NumInput() int  { return -1 }
+func (s *fakeTxWithRowExecFailAfter1Stmt) Exec(_ []driver.Value) (driver.Result, error) {
+	s.conn.execCount++
+	if s.conn.execCount > 1 {
+		return nil, errFakeDB
+	}
+	return &fakeOKResult{}, nil
+}
+func (s *fakeTxWithRowExecFailAfter1Stmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeOneRow{}, nil
+}
+
+// ── fake-tx-exec-fail-after-2 ────────────────────────────────────────────────
+// Begin succeeds; Query returns 0 rows; first 2 Execs succeed; 3rd fails.
+// The exec counter is on the connection so it persists across prepared statements.
+
+type (
+	fakeTxExecFailAfter2Driver struct{}
+	fakeTxExecFailAfter2Conn   struct{ execCount int }
+	fakeTxExecFailAfter2Tx     struct{}
+	fakeTxExecFailAfter2Stmt   struct{ conn *fakeTxExecFailAfter2Conn }
+)
+
+func (d *fakeTxExecFailAfter2Driver) Open(_ string) (driver.Conn, error) {
+	return &fakeTxExecFailAfter2Conn{}, nil
+}
+func (c *fakeTxExecFailAfter2Conn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeTxExecFailAfter2Stmt{conn: c}, nil
+}
+func (c *fakeTxExecFailAfter2Conn) Close() error              { return nil }
+func (c *fakeTxExecFailAfter2Conn) Begin() (driver.Tx, error) { return &fakeTxExecFailAfter2Tx{}, nil }
+func (tx *fakeTxExecFailAfter2Tx) Commit() error              { return nil }
+func (tx *fakeTxExecFailAfter2Tx) Rollback() error            { return nil }
+func (s *fakeTxExecFailAfter2Stmt) Close() error              { return nil }
+func (s *fakeTxExecFailAfter2Stmt) NumInput() int             { return -1 }
+func (s *fakeTxExecFailAfter2Stmt) Exec(_ []driver.Value) (driver.Result, error) {
+	s.conn.execCount++
+	if s.conn.execCount > 2 {
+		return nil, errFakeDB
+	}
+	return &fakeOKResult{}, nil
+}
+func (s *fakeTxExecFailAfter2Stmt) Query(_ []driver.Value) (driver.Rows, error) {
+	return &fakeEmptyRows{}, nil
+}
