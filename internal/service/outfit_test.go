@@ -143,7 +143,7 @@ func (m *mockOutfitRepo) DeletePhoto(_ context.Context, outfitID, mediaKey strin
 // helpers
 
 func newOutfitSvc(outfits *mockOutfitRepo, items *mockItemRepo, media *mockMediaProvider) *OutfitService {
-	return NewOutfitService(outfits, items, media)
+	return NewOutfitService(outfits, items, media, &mockOutfitLogRepo{})
 }
 
 func outfitWithOwner(id, ownerID string) domain.Outfit {
@@ -589,4 +589,117 @@ func TestDeletePhotoShouldDeleteMediaAndRepoEntryWhenSuccessful(t *testing.T) {
 	require.Equal(t, "outfits/o1/uuid/img.jpg", media.deletedKeys[0])
 	require.Equal(t, "o1", repo.deletedPhotoOutfitID)
 	require.Equal(t, "outfits/o1/uuid/img.jpg", repo.deletedPhotoKey)
+}
+
+// ---- ListByDateRange ----
+
+func TestListByDateRangeShouldReturnContextErrorWhenContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	svc := newOutfitSvc(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{})
+	_, err := svc.ListByDateRange(ctx, "user1", time.Now(), time.Now().Add(24*time.Hour))
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestListByDateRangeShouldReturnValidationErrorWhenFromIsAfterTo(t *testing.T) {
+	svc := newOutfitSvc(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{})
+	from := time.Date(2024, 6, 10, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestListByDateRangeShouldReturnRepoErrorWhenLogsFetchFails(t *testing.T) {
+	logs := &mockOutfitLogRepo{listByDateRangeErr: domain.ErrIO}
+	svc := NewOutfitService(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{}, logs)
+	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestListByDateRangeShouldReturnRepoErrorWhenOutfitFetchFails(t *testing.T) {
+	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+
+	var log1 domain.OutfitLog
+	log1.ID = "l1"
+	log1.OutfitID = "o1"
+	log1.OwnerID = "user1"
+	log1.WornOn = time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
+	outfitsRepo := &mockOutfitRepo{getErr: domain.ErrIO}
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo)
+
+	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestListByDateRangeShouldDeduplicateOutfitsWhenMultipleLogsForSameOutfit(t *testing.T) {
+	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+
+	outfit1 := outfitWithOwner("o1", "user1")
+
+	var log1, log2 domain.OutfitLog
+	log1.ID = "l1"
+	log1.OutfitID = "o1"
+	log1.OwnerID = "user1"
+	log1.WornOn = time.Date(2024, 6, 5, 0, 0, 0, 0, time.UTC)
+	log2.ID = "l2"
+	log2.OutfitID = "o1"
+	log2.OwnerID = "user1"
+	log2.WornOn = time.Date(2024, 6, 20, 0, 0, 0, 0, time.UTC)
+
+	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1, log2}}
+	outfitsRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit1}}
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo)
+
+	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
+func TestListByDateRangeShouldSkipOutfitsNotFoundWhenDeletedAfterLog(t *testing.T) {
+	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+
+	var log1 domain.OutfitLog
+	log1.ID = "l1"
+	log1.OutfitID = "deleted-outfit"
+	log1.OwnerID = "user1"
+	log1.WornOn = time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
+	outfitsRepo := &mockOutfitRepo{} // no outfits — simulates deleted outfit
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo)
+
+	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+func TestListByDateRangeShouldReturnOutfitsWithLogsInRangeWhenSuccessful(t *testing.T) {
+	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+	wornOn := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	outfit1 := outfitWithOwner("o1", "user1")
+	outfit2 := outfitWithOwner("o2", "user1")
+
+	var log1 domain.OutfitLog
+	log1.ID = "l1"
+	log1.OutfitID = "o1"
+	log1.OwnerID = "user1"
+	log1.WornOn = wornOn
+
+	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
+	outfitsRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit1, outfit2}}
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo)
+
+	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "o1", got[0].GetID())
 }
