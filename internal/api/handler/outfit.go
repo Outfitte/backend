@@ -140,57 +140,53 @@ func (h *OutfitHandler) List(w http.ResponseWriter, r *http.Request) {
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 
-	var outfits []domain.Outfit
-	var err error
-
-	if fromStr != "" || toStr != "" {
-		if fromStr == "" || toStr == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from and to must both be provided"})
+	if fromStr != "" && toStr != "" {
+		from, err := time.Parse("2006-01-02", fromStr)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid from date, use YYYY-MM-DD"})
 			return
 		}
-		outfits, err = h.listByDateRange(ctx, w, log, callerID, fromStr, toStr)
+		to, err := time.Parse("2006-01-02", toStr)
 		if err != nil {
-			return // response already written by listByDateRange
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid to date, use YYYY-MM-DD"})
+			return
 		}
-	} else {
-		outfits, err = h.outfits.ListByOwner(ctx, callerID)
+		outfits, err := h.outfits.ListByDateRange(ctx, callerID, from, to)
 		if err != nil {
-			log.ErrorContext(ctx, "list outfits failed", "error", err)
+			if errors.Is(err, domain.ErrValidation) {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from must not be after to"})
+				return
+			}
+			log.ErrorContext(ctx, "list outfits by date range failed", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 			return
 		}
+		responses := make([]outfitResponse, len(outfits))
+		for i, o := range outfits {
+			responses[i] = toOutfitResponse(o)
+		}
+		log.InfoContext(ctx, "succeeded", "count", len(outfits))
+		writeJSON(w, http.StatusOK, responses)
+		return
 	}
 
+	if fromStr != "" || toStr != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from and to must both be provided"})
+		return
+	}
+
+	outfits, err := h.outfits.ListByOwner(ctx, callerID)
+	if err != nil {
+		log.ErrorContext(ctx, "list outfits failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
 	responses := make([]outfitResponse, len(outfits))
 	for i, o := range outfits {
 		responses[i] = toOutfitResponse(o)
 	}
 	log.InfoContext(ctx, "succeeded", "count", len(outfits))
 	writeJSON(w, http.StatusOK, responses)
-}
-
-func (h *OutfitHandler) listByDateRange(ctx context.Context, w http.ResponseWriter, log *slog.Logger, callerID, fromStr, toStr string) ([]domain.Outfit, error) {
-	from, err := time.Parse("2006-01-02", fromStr)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid from date, use YYYY-MM-DD"})
-		return nil, err
-	}
-	to, err := time.Parse("2006-01-02", toStr)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid to date, use YYYY-MM-DD"})
-		return nil, err
-	}
-	outfits, err := h.outfits.ListByDateRange(ctx, callerID, from, to)
-	if err != nil {
-		if errors.Is(err, domain.ErrValidation) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from must not be after to"})
-			return nil, err
-		}
-		log.ErrorContext(ctx, "list outfits by date range failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		return nil, err
-	}
-	return outfits, nil
 }
 
 // GetByID handles GET /outfits/{id}.
