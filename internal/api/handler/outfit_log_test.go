@@ -562,12 +562,7 @@ func TestListOutfitLogsByDateRangeShouldReturn400WhenToDateFormatIsInvalid(t *te
 }
 
 func TestListOutfitLogsByDateRangeShouldReturn400WhenFromIsAfterTo(t *testing.T) {
-	svc := &fakeOutfitLogService{
-		listByDateRangeFn: func(_ context.Context, _ string, _, _ time.Time) ([]domain.OutfitLog, error) {
-			return nil, domain.ErrValidation
-		},
-	}
-	h := newOutfitLogHandler(svc)
+	h := newOutfitLogHandler(&fakeOutfitLogService{})
 
 	w := listOutfitLogsByDateRange(t, h, "user-1", "2026-03-31", "2026-03-01")
 

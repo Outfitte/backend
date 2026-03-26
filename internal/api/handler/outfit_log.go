@@ -255,12 +255,13 @@ func (h *OutfitLogHandler) ListByDateRange(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if from.After(to) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from must not be after to"})
+		return
+	}
+
 	logs, err := h.outfitLogs.ListByDateRange(ctx, callerID, from, to)
 	if err != nil {
-		if errors.Is(err, domain.ErrValidation) {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "from must not be after to"})
-			return
-		}
 		log.ErrorContext(ctx, "list outfit logs by date range failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
