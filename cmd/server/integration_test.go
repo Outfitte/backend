@@ -370,12 +370,12 @@ func TestIntegrationCrossUserItemAccessForbidden(t *testing.T) {
 		path   string
 		body   any
 	}{
-		{"delete location", http.MethodDelete, "/locations/" + locID, nil},
-		{"delete item", http.MethodDelete, "/items/" + itemID, nil},
 		{"archive item", http.MethodPost, "/items/" + itemID + "/archive", nil},
 		{"dispose item", http.MethodPost, "/items/" + itemID + "/dispose", map[string]any{"reason": "donated"}},
 		{"log wear for item", http.MethodPost, "/items/" + itemID + "/wear-logs", map[string]any{"worn_on": "2026-01-15"}},
 		{"delete wear log", http.MethodDelete, "/items/" + itemID + "/wear-logs/" + wearEntry.ID, nil},
+		{"delete item", http.MethodDelete, "/items/" + itemID, nil},
+		{"delete location", http.MethodDelete, "/locations/" + locID, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -504,8 +504,6 @@ func TestIntegrationDisposeCycle(t *testing.T) {
 	require.Len(t, archivedItems, 1)
 	assert.Equal(t, itemID, archivedItems[0].ID)
 }
-
-
 
 func TestIntegrationOutfitLifecycleShouldCreateLogUpdateAndCascadeDelete(t *testing.T) {
 	srv := startIntegrationServer(t)
@@ -675,11 +673,11 @@ func TestIntegrationCrossUserOutfitAccessForbidden(t *testing.T) {
 		body   any
 	}{
 		{"get outfit", http.MethodGet, "/outfits/" + outfitID, nil},
-		{"delete outfit", http.MethodDelete, "/outfits/" + outfitID, nil},
 		{"post outfit log", http.MethodPost, "/outfits/" + outfitID + "/logs", map[string]any{"worn_on": "2026-03-01"}},
 		{"add item to outfit", http.MethodPost, "/outfits/" + outfitID + "/items", map[string]any{"item_id": itemID}},
 		{"patch outfit log", http.MethodPatch, "/outfits/" + outfitID + "/logs/" + logID, map[string]any{"worn_on": "2026-03-05"}},
 		{"delete outfit log", http.MethodDelete, "/outfits/" + outfitID + "/logs/" + logID, nil},
+		{"delete outfit", http.MethodDelete, "/outfits/" + outfitID, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
