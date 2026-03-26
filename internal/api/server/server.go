@@ -30,6 +30,7 @@ func New(
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items)
 	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items)
 	outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs)
+	outfitLogSvc := service.NewOutfitLogService(repos.Outfits, repos.OutfitLogs, repos.OutfitLogTransactor)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
 
@@ -41,6 +42,7 @@ func New(
 	settingsHandler := handler.NewSettingsHandler(userSvc, logger)
 	wearLogHandler := handler.NewWearLogHandler(wearLogSvc, logger)
 	outfitHandler := handler.NewOutfitHandler(outfitSvc, logger)
+	outfitLogHandler := handler.NewOutfitLogHandler(outfitLogSvc, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
@@ -86,6 +88,12 @@ func New(
 	mux.Handle("GET /outfits/{id}", auth(http.HandlerFunc(outfitHandler.GetByID)))
 	mux.Handle("PATCH /outfits/{id}", auth(http.HandlerFunc(outfitHandler.Update)))
 	mux.Handle("DELETE /outfits/{id}", auth(http.HandlerFunc(outfitHandler.Delete)))
+	mux.Handle("POST /outfits/{id}/logs", auth(http.HandlerFunc(outfitLogHandler.LogWear)))
+	mux.Handle("GET /outfits/{id}/logs", auth(http.HandlerFunc(outfitLogHandler.ListByOutfit)))
+	mux.Handle("PATCH /outfits/{id}/logs/{logID}", auth(http.HandlerFunc(outfitLogHandler.UpdateDate)))
+	mux.Handle("DELETE /outfits/{id}/logs/{logID}", auth(http.HandlerFunc(outfitLogHandler.Delete)))
+	mux.Handle("GET /outfit-logs", auth(http.HandlerFunc(outfitLogHandler.ListByDateRange)))
+
 	mux.Handle("POST /outfits/{id}/items", auth(http.HandlerFunc(outfitHandler.AddItem)))
 	mux.Handle("DELETE /outfits/{id}/items/{itemID}", auth(http.HandlerFunc(outfitHandler.RemoveItem)))
 	mux.Handle("POST /outfits/{id}/photos", auth(http.HandlerFunc(outfitHandler.UploadPhoto)))
