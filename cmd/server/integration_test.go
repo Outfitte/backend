@@ -686,7 +686,8 @@ func TestIntegrationOutfitLifecycleShouldCreateLogUpdateAndCascadeDelete(t *test
 	require.Len(t, logList, 1)
 	assert.Equal(t, outfitLog.ID, logList[0].ID)
 
-	// Step 6: Update outfit log date; verify linked wear logs dates updated.
+	// Step 6: Update outfit log date; OutfitLogService propagates the new date to all
+	// linked item WearLog rows, so we verify those are updated too.
 	updateLogResp := doJSON(t, srv, http.MethodPatch, "/outfits/"+outfitID+"/logs/"+outfitLog.ID,
 		map[string]any{"worn_on": "2026-03-02"}, token)
 	require.Equal(t, http.StatusOK, updateLogResp.StatusCode)
@@ -720,6 +721,7 @@ func TestIntegrationOutfitLogsByDateRangeShouldReturnCorrectLogs(t *testing.T) {
 	token, _ := registerUser(t, srv, "calendaruser", "password-calendar-secure")
 	itemID := createItem(t, srv, token, "Calendar Shirt", nil)
 
+	// name is intentionally omitted to verify the field is optional.
 	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
 	var outfit struct {
@@ -792,9 +794,39 @@ func TestIntegrationOutfitLogPostShouldReturn403WhenUserBLogsWearForUserAOutfit(
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
-func TestIntegrationOutfitLogDeleteShouldReturn403WhenUserBDeletesUserAOutfitLog(t *testing.T) {
+func TestIntegrationOutfitAddItemShouldReturn403WhenUserBAddsItemToUserAOutfit(t *testing.T) {
 	srv := startIntegrationServer(t)
 	tokenA, tokenB, outfitID := outfitOwnedByUserA(t, srv, "4")
+
+	itemID := createItem(t, srv, tokenA, "Sneakers", nil)
+
+	resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/items",
+		map[string]any{"item_id": itemID}, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogPatchShouldReturn403WhenUserBUpdatesUserAOutfitLog(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenA, tokenB, outfitID := outfitOwnedByUserA(t, srv, "5")
+
+	// User A logs a wear entry.
+	logResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
+		map[string]any{"worn_on": "2026-03-01"}, tokenA)
+	require.Equal(t, http.StatusCreated, logResp.StatusCode)
+	var entry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, logResp, &entry)
+
+	// User B tries to update that log entry.
+	resp := doJSON(t, srv, http.MethodPatch, "/outfits/"+outfitID+"/logs/"+entry.ID,
+		map[string]any{"worn_on": "2026-03-05"}, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogDeleteShouldReturn403WhenUserBDeletesUserAOutfitLog(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenA, tokenB, outfitID := outfitOwnedByUserA(t, srv, "6")
 
 	// User A logs a wear entry.
 	logResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
