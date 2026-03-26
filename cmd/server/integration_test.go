@@ -183,22 +183,42 @@ func getItemWearLogs(t *testing.T, srv *httptest.Server, token, itemID string) [
 
 // --- unauthorized cases ---
 
-func TestIntegrationShouldReturn401WhenGetItemsCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/items", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
+func TestIntegrationUnauthenticatedEndpoints(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   any
+	}{
+		{"get items", http.MethodGet, "/items", nil},
+		{"get locations", http.MethodGet, "/locations", nil},
+		{"post items", http.MethodPost, "/items", map[string]any{"name": "jacket"}},
+		{"post wear log", http.MethodPost, "/items/some-id/wear-logs", map[string]any{"worn_on": "2026-01-01"}},
+		{"get wear logs", http.MethodGet, "/items/some-id/wear-logs", nil},
+		{"delete wear log", http.MethodDelete, "/items/some-id/wear-logs/some-log-id", nil},
+		{"archive item", http.MethodPost, "/items/some-id/archive", nil},
+		{"unarchive item", http.MethodPost, "/items/some-id/unarchive", nil},
+		{"dispose item", http.MethodPost, "/items/some-id/dispose", map[string]any{"reason": "donated"}},
+		{"post outfit", http.MethodPost, "/outfits", map[string]any{}},
+		{"get outfits", http.MethodGet, "/outfits", nil},
+		{"get outfit by id", http.MethodGet, "/outfits/some-id", nil},
+		{"delete outfit", http.MethodDelete, "/outfits/some-id", nil},
+		{"add item to outfit", http.MethodPost, "/outfits/some-id/items", map[string]any{"item_id": "x"}},
+		{"upload outfit photo", http.MethodPost, "/outfits/some-id/photos", nil},
+		{"post outfit log", http.MethodPost, "/outfits/some-id/logs", map[string]any{"worn_on": "2026-01-01"}},
+		{"get outfit logs", http.MethodGet, "/outfits/some-id/logs", nil},
+		{"patch outfit log", http.MethodPatch, "/outfits/some-id/logs/some-log-id", map[string]any{"worn_on": "2026-01-01"}},
+		{"delete outfit log", http.MethodDelete, "/outfits/some-id/logs/some-log-id", nil},
+		{"get outfit logs by date range", http.MethodGet, "/outfit-logs?from=2026-01-01&to=2026-01-31", nil},
+	}
 
-func TestIntegrationShouldReturn401WhenGetLocationsCalledWithoutToken(t *testing.T) {
 	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/locations", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenPostItemsCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{"name": "jacket"}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doJSON(t, srv, tc.method, tc.path, tc.body, "")
+			assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		})
+	}
 }
 
 // enableRegistration calls PATCH /admin/settings to allow new registrations.
@@ -327,68 +347,42 @@ func TestIntegrationFullCycle(t *testing.T) {
 	assert.Empty(t, locs)
 }
 
-// User B cannot delete User A's location.
-func TestIntegrationShouldReturn403WhenUserBDeletesUserALocation(t *testing.T) {
+func TestIntegrationCrossUserItemAccessForbidden(t *testing.T) {
 	srv := startIntegrationServer(t)
-
-	tokenA, _ := registerUser(t, srv, "alice2", "password-alice-secure")
+	tokenA, _ := registerUser(t, srv, "forbid-alice", "password-alice-secure")
 	enableRegistration(t, srv, tokenA)
-	tokenB, _ := registerUser(t, srv, "bob2", "password-bob-secure")
+	tokenB, _ := registerUser(t, srv, "forbid-bob", "password-bob-secure")
 
 	locID := createLocation(t, srv, tokenA, "Wardrobe")
-
-	resp := doJSON(t, srv, http.MethodDelete, "/locations/"+locID, nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenPostWearLogCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/wear-logs", map[string]any{"worn_on": "2026-01-01"}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenGetWearLogsCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/items/some-id/wear-logs", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenDeleteWearLogCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodDelete, "/items/some-id/wear-logs/some-log-id", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenArchiveItemCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/archive", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenUnarchiveItemCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/unarchive", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationShouldReturn401WhenDisposeItemCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/items/some-id/dispose", map[string]any{"reason": "donated"}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-// User B cannot delete User A's item.
-func TestIntegrationShouldReturn403WhenUserBDeletesUserAItem(t *testing.T) {
-	srv := startIntegrationServer(t)
-
-	tokenA, _ := registerUser(t, srv, "alice3", "password-alice-secure")
-	enableRegistration(t, srv, tokenA)
-	tokenB, _ := registerUser(t, srv, "bob3", "password-bob-secure")
-
 	itemID := createItem(t, srv, tokenA, "Red Dress", nil)
 
-	resp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID, nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	logResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
+		map[string]any{"worn_on": "2026-02-10"}, tokenA)
+	require.Equal(t, http.StatusCreated, logResp.StatusCode)
+	var wearEntry struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, logResp, &wearEntry)
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   any
+	}{
+		{"delete location", http.MethodDelete, "/locations/" + locID, nil},
+		{"delete item", http.MethodDelete, "/items/" + itemID, nil},
+		{"archive item", http.MethodPost, "/items/" + itemID + "/archive", nil},
+		{"dispose item", http.MethodPost, "/items/" + itemID + "/dispose", map[string]any{"reason": "donated"}},
+		{"log wear for item", http.MethodPost, "/items/" + itemID + "/wear-logs", map[string]any{"worn_on": "2026-01-15"}},
+		{"delete wear log", http.MethodDelete, "/items/" + itemID + "/wear-logs/" + wearEntry.ID, nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doJSON(t, srv, tc.method, tc.path, tc.body, tokenB)
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		})
+	}
 }
 
 func TestIntegrationWearLogCycle(t *testing.T) {
@@ -511,115 +505,7 @@ func TestIntegrationDisposeCycle(t *testing.T) {
 	assert.Equal(t, itemID, archivedItems[0].ID)
 }
 
-// User B cannot archive User A's item.
-func TestIntegrationShouldReturn403WhenUserBArchivesUserAItem(t *testing.T) {
-	srv := startIntegrationServer(t)
 
-	tokenA, _ := registerUser(t, srv, "alice4", "password-alice-secure")
-	enableRegistration(t, srv, tokenA)
-	tokenB, _ := registerUser(t, srv, "bob4", "password-bob-secure")
-
-	itemID := createItem(t, srv, tokenA, "Green Coat", nil)
-
-	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-// User B cannot dispose User A's item.
-func TestIntegrationShouldReturn403WhenUserBDisposesUserAItem(t *testing.T) {
-	srv := startIntegrationServer(t)
-
-	tokenA, _ := registerUser(t, srv, "alice6", "password-alice-secure")
-	enableRegistration(t, srv, tokenA)
-	tokenB, _ := registerUser(t, srv, "bob6", "password-bob-secure")
-
-	itemID := createItem(t, srv, tokenA, "Velvet Blazer", nil)
-
-	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/dispose",
-		map[string]any{"reason": "donated"}, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-// User B cannot log wear for User A's item.
-func TestIntegrationShouldReturn403WhenUserBLogsWearForUserAItem(t *testing.T) {
-	srv := startIntegrationServer(t)
-
-	tokenA, _ := registerUser(t, srv, "alice5", "password-alice-secure")
-	enableRegistration(t, srv, tokenA)
-	tokenB, _ := registerUser(t, srv, "bob5", "password-bob-secure")
-
-	itemID := createItem(t, srv, tokenA, "Yellow Shirt", nil)
-
-	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
-		map[string]any{"worn_on": "2026-01-15"}, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationOutfitPostShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitGetShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/outfits", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitGetByIDShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/outfits/some-id", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitDeleteShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodDelete, "/outfits/some-id", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitAddItemShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/outfits/some-id/items", map[string]any{"item_id": "x"}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitUploadPhotoShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/outfits/some-id/photos", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogPostShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPost, "/outfits/some-id/logs", map[string]any{"worn_on": "2026-01-01"}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogGetShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/outfits/some-id/logs", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogPatchShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodPatch, "/outfits/some-id/logs/some-log-id", map[string]any{"worn_on": "2026-01-01"}, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogDeleteShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodDelete, "/outfits/some-id/logs/some-log-id", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogsByDateRangeShouldReturn401WhenCalledWithoutToken(t *testing.T) {
-	srv := startIntegrationServer(t)
-	resp := doJSON(t, srv, http.MethodGet, "/outfit-logs?from=2026-01-01&to=2026-01-31", nil, "")
-	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-}
 
 func TestIntegrationOutfitLifecycleShouldCreateLogUpdateAndCascadeDelete(t *testing.T) {
 	srv := startIntegrationServer(t)
@@ -757,111 +643,48 @@ func TestIntegrationOutfitLogsByDateRangeShouldReturnCorrectLogs(t *testing.T) {
 	assert.Empty(t, outOfRange)
 }
 
-// outfitOwnedByUserA registers users A and B, creates an outfit for A, and returns both tokens and the outfit ID.
-func outfitOwnedByUserA(t *testing.T, srv *httptest.Server, suffix string) (tokenA, tokenB, outfitID string) {
-	t.Helper()
-	tokenA, _ = registerUser(t, srv, "outfit-alice"+suffix, "password-alice-secure")
+func TestIntegrationCrossUserOutfitAccessForbidden(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenA, _ := registerUser(t, srv, "outfit-forbid-alice", "password-alice-secure")
 	enableRegistration(t, srv, tokenA)
-	tokenB, _ = registerUser(t, srv, "outfit-bob"+suffix, "password-bob-secure")
+	tokenB, _ := registerUser(t, srv, "outfit-forbid-bob", "password-bob-secure")
+
 	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, tokenA)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
 	var outfit struct {
 		ID string `json:"id"`
 	}
 	decodeJSON(t, createResp, &outfit)
-	return tokenA, tokenB, outfit.ID
-}
-
-func TestIntegrationOutfitGetByIDShouldReturn403WhenUserBAccessesUserAOutfit(t *testing.T) {
-	srv := startIntegrationServer(t)
-	_, tokenB, outfitID := outfitOwnedByUserA(t, srv, "1")
-	resp := doJSON(t, srv, http.MethodGet, "/outfits/"+outfitID, nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationOutfitDeleteShouldReturn403WhenUserBDeletesUserAOutfit(t *testing.T) {
-	srv := startIntegrationServer(t)
-	_, tokenB, outfitID := outfitOwnedByUserA(t, srv, "2")
-	resp := doJSON(t, srv, http.MethodDelete, "/outfits/"+outfitID, nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogPostShouldReturn403WhenUserBLogsWearForUserAOutfit(t *testing.T) {
-	srv := startIntegrationServer(t)
-	_, tokenB, outfitID := outfitOwnedByUserA(t, srv, "3")
-	resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
-		map[string]any{"worn_on": "2026-03-01"}, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationOutfitAddItemShouldReturn403WhenUserBAddsItemToUserAOutfit(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenA, tokenB, outfitID := outfitOwnedByUserA(t, srv, "4")
+	outfitID := outfit.ID
 
 	itemID := createItem(t, srv, tokenA, "Sneakers", nil)
 
-	resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/items",
-		map[string]any{"item_id": itemID}, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogPatchShouldReturn403WhenUserBUpdatesUserAOutfitLog(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenA, tokenB, outfitID := outfitOwnedByUserA(t, srv, "5")
-
-	// User A logs a wear entry.
 	logResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
 		map[string]any{"worn_on": "2026-03-01"}, tokenA)
 	require.Equal(t, http.StatusCreated, logResp.StatusCode)
-	var entry struct {
+	var outfitLog struct {
 		ID string `json:"id"`
 	}
-	decodeJSON(t, logResp, &entry)
+	decodeJSON(t, logResp, &outfitLog)
+	logID := outfitLog.ID
 
-	// User B tries to update that log entry.
-	resp := doJSON(t, srv, http.MethodPatch, "/outfits/"+outfitID+"/logs/"+entry.ID,
-		map[string]any{"worn_on": "2026-03-05"}, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestIntegrationOutfitLogDeleteShouldReturn403WhenUserBDeletesUserAOutfitLog(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenA, tokenB, outfitID := outfitOwnedByUserA(t, srv, "6")
-
-	// User A logs a wear entry.
-	logResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
-		map[string]any{"worn_on": "2026-03-01"}, tokenA)
-	require.Equal(t, http.StatusCreated, logResp.StatusCode)
-	var entry struct {
-		ID string `json:"id"`
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   any
+	}{
+		{"get outfit", http.MethodGet, "/outfits/" + outfitID, nil},
+		{"delete outfit", http.MethodDelete, "/outfits/" + outfitID, nil},
+		{"post outfit log", http.MethodPost, "/outfits/" + outfitID + "/logs", map[string]any{"worn_on": "2026-03-01"}},
+		{"add item to outfit", http.MethodPost, "/outfits/" + outfitID + "/items", map[string]any{"item_id": itemID}},
+		{"patch outfit log", http.MethodPatch, "/outfits/" + outfitID + "/logs/" + logID, map[string]any{"worn_on": "2026-03-05"}},
+		{"delete outfit log", http.MethodDelete, "/outfits/" + outfitID + "/logs/" + logID, nil},
 	}
-	decodeJSON(t, logResp, &entry)
-
-	// User B tries to delete that log entry.
-	resp := doJSON(t, srv, http.MethodDelete, "/outfits/"+outfitID+"/logs/"+entry.ID, nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-// User B cannot delete User A's wear log.
-func TestIntegrationShouldReturn403WhenUserBDeletesWearLogForUserAItem(t *testing.T) {
-	srv := startIntegrationServer(t)
-
-	tokenA, _ := registerUser(t, srv, "alice7", "password-alice-secure")
-	enableRegistration(t, srv, tokenA)
-	tokenB, _ := registerUser(t, srv, "bob7", "password-bob-secure")
-
-	itemID := createItem(t, srv, tokenA, "Plaid Scarf", nil)
-
-	// User A logs a wear entry.
-	logResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
-		map[string]any{"worn_on": "2026-02-10"}, tokenA)
-	require.Equal(t, http.StatusCreated, logResp.StatusCode)
-	var entry struct {
-		ID string `json:"id"`
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doJSON(t, srv, tc.method, tc.path, tc.body, tokenB)
+			assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+		})
 	}
-	decodeJSON(t, logResp, &entry)
-
-	// User B tries to delete that entry.
-	resp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID+"/wear-logs/"+entry.ID, nil, tokenB)
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
