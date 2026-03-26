@@ -146,6 +146,41 @@ func uploadPhoto(t *testing.T, srv *httptest.Server, token, itemID string) strin
 	return item.Photos[0].MediaKey
 }
 
+func uploadOutfitPhoto(t *testing.T, srv *httptest.Server, token, outfitID string) {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("photo", "outfit.jpg")
+	require.NoError(t, err)
+	_, err = fw.Write([]byte("fake outfit image bytes"))
+	require.NoError(t, err)
+	require.NoError(t, mw.Close())
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, srv.URL+"/outfits/"+outfitID+"/photos", &buf)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+}
+
+type itemWearLogEntry struct {
+	ID     string `json:"id"`
+	WornOn string `json:"worn_on"`
+}
+
+func getItemWearLogs(t *testing.T, srv *httptest.Server, token, itemID string) []itemWearLogEntry {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodGet, "/items/"+itemID+"/wear-logs", nil, token)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var logs []itemWearLogEntry
+	decodeJSON(t, resp, &logs)
+	return logs
+}
+
 // --- unauthorized cases ---
 
 func TestIntegrationShouldReturn401WhenGetItemsCalledWithoutToken(t *testing.T) {
@@ -517,6 +552,215 @@ func TestIntegrationShouldReturn403WhenUserBLogsWearForUserAItem(t *testing.T) {
 
 	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
 		map[string]any{"worn_on": "2026-01-15"}, tokenB)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
+func TestIntegrationOutfitPostShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitGetShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodGet, "/outfits", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitGetByIDShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodGet, "/outfits/some-id", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitDeleteShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodDelete, "/outfits/some-id", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitAddItemShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/outfits/some-id/items", map[string]any{"item_id": "x"}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitUploadPhotoShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/outfits/some-id/photos", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogPostShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPost, "/outfits/some-id/logs", map[string]any{"worn_on": "2026-01-01"}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogGetShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodGet, "/outfits/some-id/logs", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogPatchShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodPatch, "/outfits/some-id/logs/some-log-id", map[string]any{"worn_on": "2026-01-01"}, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogDeleteShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodDelete, "/outfits/some-id/logs/some-log-id", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLogsByDateRangeShouldReturn401WhenCalledWithoutToken(t *testing.T) {
+	srv := startIntegrationServer(t)
+	resp := doJSON(t, srv, http.MethodGet, "/outfit-logs?from=2026-01-01&to=2026-01-31", nil, "")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestIntegrationOutfitLifecycleShouldCreateLogUpdateAndCascadeDelete(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	token, _ := registerUser(t, srv, "outfitlifecycle", "password-lifecycle-secure")
+	item1ID := createItem(t, srv, token, "Blue Shirt", nil)
+	item2ID := createItem(t, srv, token, "Dark Jeans", nil)
+
+	// Step 1: Create outfit.
+	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{"name": "Casual Look"}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var outfit struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, createResp, &outfit)
+	require.NotEmpty(t, outfit.ID)
+	outfitID := outfit.ID
+
+	// Step 2: Add two items.
+	addItem1Resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/items", map[string]any{"item_id": item1ID}, token)
+	require.Equal(t, http.StatusNoContent, addItem1Resp.StatusCode)
+	addItem2Resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/items", map[string]any{"item_id": item2ID}, token)
+	require.Equal(t, http.StatusNoContent, addItem2Resp.StatusCode)
+
+	// Step 3: Upload a photo.
+	uploadOutfitPhoto(t, srv, token, outfitID)
+
+	// Step 4: Log wearing the outfit; verify item wear logs are created.
+	logResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
+		map[string]any{"worn_on": "2026-03-01"}, token)
+	require.Equal(t, http.StatusCreated, logResp.StatusCode)
+	var outfitLog struct {
+		ID     string `json:"id"`
+		WornOn string `json:"worn_on"`
+	}
+	decodeJSON(t, logResp, &outfitLog)
+	require.NotEmpty(t, outfitLog.ID)
+	assert.Equal(t, "2026-03-01", outfitLog.WornOn)
+
+	wearLogsItem1 := getItemWearLogs(t, srv, token, item1ID)
+	require.Len(t, wearLogsItem1, 1)
+	assert.Equal(t, "2026-03-01", wearLogsItem1[0].WornOn)
+
+	wearLogsItem2 := getItemWearLogs(t, srv, token, item2ID)
+	require.Len(t, wearLogsItem2, 1)
+	assert.Equal(t, "2026-03-01", wearLogsItem2[0].WornOn)
+
+	// Step 5: List outfit logs — entry is present.
+	listLogsResp := doJSON(t, srv, http.MethodGet, "/outfits/"+outfitID+"/logs", nil, token)
+	require.Equal(t, http.StatusOK, listLogsResp.StatusCode)
+	var logList []struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, listLogsResp, &logList)
+	require.Len(t, logList, 1)
+	assert.Equal(t, outfitLog.ID, logList[0].ID)
+
+	// Step 6: Update outfit log date; verify linked wear logs dates updated.
+	updateLogResp := doJSON(t, srv, http.MethodPatch, "/outfits/"+outfitID+"/logs/"+outfitLog.ID,
+		map[string]any{"worn_on": "2026-03-02"}, token)
+	require.Equal(t, http.StatusOK, updateLogResp.StatusCode)
+
+	wearLogsItem1After := getItemWearLogs(t, srv, token, item1ID)
+	require.Len(t, wearLogsItem1After, 1)
+	assert.Equal(t, "2026-03-02", wearLogsItem1After[0].WornOn)
+
+	wearLogsItem2After := getItemWearLogs(t, srv, token, item2ID)
+	require.Len(t, wearLogsItem2After, 1)
+	assert.Equal(t, "2026-03-02", wearLogsItem2After[0].WornOn)
+
+	// Step 7: Delete outfit log; verify linked wear logs deleted.
+	deleteLogResp := doJSON(t, srv, http.MethodDelete, "/outfits/"+outfitID+"/logs/"+outfitLog.ID, nil, token)
+	require.Equal(t, http.StatusNoContent, deleteLogResp.StatusCode)
+
+	assert.Empty(t, getItemWearLogs(t, srv, token, item1ID))
+	assert.Empty(t, getItemWearLogs(t, srv, token, item2ID))
+
+	// Step 8: Delete outfit; verify it is gone.
+	deleteOutfitResp := doJSON(t, srv, http.MethodDelete, "/outfits/"+outfitID, nil, token)
+	require.Equal(t, http.StatusNoContent, deleteOutfitResp.StatusCode)
+
+	goneResp := doJSON(t, srv, http.MethodGet, "/outfits/"+outfitID, nil, token)
+	assert.Equal(t, http.StatusNotFound, goneResp.StatusCode)
+}
+
+func TestIntegrationOutfitLogsByDateRangeShouldReturnCorrectLogs(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	token, _ := registerUser(t, srv, "calendaruser", "password-calendar-secure")
+	itemID := createItem(t, srv, token, "Calendar Shirt", nil)
+
+	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var outfit struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, createResp, &outfit)
+
+	addResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfit.ID+"/items", map[string]any{"item_id": itemID}, token)
+	require.Equal(t, http.StatusNoContent, addResp.StatusCode)
+
+	logResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfit.ID+"/logs", map[string]any{"worn_on": "2026-03-10"}, token)
+	require.Equal(t, http.StatusCreated, logResp.StatusCode)
+	var outfitLog struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, logResp, &outfitLog)
+
+	// Query within range — should return the entry.
+	inRangeResp := doJSON(t, srv, http.MethodGet, "/outfit-logs?from=2026-03-01&to=2026-03-31", nil, token)
+	require.Equal(t, http.StatusOK, inRangeResp.StatusCode)
+	var inRange []struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, inRangeResp, &inRange)
+	require.Len(t, inRange, 1)
+	assert.Equal(t, outfitLog.ID, inRange[0].ID)
+
+	// Query outside range — should return empty.
+	outOfRangeResp := doJSON(t, srv, http.MethodGet, "/outfit-logs?from=2026-04-01&to=2026-04-30", nil, token)
+	require.Equal(t, http.StatusOK, outOfRangeResp.StatusCode)
+	var outOfRange []any
+	decodeJSON(t, outOfRangeResp, &outOfRange)
+	assert.Empty(t, outOfRange)
+}
+
+func TestIntegrationOutfitGetByIDShouldReturn403WhenUserBAccessesUserAOutfit(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	tokenA, _ := registerUser(t, srv, "outfit-alice1", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "outfit-bob1", "password-bob-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, tokenA)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var outfit struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, createResp, &outfit)
+
+	resp := doJSON(t, srv, http.MethodGet, "/outfits/"+outfit.ID, nil, tokenB)
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
