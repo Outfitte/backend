@@ -290,3 +290,129 @@ func TestNewShouldReturn401WhenDeleteWearLogCalledWithoutAuth(t *testing.T) {
 	resp := deleteURL(t, ts, "/items/item-1/wear-logs/log-1")
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
+
+func TestNewShouldReturn401WhenPostOutfitsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/outfits", `{"name":"summer"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetOutfitsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/outfits")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetOutfitByIDCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/outfits/outfit-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPatchOutfitCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := patchJSON(t, ts, "/outfits/outfit-1", `{"name":"winter"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteOutfitCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/outfits/outfit-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPostOutfitItemsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/outfits/outfit-1/items", `{"item_id":"item-1"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteOutfitItemCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/outfits/outfit-1/items/item-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPostOutfitPhotosCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/outfits/outfit-1/photos", ``)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteOutfitPhotoCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/outfits/outfit-1/photos/some/photo/key")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPostOutfitLogsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/outfits/outfit-1/logs", `{"worn_on":"2024-01-01"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetOutfitLogsCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/outfits/outfit-1/logs")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenPatchOutfitLogCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := patchJSON(t, ts, "/outfits/outfit-1/logs/log-1", `{"worn_on":"2024-02-01"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteOutfitLogCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/outfits/outfit-1/logs/log-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetOutfitLogsCalendarCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/outfit-logs")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
