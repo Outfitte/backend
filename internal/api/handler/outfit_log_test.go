@@ -205,6 +205,30 @@ func TestLogOutfitWearShouldReturn500WhenServiceFails(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestLogOutfitWearShouldReturn201WithEmptyWearLogIDsWhenLogHasNone(t *testing.T) {
+	var outfitLog domain.OutfitLog
+	outfitLog.ID = "log-1"
+	outfitLog.OutfitID = "outfit-1"
+	outfitLog.OwnerID = "user-1"
+	outfitLog.WornOn = time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	// WearLogIDs intentionally left nil (zero value)
+
+	svc := &fakeOutfitLogService{
+		logWearFn: func(_ context.Context, _, _ string, _ time.Time, _ *string) (domain.OutfitLog, error) {
+			return outfitLog, nil
+		},
+	}
+	h := newOutfitLogHandler(svc)
+
+	w := postOutfitLog(t, h, "outfit-1", "user-1", `{"worn_on":"2026-03-01"}`)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	wearLogIDs := resp["wear_log_ids"].([]any)
+	require.Empty(t, wearLogIDs)
+}
+
 func TestLogOutfitWearShouldReturn201WithLogWhenSuccessful(t *testing.T) {
 	var outfitLog domain.OutfitLog
 	outfitLog.ID = "log-1"
