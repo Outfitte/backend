@@ -408,7 +408,7 @@ func TestNewShouldReturn401WhenDeleteOutfitLogCalledWithoutAuth(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
-func TestNewShouldReturn401WhenGetOutfitLogsCalendarCalledWithoutAuth(t *testing.T) {
+func TestNewShouldReturn401WhenGetOutfitLogsByDateRangeCalledWithoutAuth(t *testing.T) {
 	cfg := &config.Config{ServerPort: "8080"}
 	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
 	defer ts.Close()
