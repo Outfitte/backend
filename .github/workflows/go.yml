@@ -24,8 +24,17 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Install go-junit-report
+      run: go install github.com/jstemmer/go-junit-report/v2@latest
+
     - name: Test
-      run: go test -v -coverprofile=coverage.out ./...
+      run: go test -v -json -coverprofile=coverage.out ./... | go-junit-report -set-exit-code > report.xml
+
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1.2.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
