@@ -25,7 +25,7 @@ jobs:
       run: go build -v ./...
 
     - name: Install go-junit-report
-      run: go install github.com/jstemmer/go-junit-report/v2@latest
+      run: go install github.com/jstemmer/go-junit-report/v2@v2.1.0
 
     - name: Test
       run: go test -v -json -coverprofile=coverage.out ./... | go-junit-report -set-exit-code > report.xml
