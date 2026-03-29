@@ -305,12 +305,32 @@ func TestItemListPhotoKeysShouldReturnKeysOrderedByPosition(t *testing.T) {
 	require.Equal(t, []string{"keyB", "keyC", "keyA"}, keys)
 }
 
+func TestItemListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := r.List(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestItemListShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "items.json"), []byte("not json"), 0o644))
+	r := json.NewItemRepository(dir)
+
+	_, err := r.List(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestItemListShouldReturnAllItemsWhenStoreIsPopulated(t *testing.T) {
 	r := json.NewItemRepository(t.TempDir())
 	var i1 domain.Item
 	i1.ID = "i1"
+	i1.OwnerID = "o1"
 	var i2 domain.Item
 	i2.ID = "i2"
+	i2.OwnerID = "o1"
 	require.NoError(t, r.Save(t.Context(), i1))
 	require.NoError(t, r.Save(t.Context(), i2))
 
