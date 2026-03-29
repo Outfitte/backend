@@ -72,6 +72,9 @@ func (t *OutfitLogTransactor) DeleteOutfitLog(ctx context.Context, outfitLogID s
 		return err
 	}
 
+	// If a linked wear log ID has no matching record (data inconsistency), we
+	// return the error immediately. Because there is no rollback, any wear logs
+	// already deleted in this loop are gone — the caller must repair the data.
 	for _, id := range wearLogIDs {
 		if err := t.wearLogs.Delete(ctx, id); err != nil {
 			return err

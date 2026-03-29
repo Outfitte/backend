@@ -118,7 +118,8 @@ func TestDeleteOutfitLogShouldReturnNotFoundWhenLinkedWearLogDoesNotExist(t *tes
 	var ol domain.OutfitLog
 	ol.ID = "ol1"
 	require.NoError(t, olRepo.Save(t.Context(), ol))
-	// Link a wear log ID that has no corresponding wear log record.
+	// Bypass the transactor to simulate a data-inconsistency state: the outfit
+	// log references a wear log ID that has no matching wear log record.
 	require.NoError(t, olRepo.LinkWearLog(t.Context(), "ol1", "ghost-wl"))
 
 	err := tr.DeleteOutfitLog(t.Context(), "ol1")
@@ -175,7 +176,8 @@ func TestUpdateOutfitLogDateShouldReturnNotFoundWhenLinkedWearLogDoesNotExist(t 
 	var ol domain.OutfitLog
 	ol.ID = "ol1"
 	require.NoError(t, olRepo.Save(t.Context(), ol))
-	// Link a wear log ID that has no corresponding wear log record.
+	// Bypass the transactor to simulate a data-inconsistency state: the outfit
+	// log references a wear log ID that has no matching wear log record.
 	require.NoError(t, olRepo.LinkWearLog(t.Context(), "ol1", "ghost-wl"))
 
 	err := tr.UpdateOutfitLogDate(t.Context(), "ol1", time.Now())
