@@ -193,3 +193,19 @@ func TestHasChildrenShouldReturnTrueWhenChildExists(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, has)
 }
+
+func TestLocationListShouldReturnAllLocationsWhenStoreIsPopulated(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+	var l1 domain.Location
+	l1.ID = "l1"
+	l1.OwnerID = "o1"
+	var l2 domain.Location
+	l2.ID = "l2"
+	l2.OwnerID = "o2"
+	require.NoError(t, r.Save(t.Context(), l1))
+	require.NoError(t, r.Save(t.Context(), l2))
+
+	locations, err := r.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, locations, 2)
+}

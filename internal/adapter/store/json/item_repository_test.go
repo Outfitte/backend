@@ -304,3 +304,17 @@ func TestItemListPhotoKeysShouldReturnKeysOrderedByPosition(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"keyB", "keyC", "keyA"}, keys)
 }
+
+func TestItemListShouldReturnAllItemsWhenStoreIsPopulated(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	var i1 domain.Item
+	i1.ID = "i1"
+	var i2 domain.Item
+	i2.ID = "i2"
+	require.NoError(t, r.Save(t.Context(), i1))
+	require.NoError(t, r.Save(t.Context(), i2))
+
+	items, err := r.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+}
