@@ -148,7 +148,8 @@ func upsertOutfitItem(items []domain.OutfitItem, item domain.OutfitItem) []domai
 func upsertOutfitPhoto(photos []domain.OutfitPhoto, photo domain.OutfitPhoto) []domain.OutfitPhoto {
 	for i, p := range photos {
 		if p.MediaKey == photo.MediaKey {
-			photos[i].Position = photo.Position
+			photo.CreatedAt = p.CreatedAt
+			photos[i] = photo
 			return photos
 		}
 	}

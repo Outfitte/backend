@@ -320,6 +320,22 @@ func TestOutfitDeletePhotoShouldRemovePhotoFromOutfit(t *testing.T) {
 	require.Empty(t, got.Photos)
 }
 
+func TestOutfitSavePhotoShouldUpdatePhotoIDWhenMediaKeyAlreadyExists(t *testing.T) {
+	r := json.NewOutfitRepository(t.TempDir())
+	var outfit domain.Outfit
+	outfit.ID = "o1"
+	require.NoError(t, r.Save(t.Context(), outfit))
+	require.NoError(t, r.SavePhoto(t.Context(), "o1", "p1", "key1", 0))
+
+	require.NoError(t, r.SavePhoto(t.Context(), "o1", "p2", "key1", 5))
+
+	got, err := r.Get(t.Context(), "o1")
+	require.NoError(t, err)
+	require.Len(t, got.Photos, 1)
+	require.Equal(t, "p2", got.Photos[0].ID)
+	require.Equal(t, 5, got.Photos[0].Position)
+}
+
 func TestOutfitDeletePhotoShouldKeepOtherPhotosWhenDeletingOne(t *testing.T) {
 	r := json.NewOutfitRepository(t.TempDir())
 	var outfit domain.Outfit
