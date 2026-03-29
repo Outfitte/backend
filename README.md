@@ -44,7 +44,7 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 | `GET` | `/categories` | JWT | List categories |
 | `GET` | `/media/{key...}` | JWT | Download media file |
 | `POST` | `/outfits` | JWT | Create outfit |
-| `GET` | `/outfits` | JWT | List outfits (optional: `?from=YYYY-MM-DD&to=YYYY-MM-DD` to filter by log date range) |
+| `GET` | `/outfits` | JWT | List outfits (optional pair: `?from=YYYY-MM-DD&to=YYYY-MM-DD` — both required together — to filter by log date range) |
 | `GET` | `/outfits/{id}` | JWT | Get outfit |
 | `PATCH` | `/outfits/{id}` | JWT | Update outfit |
 | `DELETE` | `/outfits/{id}` | JWT | Delete outfit |
