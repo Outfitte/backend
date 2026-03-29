@@ -99,6 +99,8 @@ func (t *OutfitLogTransactor) UpdateOutfitLogDate(ctx context.Context, outfitLog
 		return err
 	}
 
+	// ol.WearLogIDs is safe to use here: OutfitLogRepository.Save preserves the
+	// stored WearLogIDs, so ol still reflects the correct set from the Get above.
 	for _, id := range ol.WearLogIDs {
 		if err := t.updateWearLogDate(ctx, id, newDate); err != nil {
 			return err

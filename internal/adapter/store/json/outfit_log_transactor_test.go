@@ -151,13 +151,6 @@ func TestDeleteOutfitLogShouldDeleteOutfitLogAndLinkedWearLogs(t *testing.T) {
 
 // --- UpdateOutfitLogDate ---
 
-func TestUpdateOutfitLogDateShouldReturnNotFoundWhenOutfitLogDoesNotExist(t *testing.T) {
-	tr := newTransactor(t)
-
-	err := tr.UpdateOutfitLogDate(t.Context(), "ol1", time.Now())
-	require.ErrorIs(t, err, domain.ErrNotFound)
-}
-
 func TestUpdateOutfitLogDateShouldReturnErrorWhenContextCancelled(t *testing.T) {
 	tr := newTransactor(t)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -165,6 +158,13 @@ func TestUpdateOutfitLogDateShouldReturnErrorWhenContextCancelled(t *testing.T) 
 
 	err := tr.UpdateOutfitLogDate(ctx, "ol1", time.Now())
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestUpdateOutfitLogDateShouldReturnNotFoundWhenOutfitLogDoesNotExist(t *testing.T) {
+	tr := newTransactor(t)
+
+	err := tr.UpdateOutfitLogDate(t.Context(), "ol1", time.Now())
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestUpdateOutfitLogDateShouldReturnNotFoundWhenLinkedWearLogDoesNotExist(t *testing.T) {
