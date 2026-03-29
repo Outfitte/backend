@@ -248,6 +248,13 @@ components:
           type: boolean
 
   responses:
+    BadRequest:
+      description: Malformed request body or invalid parameter
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
     Unauthorized:
       description: Missing or invalid JWT
       content:
@@ -342,6 +349,8 @@ paths:
                     type: string
                   refresh_token:
                     type: string
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "409":
           $ref: '#/components/responses/Conflict'
 
@@ -369,6 +378,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenPair'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -394,6 +405,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenPair'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -415,6 +428,8 @@ paths:
       responses:
         "204":
           description: Token revoked
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -442,6 +457,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Item'
+        "400":
+          description: Invalid status filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -486,6 +507,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "422":
@@ -564,6 +587,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -636,6 +661,7 @@ paths:
       - name: key
         in: path
         required: true
+        description: Photo media key (may contain path separators)
         schema:
           type: string
 
@@ -683,6 +709,8 @@ paths:
       responses:
         "204":
           description: Location assigned
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -781,6 +809,12 @@ paths:
       responses:
         "204":
           description: Item disposed
+        "400":
+          description: Malformed request body or invalid disposal reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -824,6 +858,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WearLog'
+        "400":
+          description: Malformed request body or invalid date format (use YYYY-MM-DD)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -935,6 +975,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Location'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -998,6 +1040,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Location'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -1054,6 +1098,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Location'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -1144,7 +1190,7 @@ paths:
                 items:
                   $ref: '#/components/schemas/Outfit'
         "400":
-          description: Both from and to must be provided when filtering
+          description: Both from/to must be provided together, or invalid date format
           content:
             application/json:
               schema:
@@ -1176,6 +1222,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Outfit'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
 
@@ -1232,6 +1280,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Outfit'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -1284,6 +1334,8 @@ paths:
       responses:
         "204":
           description: Item added
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -1369,6 +1421,7 @@ paths:
       - name: key
         in: path
         required: true
+        description: Photo media key (may contain path separators)
         schema:
           type: string
 
@@ -1424,6 +1477,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OutfitLog'
+        "400":
+          description: Malformed request body or invalid date format (use YYYY-MM-DD)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -1499,6 +1558,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OutfitLog'
+        "400":
+          description: Malformed request body or invalid date format (use YYYY-MM-DD)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
@@ -1608,6 +1673,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppSettings'
+        "400":
+          $ref: '#/components/responses/BadRequest'
         "401":
           $ref: '#/components/responses/Unauthorized'
         "403":
