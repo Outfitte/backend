@@ -6,7 +6,7 @@
 
 Self-hosted wardrobe management application built in Go.
 
-> **Status:** Early development — M2 (Wear & Archive Lifecycle) complete. Core REST API is functional.
+> **Status:** Early development — M3 (Outfits & Calendar) complete. Core REST API is functional.
 
 ## Overview
 
@@ -43,6 +43,20 @@ Outfitte lets you catalogue your clothing, organise items into locations, log we
 | `PATCH` | `/locations/{id}/move` | JWT | Move location |
 | `GET` | `/categories` | JWT | List categories |
 | `GET` | `/media/{key...}` | JWT | Download media file |
+| `POST` | `/outfits` | JWT | Create outfit |
+| `GET` | `/outfits` | JWT | List outfits (optional: `?from=YYYY-MM-DD&to=YYYY-MM-DD` to filter by log date range) |
+| `GET` | `/outfits/{id}` | JWT | Get outfit |
+| `PATCH` | `/outfits/{id}` | JWT | Update outfit |
+| `DELETE` | `/outfits/{id}` | JWT | Delete outfit |
+| `POST` | `/outfits/{id}/items` | JWT | Add item to outfit (body: `{"item_id": "..."}`) |
+| `DELETE` | `/outfits/{id}/items/{itemID}` | JWT | Remove item from outfit |
+| `POST` | `/outfits/{id}/photos` | JWT | Upload outfit photo |
+| `DELETE` | `/outfits/{id}/photos/{key...}` | JWT | Delete outfit photo |
+| `POST` | `/outfits/{id}/logs` | JWT | Log an outfit wear event |
+| `GET` | `/outfits/{id}/logs` | JWT | List wear logs for an outfit |
+| `PATCH` | `/outfits/{id}/logs/{logID}` | JWT | Update outfit log date |
+| `DELETE` | `/outfits/{id}/logs/{logID}` | JWT | Delete an outfit log |
+| `GET` | `/outfit-logs?from=YYYY-MM-DD&to=YYYY-MM-DD` | JWT | List all outfit logs in a date range |
 | `GET` | `/admin/settings` | JWT + Admin | Get app settings |
 | `PATCH` | `/admin/settings` | JWT + Admin | Update app settings |
 
@@ -62,6 +76,32 @@ Item objects returned by the API have the following fields:
 | `photos` | array | Attached photos (`id`, `media_key`, `position`, `created_at`) |
 | `location_id` | string\|null | Location UUID (optional) |
 | `purchase_price` | string\|null | Purchase price as a decimal string (optional) |
+| `created_at` | string (RFC3339) | Creation timestamp |
+
+## Outfit API Shape
+
+Outfit objects returned by the API have the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Outfit UUID |
+| `owner_id` | string | Owner user UUID |
+| `name` | string\|null | Name (optional) |
+| `notes` | string\|null | Notes (optional) |
+| `items` | array | Linked items (`outfit_id`, `item_id`, `position`) |
+| `photos` | array | Attached photos (`id`, `media_key`, `position`, `created_at`) |
+| `created_at` | string (RFC3339) | Creation timestamp |
+
+### OutfitLog shape
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Log UUID |
+| `outfit_id` | string | Parent outfit UUID |
+| `owner_id` | string | Owner user UUID |
+| `worn_on` | string (YYYY-MM-DD) | Calendar date the outfit was worn |
+| `notes` | string\|null | Optional notes |
+| `wear_log_ids` | array | Item wear log IDs linked to this entry |
 | `created_at` | string (RFC3339) | Creation timestamp |
 
 ### Wear Log shape
@@ -117,7 +157,7 @@ golangci-lint run ./...
 | M0 | Foundation — scaffold, config, health check | ✓ Done |
 | M1 | Users, Items & Locations | ✓ Done |
 | M2 | Wear & Archive Lifecycle | ✓ Done |
-| M3 | Outfits & Calendar | Planned |
+| M3 | Outfits & Calendar | ✓ Done |
 | M4 | Seller URL & Price Tracking | Planned |
 | M5 | Family Sharing | Planned |
 | M6 | Polish & Public V1 Launch | Planned |
