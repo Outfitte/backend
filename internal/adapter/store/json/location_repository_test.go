@@ -193,3 +193,37 @@ func TestHasChildrenShouldReturnTrueWhenChildExists(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, has)
 }
+
+func TestLocationListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := r.List(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestLocationListShouldReturnIOErrorWhenStorageIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "locations.json"), []byte("not json"), 0o644))
+	r := json.NewLocationRepository(dir)
+
+	_, err := r.List(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLocationListShouldReturnAllLocationsWhenStoreIsPopulated(t *testing.T) {
+	r := json.NewLocationRepository(t.TempDir())
+	var l1 domain.Location
+	l1.ID = "l1"
+	l1.OwnerID = "o1"
+	var l2 domain.Location
+	l2.ID = "l2"
+	l2.OwnerID = "o1"
+	require.NoError(t, r.Save(t.Context(), l1))
+	require.NoError(t, r.Save(t.Context(), l2))
+
+	locations, err := r.List(t.Context())
+	require.NoError(t, err)
+	require.Len(t, locations, 2)
+}

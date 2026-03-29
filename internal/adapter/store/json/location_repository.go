@@ -4,7 +4,10 @@ import (
 	"context"
 
 	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/outfitte/internal/ports"
 )
+
+var _ ports.LocationRepository = (*LocationRepository)(nil)
 
 // LocationRepository is a JSON file-backed implementation of ports.LocationRepository.
 type LocationRepository struct {

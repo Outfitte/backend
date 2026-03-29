@@ -9,6 +9,8 @@ import (
 	"github.com/outfitte/outfitte/internal/ports"
 )
 
+var _ ports.ItemRepository = (*ItemRepository)(nil)
+
 // ItemRepository is a JSON file-backed implementation of ports.ItemRepository.
 type ItemRepository struct {
 	provider *Provider[domain.Item]
