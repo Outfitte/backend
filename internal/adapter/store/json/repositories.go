@@ -12,5 +12,6 @@ func NewRepositories(dataPath string) ports.Repositories {
 		Locations:   NewLocationRepository(dataPath),
 		WearLogs:    NewWearLogRepository(dataPath),
 		AppSettings: NewAppSettingsRepository(dataPath),
+		Outfits:     NewOutfitRepository(dataPath),
 	}
 }
