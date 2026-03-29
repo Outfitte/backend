@@ -184,6 +184,21 @@ func TestUpdateOutfitLogDateShouldReturnNotFoundWhenLinkedWearLogDoesNotExist(t 
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestUpdateOutfitLogDateShouldReturnIOErrorWhenOutfitLogStorageIsNotWritable(t *testing.T) {
+	dir := t.TempDir()
+	olRepo := json.NewOutfitLogRepository(dir)
+	tr := json.NewOutfitLogTransactor(olRepo, json.NewWearLogRepository(dir))
+
+	var ol domain.OutfitLog
+	ol.ID = "ol1"
+	require.NoError(t, olRepo.Save(t.Context(), ol))
+	require.NoError(t, os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o444))
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o644) })
+
+	err := tr.UpdateOutfitLogDate(t.Context(), "ol1", time.Now())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestUpdateOutfitLogDateShouldUpdateOutfitLogAndLinkedWearLogDates(t *testing.T) {
 	dir := t.TempDir()
 	olRepo := json.NewOutfitLogRepository(dir)
