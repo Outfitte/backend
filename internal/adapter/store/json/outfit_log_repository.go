@@ -2,6 +2,7 @@ package json
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -28,6 +29,14 @@ func (r *OutfitLogRepository) Get(ctx context.Context, id string) (domain.Outfit
 }
 
 func (r *OutfitLogRepository) Save(ctx context.Context, log domain.OutfitLog) error {
+	// Preserve wear log links: Save must not modify associations set via LinkWearLog.
+	if existing, err := r.provider.Get(ctx, log.ID); err == nil {
+		log.WearLogIDs = existing.WearLogIDs
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return err
+	} else {
+		log.WearLogIDs = nil
+	}
 	return r.provider.Save(ctx, log)
 }
 

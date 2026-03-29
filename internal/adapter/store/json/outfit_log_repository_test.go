@@ -334,6 +334,22 @@ func TestOutfitLogLinkedWearLogIDsShouldReturnLinkedIDs(t *testing.T) {
 	require.Equal(t, []string{"wl1", "wl2"}, ids)
 }
 
+func TestOutfitLogSaveShouldPreserveWearLogIDsFromPreviousLinks(t *testing.T) {
+	r := json.NewOutfitLogRepository(t.TempDir())
+	ol := domain.OutfitLog{}
+	ol.ID = "ol1"
+	require.NoError(t, r.Save(t.Context(), ol))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl1"))
+
+	// Re-save with a zeroed WearLogIDs — links must be preserved
+	ol.WearLogIDs = nil
+	require.NoError(t, r.Save(t.Context(), ol))
+
+	ids, err := r.LinkedWearLogIDs(t.Context(), "ol1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wl1"}, ids)
+}
+
 func TestOutfitLogGetShouldReturnSavedLog(t *testing.T) {
 	r := json.NewOutfitLogRepository(t.TempDir())
 	var ol domain.OutfitLog
