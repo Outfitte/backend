@@ -1,0 +1,1636 @@
+openapi: 3.1.0
+info:
+  title: Outfitte API
+  version: "3"
+  description: |
+    REST API for Outfitte — a self-hosted wardrobe management application.
+    Current milestone: M3 (Outfits & Calendar).
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: not found
+
+    User:
+      type: object
+      required: [id, email, role, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, admin]
+        created_at:
+          type: string
+          format: date-time
+
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+
+    Photo:
+      type: object
+      required: [id, media_key, position, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        media_key:
+          type: string
+        position:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    Item:
+      type: object
+      required: [id, owner_id, name, brand, category_id, color, metadata, photos, location_id, purchase_price, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        brand:
+          type: [string, "null"]
+        category_id:
+          type: [string, "null"]
+          format: uuid
+        color:
+          type: [string, "null"]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+        location_id:
+          type: [string, "null"]
+          format: uuid
+        purchase_price:
+          type: [string, "null"]
+          description: Decimal string, e.g. "29.99"
+        created_at:
+          type: string
+          format: date-time
+
+    WearLog:
+      type: object
+      required: [id, item_id, owner_id, worn_on, notes, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        worn_on:
+          type: string
+          format: date
+          example: "2024-03-15"
+        notes:
+          type: [string, "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    OutfitItem:
+      type: object
+      required: [outfit_id, item_id, position]
+      properties:
+        outfit_id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        position:
+          type: integer
+
+    Outfit:
+      type: object
+      required: [id, owner_id, name, notes, items, photos, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        name:
+          type: [string, "null"]
+        notes:
+          type: [string, "null"]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OutfitItem'
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+        created_at:
+          type: string
+          format: date-time
+
+    OutfitLog:
+      type: object
+      required: [id, outfit_id, owner_id, worn_on, notes, wear_log_ids, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        outfit_id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        worn_on:
+          type: string
+          format: date
+          example: "2024-03-15"
+        notes:
+          type: [string, "null"]
+        wear_log_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    Location:
+      type: object
+      required: [id, owner_id, parent_id, label, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        parent_id:
+          type: [string, "null"]
+          format: uuid
+        label:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    FieldHint:
+      type: object
+      required: [key, label, placeholder]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        placeholder:
+          type: string
+
+    Category:
+      type: object
+      required: [id, label, is_preset, field_hints]
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        is_preset:
+          type: boolean
+        field_hints:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldHint'
+
+    AppSettings:
+      type: object
+      required: [registration_enabled]
+      properties:
+        registration_enabled:
+          type: boolean
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unauthorized
+
+    Forbidden:
+      description: Authenticated but not permitted
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: forbidden
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: not found
+
+    Conflict:
+      description: State conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    UnprocessableEntity:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+security: []
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Register a new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "201":
+          description: User created and tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user, access_token, refresh_token]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        "409":
+          $ref: '#/components/responses/Conflict'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Obtain access and refresh tokens
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: New token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke refresh token
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "204":
+          description: Token revoked
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /items:
+    get:
+      tags: [items]
+      summary: List items
+      operationId: listItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by item status (default is active)
+          schema:
+            type: string
+            enum: [active, archived, all]
+            default: active
+      responses:
+        "200":
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [items]
+      summary: Create item
+      operationId: createItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                brand:
+                  type: [string, "null"]
+                category_id:
+                  type: [string, "null"]
+                  format: uuid
+                color:
+                  type: [string, "null"]
+                metadata:
+                  type: object
+                  additionalProperties:
+                    type: string
+                photo_keys:
+                  type: array
+                  items:
+                    type: string
+                location_id:
+                  type: [string, "null"]
+                  format: uuid
+      responses:
+        "201":
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "422":
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /items/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [items]
+      summary: Get item
+      operationId: getItem
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Item found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [items]
+      summary: Update item
+      operationId: updateItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                brand:
+                  type: [string, "null"]
+                category_id:
+                  type: [string, "null"]
+                  format: uuid
+                color:
+                  type: [string, "null"]
+                metadata:
+                  type: object
+                  additionalProperties:
+                    type: string
+                photo_keys:
+                  type: array
+                  items:
+                    type: string
+                location_id:
+                  type: [string, "null"]
+                  format: uuid
+                purchase_price:
+                  type: [string, "null"]
+                  description: Decimal string, e.g. "29.99"
+      responses:
+        "200":
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags: [items]
+      summary: Delete item
+      operationId: deleteItem
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Item deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /items/{id}/photos:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [items]
+      summary: Upload photo
+      operationId: uploadItemPhoto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Photo uploaded
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /items/{id}/photos/{key}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+
+    delete:
+      tags: [items]
+      summary: Delete photo
+      operationId: deleteItemPhoto
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Photo deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /items/{id}/location:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags: [items]
+      summary: Assign item to location
+      operationId: assignItemLocation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                location_id:
+                  type: [string, "null"]
+                  format: uuid
+      responses:
+        "204":
+          description: Location assigned
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /items/{id}/archive:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [items]
+      summary: Archive item
+      operationId: archiveItem
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Item archived
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Item is already archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /items/{id}/unarchive:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [items]
+      summary: Unarchive item
+      operationId: unarchiveItem
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Item unarchived
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Item is not archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /items/{id}/dispose:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [items]
+      summary: Dispose item
+      operationId: disposeItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  enum: [donated, sold, discarded, lost, other]
+      responses:
+        "204":
+          description: Item disposed
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /items/{id}/wear-logs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [wear-logs]
+      summary: Log a wear event for an item
+      operationId: logItemWear
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [worn_on]
+              properties:
+                worn_on:
+                  type: string
+                  format: date
+                  example: "2024-03-15"
+                notes:
+                  type: [string, "null"]
+      responses:
+        "201":
+          description: Wear event logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WearLog'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          description: Future date not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags: [wear-logs]
+      summary: List wear logs for an item
+      operationId: listItemWearLogs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of wear logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WearLog'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /items/{id}/wear-logs/{logID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: logID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      tags: [wear-logs]
+      summary: Delete a wear log
+      operationId: deleteItemWearLog
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Wear log deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /locations:
+    get:
+      tags: [locations]
+      summary: List location tree
+      operationId: listLocations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [locations]
+      summary: Create location
+      operationId: createLocation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label:
+                  type: string
+                parent_id:
+                  type: [string, "null"]
+                  format: uuid
+      responses:
+        "201":
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          description: Parent location not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /locations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [locations]
+      summary: Get location
+      operationId: getLocation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Location found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [locations]
+      summary: Update location label
+      operationId: updateLocation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label:
+                  type: string
+      responses:
+        "200":
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [locations]
+      summary: Delete location
+      operationId: deleteLocation
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Location deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /locations/{id}/move:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags: [locations]
+      summary: Move location to a new parent
+      operationId: moveLocation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parent_id:
+                  type: [string, "null"]
+                  format: uuid
+                  description: New parent location ID, or null to make root
+      responses:
+        "200":
+          description: Location moved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Move would create a cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /categories:
+    get:
+      tags: [categories]
+      summary: List categories
+      operationId: listCategories
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /media/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Media file key (may contain path segments)
+
+    get:
+      tags: [media]
+      summary: Download media file
+      operationId: getMedia
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Media file contents
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits:
+    get:
+      tags: [outfits]
+      summary: List outfits
+      operationId: listOutfits
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          description: Filter by log date range start (YYYY-MM-DD). Must be paired with `to`.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Filter by log date range end (YYYY-MM-DD). Must be paired with `from`.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: List of outfits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Outfit'
+        "400":
+          description: Both from and to must be provided when filtering
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [outfits]
+      summary: Create outfit
+      operationId: createOutfit
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: [string, "null"]
+                notes:
+                  type: [string, "null"]
+      responses:
+        "201":
+          description: Outfit created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outfit'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /outfits/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [outfits]
+      summary: Get outfit
+      operationId: getOutfit
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Outfit found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outfit'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [outfits]
+      summary: Update outfit
+      operationId: updateOutfit
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: [string, "null"]
+                notes:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: Outfit updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outfit'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [outfits]
+      summary: Delete outfit
+      operationId: deleteOutfit
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Outfit deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits/{id}/items:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [outfits]
+      summary: Add item to outfit
+      operationId: addOutfitItem
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_id]
+              properties:
+                item_id:
+                  type: string
+                  format: uuid
+      responses:
+        "204":
+          description: Item added
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits/{id}/items/{itemID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: itemID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      tags: [outfits]
+      summary: Remove item from outfit
+      operationId: removeOutfitItem
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Item removed
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits/{id}/photos:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [outfits]
+      summary: Upload outfit photo
+      operationId: uploadOutfitPhoto
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Photo uploaded
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits/{id}/photos/{key}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+
+    delete:
+      tags: [outfits]
+      summary: Delete outfit photo
+      operationId: deleteOutfitPhoto
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Photo deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits/{id}/logs:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [outfit-logs]
+      summary: Log an outfit wear event
+      operationId: logOutfitWear
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [worn_on]
+              properties:
+                worn_on:
+                  type: string
+                  format: date
+                  example: "2024-03-15"
+                notes:
+                  type: [string, "null"]
+      responses:
+        "201":
+          description: Outfit wear event logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutfitLog'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          description: Future date not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags: [outfit-logs]
+      summary: List wear logs for an outfit
+      operationId: listOutfitLogs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of outfit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutfitLog'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfits/{id}/logs/{logID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: logID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      tags: [outfit-logs]
+      summary: Update outfit log date
+      operationId: updateOutfitLogDate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [worn_on]
+              properties:
+                worn_on:
+                  type: string
+                  format: date
+                  example: "2024-03-15"
+      responses:
+        "200":
+          description: Outfit log date updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutfitLog'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          description: Future date not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [outfit-logs]
+      summary: Delete an outfit log
+      operationId: deleteOutfitLog
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Outfit log deleted
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
+  /outfit-logs:
+    get:
+      tags: [outfit-logs]
+      summary: List all outfit logs in a date range
+      operationId: listOutfitLogsByDateRange
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: List of outfit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutfitLog'
+        "400":
+          description: Missing or invalid date parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/settings:
+    get:
+      tags: [admin]
+      summary: Get app settings
+      operationId: getSettings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current app settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppSettings'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+
+    patch:
+      tags: [admin]
+      summary: Update app settings
+      operationId: updateSettings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [registration_enabled]
+              properties:
+                registration_enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppSettings'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+
+tags:
+  - name: health
+    description: Service health
+  - name: auth
+    description: Authentication and session management
+  - name: admin
+    description: Administrator-only operations (JWT + admin role required)
+  - name: categories
+    description: Item categories
+  - name: items
+    description: Wardrobe items
+  - name: wear-logs
+    description: Item wear events
+  - name: locations
+    description: Storage locations
+  - name: outfits
+    description: Outfit collections
+  - name: outfit-logs
+    description: Outfit wear events
+  - name: media
+    description: Media file download

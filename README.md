@@ -12,108 +12,18 @@ Self-hosted wardrobe management application built in Go.
 
 Outfitte lets you catalogue your clothing, organise items into locations, log wear events, and build outfit journals — all from your own infrastructure.
 
-## API Endpoints
+## API Reference
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/health` | — | Health check |
-| `POST` | `/auth/register` | — | Register a new user |
-| `POST` | `/auth/login` | — | Obtain access + refresh tokens |
-| `POST` | `/auth/refresh` | — | Rotate refresh token |
-| `POST` | `/auth/logout` | — | Revoke refresh token |
-| `GET` | `/items?status=active\|archived\|all` | JWT | List items (default: `active`) |
-| `POST` | `/items` | JWT | Create item |
-| `GET` | `/items/{id}` | JWT | Get item |
-| `PATCH` | `/items/{id}` | JWT | Update item |
-| `DELETE` | `/items/{id}` | JWT | Delete item |
-| `POST` | `/items/{id}/photos` | JWT | Upload photo |
-| `DELETE` | `/items/{id}/photos/{key...}` | JWT | Delete photo |
-| `PATCH` | `/items/{id}/location` | JWT | Assign item to location |
-| `POST` | `/items/{id}/archive` | JWT | Archive item |
-| `POST` | `/items/{id}/unarchive` | JWT | Unarchive item |
-| `POST` | `/items/{id}/dispose` | JWT | Dispose item (body: `{"reason": "donated\|sold\|discarded\|lost\|other"}`) |
-| `POST` | `/items/{id}/wear-logs` | JWT | Log a wear event |
-| `GET` | `/items/{id}/wear-logs` | JWT | List wear logs for an item |
-| `DELETE` | `/items/{id}/wear-logs/{logID}` | JWT | Delete a wear log |
-| `GET` | `/locations` | JWT | List location tree |
-| `POST` | `/locations` | JWT | Create location |
-| `GET` | `/locations/{id}` | JWT | Get location |
-| `PATCH` | `/locations/{id}` | JWT | Update location |
-| `DELETE` | `/locations/{id}` | JWT | Delete location |
-| `PATCH` | `/locations/{id}/move` | JWT | Move location |
-| `GET` | `/categories` | JWT | List categories |
-| `GET` | `/media/{key...}` | JWT | Download media file |
-| `POST` | `/outfits` | JWT | Create outfit |
-| `GET` | `/outfits` | JWT | List outfits (optional pair: `?from=YYYY-MM-DD&to=YYYY-MM-DD` — both required together — to filter by log date range) |
-| `GET` | `/outfits/{id}` | JWT | Get outfit |
-| `PATCH` | `/outfits/{id}` | JWT | Update outfit |
-| `DELETE` | `/outfits/{id}` | JWT | Delete outfit |
-| `POST` | `/outfits/{id}/items` | JWT | Add item to outfit (body: `{"item_id": "..."}`) |
-| `DELETE` | `/outfits/{id}/items/{itemID}` | JWT | Remove item from outfit |
-| `POST` | `/outfits/{id}/photos` | JWT | Upload outfit photo |
-| `DELETE` | `/outfits/{id}/photos/{key...}` | JWT | Delete outfit photo |
-| `POST` | `/outfits/{id}/logs` | JWT | Log an outfit wear event |
-| `GET` | `/outfits/{id}/logs` | JWT | List wear logs for an outfit |
-| `PATCH` | `/outfits/{id}/logs/{logID}` | JWT | Update outfit log date |
-| `DELETE` | `/outfits/{id}/logs/{logID}` | JWT | Delete an outfit log |
-| `GET` | `/outfit-logs?from=YYYY-MM-DD&to=YYYY-MM-DD` | JWT | List all outfit logs in a date range |
-| `GET` | `/admin/settings` | JWT + Admin | Get app settings |
-| `PATCH` | `/admin/settings` | JWT + Admin | Update app settings |
+The full API specification is in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.1).
 
-## Item API Shape
+To render it locally:
 
-Item objects returned by the API have the following fields:
+```bash
+# Redocly CLI
+npx @redocly/cli preview-docs docs/openapi.yaml
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Item UUID |
-| `owner_id` | string | Owner user UUID |
-| `name` | string | Item name |
-| `brand` | string\|null | Brand (optional) |
-| `category_id` | string\|null | Category UUID (optional) |
-| `color` | string\|null | Colour (optional) |
-| `metadata` | object | Free-form key/value pairs (string → string) |
-| `photos` | array | Attached photos (`id`, `media_key`, `position`, `created_at`) |
-| `location_id` | string\|null | Location UUID (optional) |
-| `purchase_price` | string\|null | Purchase price as a decimal string (optional) |
-| `created_at` | string (RFC3339) | Creation timestamp |
-
-## Outfit API Shape
-
-Outfit objects returned by the API have the following fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Outfit UUID |
-| `owner_id` | string | Owner user UUID |
-| `name` | string\|null | Name (optional) |
-| `notes` | string\|null | Notes (optional) |
-| `items` | array | Linked items (`outfit_id`, `item_id`, `position`) |
-| `photos` | array | Attached photos (`id`, `media_key`, `position`, `created_at`) |
-| `created_at` | string (RFC3339) | Creation timestamp |
-
-### OutfitLog shape
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Log UUID |
-| `outfit_id` | string | Parent outfit UUID |
-| `owner_id` | string | Owner user UUID |
-| `worn_on` | string (YYYY-MM-DD) | Calendar date the outfit was worn |
-| `notes` | string\|null | Optional notes |
-| `wear_log_ids` | array | Item wear log IDs linked to this entry |
-| `created_at` | string (RFC3339) | Creation timestamp |
-
-### Wear Log shape
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Log UUID |
-| `item_id` | string | Parent item UUID |
-| `owner_id` | string | Owner user UUID |
-| `worn_on` | string (YYYY-MM-DD) | Calendar date the item was worn |
-| `notes` | string\|null | Optional notes |
-| `created_at` | string (RFC3339) | Creation timestamp |
+# Or paste the file contents into https://editor.swagger.io
+```
 
 ## Running with Docker Compose
 
