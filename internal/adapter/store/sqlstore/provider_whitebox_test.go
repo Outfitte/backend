@@ -281,3 +281,77 @@ func TestUpsertItemRowShouldReturnErrIOWhenFKFails(t *testing.T) {
 	err = upsertItemRow(t.Context(), tx, item)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
+
+// ── upsertItemRow with archivedAt and disposalReason ─────────────────────────
+
+func TestUpsertItemRowShouldSucceedWhenArchivedAtIsSet(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-arc', 'arc@test.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	archivedAt := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	var item domain.Item
+	item.ID = "item-arc"
+	item.OwnerID = "user-arc"
+	item.Name = "Archived"
+	item.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	item.ArchivedAt = &archivedAt
+	item.Metadata = domain.ItemMetadata{}
+
+	require.NoError(t, upsertItemRow(t.Context(), tx, item))
+}
+
+func TestUpsertItemRowShouldSucceedWhenDisposalReasonIsSet(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('user-disp', 'disp@test.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	reason := domain.DisposalReason("donated")
+	var item domain.Item
+	item.ID = "item-disp"
+	item.OwnerID = "user-disp"
+	item.Name = "Donated"
+	item.CreatedAt = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	item.DisposalReason = &reason
+	item.Metadata = domain.ItemMetadata{}
+
+	require.NoError(t, upsertItemRow(t.Context(), tx, item))
+}
+
+func TestGetItemShouldReturnDisposalReasonWhenSet(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, archived_at, disposal_reason, metadata)
+		VALUES ('item-disposal', 'owner-1', 'Item', '2025-01-01T00:00:00Z', '2025-06-01T00:00:00Z', 'donated', '{}')`)
+	require.NoError(t, err)
+
+	item, err := getItem(t.Context(), db, "item-disposal")
+	require.NoError(t, err)
+	require.NotNil(t, item.DisposalReason)
+	require.Equal(t, domain.DisposalReason("donated"), *item.DisposalReason)
+}
+
+// ── buildItem bad archivedAt ──────────────────────────────────────────────────
+
+func TestGetItemShouldReturnErrIOWhenArchivedAtIsInvalid(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, archived_at, metadata)
+		VALUES ('item-bad-arc', 'owner-1', 'Bad Item', '2025-01-01T00:00:00Z', 'not-a-date', '{}')`)
+	require.NoError(t, err)
+
+	_, err = getItem(t.Context(), db, "item-bad-arc")
+	require.ErrorIs(t, err, domain.ErrIO)
+}

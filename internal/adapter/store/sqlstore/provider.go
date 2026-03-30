@@ -19,29 +19,31 @@ func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 	const q = `
 		SELECT id, owner_id, name, brand, category_id, color,
 		       location_id, purchase_price, purchase_date, created_at, metadata,
-		       archived_at, disposal_reason
+		       archived_at, disposal_reason, seller_url, purchase_currency
 		FROM items WHERE id = ?`
 
 	var (
-		itemID         string
-		ownerID        string
-		name           string
-		brand          sql.NullString
-		categoryID     sql.NullString
-		color          sql.NullString
-		locationID     sql.NullString
-		purchasePrice  sql.NullString
-		purchaseDate   sql.NullString
-		createdAt      string
-		metadataRaw    string
-		archivedAt     sql.NullString
-		disposalReason sql.NullString
+		itemID           string
+		ownerID          string
+		name             string
+		brand            sql.NullString
+		categoryID       sql.NullString
+		color            sql.NullString
+		locationID       sql.NullString
+		purchasePrice    sql.NullString
+		purchaseDate     sql.NullString
+		createdAt        string
+		metadataRaw      string
+		archivedAt       sql.NullString
+		disposalReason   sql.NullString
+		sellerURL        sql.NullString
+		purchaseCurrency sql.NullString
 	)
 
 	err := db.QueryRowContext(ctx, q, id).Scan(
 		&itemID, &ownerID, &name, &brand, &categoryID, &color,
 		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
-		&archivedAt, &disposalReason,
+		&archivedAt, &disposalReason, &sellerURL, &purchaseCurrency,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.Item{}, fmt.Errorf("%w: id %s", domain.ErrNotFound, id)
@@ -50,7 +52,7 @@ func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw, archivedAt, disposalReason)
+	item, err := buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw, archivedAt, disposalReason, sellerURL, purchaseCurrency)
 	if err != nil {
 		return domain.Item{}, err
 	}
@@ -64,37 +66,39 @@ func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {
 
 func scanItem(rows *sql.Rows) (domain.Item, error) {
 	var (
-		itemID         string
-		ownerID        string
-		name           string
-		brand          sql.NullString
-		categoryID     sql.NullString
-		color          sql.NullString
-		locationID     sql.NullString
-		purchasePrice  sql.NullString
-		purchaseDate   sql.NullString
-		createdAt      string
-		metadataRaw    string
-		archivedAt     sql.NullString
-		disposalReason sql.NullString
+		itemID           string
+		ownerID          string
+		name             string
+		brand            sql.NullString
+		categoryID       sql.NullString
+		color            sql.NullString
+		locationID       sql.NullString
+		purchasePrice    sql.NullString
+		purchaseDate     sql.NullString
+		createdAt        string
+		metadataRaw      string
+		archivedAt       sql.NullString
+		disposalReason   sql.NullString
+		sellerURL        sql.NullString
+		purchaseCurrency sql.NullString
 	)
 
 	if err := rows.Scan(
 		&itemID, &ownerID, &name, &brand, &categoryID, &color,
 		&locationID, &purchasePrice, &purchaseDate, &createdAt, &metadataRaw,
-		&archivedAt, &disposalReason,
+		&archivedAt, &disposalReason, &sellerURL, &purchaseCurrency,
 	); err != nil {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw, archivedAt, disposalReason)
+	return buildItem(itemID, ownerID, name, brand, categoryID, color, locationID, purchasePrice, purchaseDate, createdAt, metadataRaw, archivedAt, disposalReason, sellerURL, purchaseCurrency)
 }
 
 func buildItem(
 	itemID, ownerID, name string,
 	brand, categoryID, color, locationID, purchasePrice, purchaseDate sql.NullString,
 	createdAt, metadataRaw string,
-	archivedAt, disposalReason sql.NullString,
+	archivedAt, disposalReason, sellerURL, purchaseCurrency sql.NullString,
 ) (domain.Item, error) {
 	parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
@@ -145,6 +149,12 @@ func buildItem(
 	if disposalReason.Valid {
 		r := domain.DisposalReason(disposalReason.String)
 		item.DisposalReason = &r
+	}
+	if sellerURL.Valid {
+		item.SellerURL = &sellerURL.String
+	}
+	if purchaseCurrency.Valid {
+		item.PurchaseCurrency = &purchaseCurrency.String
 	}
 
 	return item, nil
@@ -252,21 +262,23 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 		INSERT INTO items
 			(id, owner_id, name, brand, category_id, color, location_id,
 			 purchase_price, purchase_date, created_at, metadata,
-			 archived_at, disposal_reason)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 archived_at, disposal_reason, seller_url, purchase_currency)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
-			owner_id        = excluded.owner_id,
-			name            = excluded.name,
-			brand           = excluded.brand,
-			category_id     = excluded.category_id,
-			color           = excluded.color,
-			location_id     = excluded.location_id,
-			purchase_price  = excluded.purchase_price,
-			purchase_date   = excluded.purchase_date,
-			created_at      = excluded.created_at,
-			metadata        = excluded.metadata,
-			archived_at     = excluded.archived_at,
-			disposal_reason = excluded.disposal_reason`
+			owner_id          = excluded.owner_id,
+			name              = excluded.name,
+			brand             = excluded.brand,
+			category_id       = excluded.category_id,
+			color             = excluded.color,
+			location_id       = excluded.location_id,
+			purchase_price    = excluded.purchase_price,
+			purchase_date     = excluded.purchase_date,
+			created_at        = excluded.created_at,
+			metadata          = excluded.metadata,
+			archived_at       = excluded.archived_at,
+			disposal_reason   = excluded.disposal_reason,
+			seller_url        = excluded.seller_url,
+			purchase_currency = excluded.purchase_currency`
 
 	_, err = tx.ExecContext(ctx, q,
 		item.ID,
@@ -282,6 +294,8 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 		string(metadataRaw),
 		archivedAt,
 		disposalReason,
+		item.SellerURL,
+		item.PurchaseCurrency,
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
