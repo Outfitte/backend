@@ -323,6 +323,81 @@ func TestItemListShouldReturnErrIOWhenDataFileIsCorrupt(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemSaveShouldRoundTripSellerURLWhenNonNil(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	url := "https://example.com/item"
+	var item domain.Item
+	item.ID = "i1"
+	item.SellerURL = &url
+
+	require.NoError(t, r.Save(t.Context(), item))
+
+	got, err := r.Get(t.Context(), "i1")
+	require.NoError(t, err)
+	require.NotNil(t, got.SellerURL)
+	require.Equal(t, url, *got.SellerURL)
+}
+
+func TestItemSaveShouldRoundTripSellerURLWhenNil(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	var item domain.Item
+	item.ID = "i1"
+	item.SellerURL = nil
+
+	require.NoError(t, r.Save(t.Context(), item))
+
+	got, err := r.Get(t.Context(), "i1")
+	require.NoError(t, err)
+	require.Nil(t, got.SellerURL)
+}
+
+func TestItemSaveShouldRoundTripPurchaseCurrencyWhenNonNil(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	currency := "USD"
+	var item domain.Item
+	item.ID = "i1"
+	item.PurchaseCurrency = &currency
+
+	require.NoError(t, r.Save(t.Context(), item))
+
+	got, err := r.Get(t.Context(), "i1")
+	require.NoError(t, err)
+	require.NotNil(t, got.PurchaseCurrency)
+	require.Equal(t, currency, *got.PurchaseCurrency)
+}
+
+func TestItemSaveShouldRoundTripPurchaseCurrencyWhenNil(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	var item domain.Item
+	item.ID = "i1"
+	item.PurchaseCurrency = nil
+
+	require.NoError(t, r.Save(t.Context(), item))
+
+	got, err := r.Get(t.Context(), "i1")
+	require.NoError(t, err)
+	require.Nil(t, got.PurchaseCurrency)
+}
+
+func TestItemSaveShouldRoundTripBothSellerURLAndPurchaseCurrencyTogether(t *testing.T) {
+	r := json.NewItemRepository(t.TempDir())
+	url := "https://shop.example.com/jacket"
+	currency := "EUR"
+	var item domain.Item
+	item.ID = "i1"
+	item.SellerURL = &url
+	item.PurchaseCurrency = &currency
+
+	require.NoError(t, r.Save(t.Context(), item))
+
+	got, err := r.Get(t.Context(), "i1")
+	require.NoError(t, err)
+	require.NotNil(t, got.SellerURL)
+	require.Equal(t, url, *got.SellerURL)
+	require.NotNil(t, got.PurchaseCurrency)
+	require.Equal(t, currency, *got.PurchaseCurrency)
+}
+
 func TestItemListShouldReturnAllItemsWhenStoreIsPopulated(t *testing.T) {
 	r := json.NewItemRepository(t.TempDir())
 	var i1 domain.Item
