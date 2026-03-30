@@ -554,6 +554,78 @@ func TestItemRepositoryListPhotoKeysShouldReturnErrIOWhenDBIsClosed(t *testing.T
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+// ── SellerURL and PurchaseCurrency ────────────────────────────────────────────
+
+func TestItemRepositorySaveShouldPersistSellerURLAndPurchaseCurrency(t *testing.T) {
+	repo, db := newItemRepo(t)
+	seedUserForItem(t, db, "user-seller")
+
+	sellerURL := "https://example.com/jacket"
+	currency := "USD"
+	var item domain.Item
+	item.ID = "item-seller-1"
+	item.OwnerID = "user-seller"
+	item.Name = "Jacket"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+	item.SellerURL = &sellerURL
+	item.PurchaseCurrency = &currency
+
+	require.NoError(t, repo.Save(t.Context(), item))
+
+	got, err := repo.Get(t.Context(), "item-seller-1")
+	require.NoError(t, err)
+	require.NotNil(t, got.SellerURL)
+	require.Equal(t, "https://example.com/jacket", *got.SellerURL)
+	require.NotNil(t, got.PurchaseCurrency)
+	require.Equal(t, "USD", *got.PurchaseCurrency)
+}
+
+func TestItemRepositorySaveShouldPersistNilSellerURLAndPurchaseCurrency(t *testing.T) {
+	repo, db := newItemRepo(t)
+	seedUserForItem(t, db, "user-nourl")
+
+	var item domain.Item
+	item.ID = "item-nourl"
+	item.OwnerID = "user-nourl"
+	item.Name = "Plain Shirt"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+
+	require.NoError(t, repo.Save(t.Context(), item))
+
+	got, err := repo.Get(t.Context(), "item-nourl")
+	require.NoError(t, err)
+	require.Nil(t, got.SellerURL)
+	require.Nil(t, got.PurchaseCurrency)
+}
+
+func TestItemRepositoryListByOwnerShouldReturnSellerURLAndPurchaseCurrency(t *testing.T) {
+	repo, db := newItemRepo(t)
+	seedUserForItem(t, db, "user-list-seller")
+
+	sellerURL := "https://shop.example.com/item"
+	currency := "EUR"
+	var item domain.Item
+	item.ID = "item-list-seller"
+	item.OwnerID = "user-list-seller"
+	item.Name = "Shoes"
+	item.CreatedAt = time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	item.Metadata = domain.ItemMetadata{}
+	item.SellerURL = &sellerURL
+	item.PurchaseCurrency = &currency
+
+	require.NoError(t, repo.Save(t.Context(), item))
+
+	items, err := repo.ListByOwner(t.Context(), "user-list-seller", ports.ItemListFilter{Status: ports.ItemStatusAll})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.NotNil(t, items[0].SellerURL)
+	require.Equal(t, "https://shop.example.com/item", *items[0].SellerURL)
+	require.NotNil(t, items[0].PurchaseCurrency)
+	require.Equal(t, "EUR", *items[0].PurchaseCurrency)
+}
+
 // ── Test doubles ──────────────────────────────────────────────────────────────
 
 type stubDB struct {

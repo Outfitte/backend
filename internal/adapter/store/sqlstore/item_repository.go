@@ -89,7 +89,7 @@ func (r *ItemRepository) queryItemsByOwner(ctx context.Context, ownerID string, 
 	q := `
 		SELECT id, owner_id, name, brand, category_id, color,
 		       location_id, purchase_price, purchase_date, created_at, metadata,
-		       archived_at, disposal_reason
+		       archived_at, disposal_reason, seller_url, purchase_currency
 		FROM items
 		WHERE owner_id = ?`
 
