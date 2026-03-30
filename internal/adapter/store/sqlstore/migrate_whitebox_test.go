@@ -326,6 +326,45 @@ func TestMigration004UpShouldCascadeDeleteOutfitChildRowsWhenOutfitDeleted(t *te
 	}
 }
 
+func TestMigration006UpShouldAddSellerUrlAndPurchaseCurrencyToItems(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(6))
+
+	cols, err := itemColumnNames(t.Context(), db)
+	require.NoError(t, err)
+	require.Contains(t, cols, "seller_url")
+	require.Contains(t, cols, "purchase_currency")
+}
+
+func TestMigration006DownShouldRemoveSellerUrlAndPurchaseCurrencyFromItems(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(6))
+	require.NoError(t, m.Steps(-1))
+
+	cols, err := itemColumnNames(t.Context(), db)
+	require.NoError(t, err)
+	require.NotContains(t, cols, "seller_url")
+	require.NotContains(t, cols, "purchase_currency")
+}
+
 func TestTokenHashIndexIsUsedForLookup(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
