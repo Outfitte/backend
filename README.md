@@ -1,5 +1,5 @@
 [![Go](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml)
-[![codecov](https://codecov.io/gh/Outfitte/Outfitte/graph/badge.svg?token=CCAGD8KF43)](https://codecov.io/gh/Outfitte/Outfitte)
+[![codecov](https://codecov.io/gh/Outfitte/backend/graph/badge.svg?token=CCAGD8KF43)](https://codecov.io/gh/Outfitte/backend) 
 [![Dependabot Updates](https://github.com/Outfitte/Outfitte/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/dependabot/dependabot-updates)
 
 # Outfitte
