@@ -27,7 +27,7 @@ type Item struct {
 	// PurchaseCurrency must always accompany PurchasePrice — if one is set, both must be
 	// set. This invariant is enforced by the service layer, not the domain struct.
 	PurchaseCurrency *string         // optional; 3-letter ISO 4217 code (e.g. "USD", "PLN", "EUR")
-	PurchaseDate     *time.Time      // optional
+	PurchaseDate     *time.Time      // optional; deferred to M4+
 	SellerURL        *string         // optional; single URL per item, non-empty when provided
 	CreatedAt        time.Time
 	ArchivedAt       *time.Time      // non-nil means item is archived
