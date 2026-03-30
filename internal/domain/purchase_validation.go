@@ -49,6 +49,8 @@ func ValidatePurchaseDate(date time.Time) error {
 }
 
 // ValidatePurchasePair validates that price and currency are either both set or both unset.
+// This is a nil-presence check only; callers must separately invoke ValidatePurchasePrice
+// and ValidatePurchaseCurrency on the dereferenced values.
 // Returns ErrValidation if exactly one of the two is non-nil.
 func ValidatePurchasePair(price *string, currency *string) error {
 	if (price != nil) != (currency != nil) {
