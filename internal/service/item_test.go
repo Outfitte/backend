@@ -406,41 +406,6 @@ func TestItemServiceCreateShouldReturnErrValidationWhenMetadataExceedsMaxFields(
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
-func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
-	repo := &mockItemRepo{}
-	catSvc := NewCategoryService()
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, catSvc)
-
-	cats, err := catSvc.ListAll(t.Context())
-	require.NoError(t, err)
-
-	brand := "Patagonia"
-	catID := cats[0].ID
-	color := "Black"
-	input := CreateItemInput{
-		Name:       "Jacket",
-		Brand:      &brand,
-		CategoryID: &catID,
-		Color:      &color,
-		Metadata:   domain.ItemMetadata{Fields: map[string]string{"size": "M"}},
-		PhotoKeys:  []string{"photo-1.jpg"},
-	}
-
-	item, err := svc.Create(t.Context(), "owner-1", input)
-	require.NoError(t, err)
-	require.NotEmpty(t, item.GetID())
-	require.Equal(t, "owner-1", item.OwnerID)
-	require.Equal(t, "Jacket", item.Name)
-	require.Equal(t, &brand, item.Brand)
-	require.Equal(t, &catID, item.CategoryID)
-	require.Equal(t, &color, item.Color)
-	require.Equal(t, "M", item.Metadata.Fields["size"])
-	require.Len(t, item.Photos, 1)
-	require.Equal(t, "photo-1.jpg", item.Photos[0].MediaKey)
-	require.False(t, item.CreatedAt.IsZero())
-	require.Len(t, repo.items, 1)
-}
-
 func TestItemServiceCreateShouldReturnErrValidationWhenPurchasePriceSetWithoutCurrency(t *testing.T) {
 	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
@@ -502,6 +467,41 @@ func TestItemServiceCreateShouldSetSellerURL(t *testing.T) {
 	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", SellerURL: &url})
 	require.NoError(t, err)
 	require.Equal(t, &url, repo.items[0].SellerURL)
+}
+
+func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
+	repo := &mockItemRepo{}
+	catSvc := NewCategoryService()
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, catSvc)
+
+	cats, err := catSvc.ListAll(t.Context())
+	require.NoError(t, err)
+
+	brand := "Patagonia"
+	catID := cats[0].ID
+	color := "Black"
+	input := CreateItemInput{
+		Name:       "Jacket",
+		Brand:      &brand,
+		CategoryID: &catID,
+		Color:      &color,
+		Metadata:   domain.ItemMetadata{Fields: map[string]string{"size": "M"}},
+		PhotoKeys:  []string{"photo-1.jpg"},
+	}
+
+	item, err := svc.Create(t.Context(), "owner-1", input)
+	require.NoError(t, err)
+	require.NotEmpty(t, item.GetID())
+	require.Equal(t, "owner-1", item.OwnerID)
+	require.Equal(t, "Jacket", item.Name)
+	require.Equal(t, &brand, item.Brand)
+	require.Equal(t, &catID, item.CategoryID)
+	require.Equal(t, &color, item.Color)
+	require.Equal(t, "M", item.Metadata.Fields["size"])
+	require.Len(t, item.Photos, 1)
+	require.Equal(t, "photo-1.jpg", item.Photos[0].MediaKey)
+	require.False(t, item.CreatedAt.IsZero())
+	require.Len(t, repo.items, 1)
 }
 
 // ── GetByID ───────────────────────────────────────────────────────────────────
