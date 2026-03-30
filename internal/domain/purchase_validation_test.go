@@ -35,7 +35,7 @@ func TestValidatePurchasePriceShouldReturnNilWhenPriceIsValidDecimal(t *testing.
 	require.NoError(t, err)
 }
 
-func TestValidatePurchasePriceShouldReturnNilWhenPriceIsInteger(t *testing.T) {
+func TestValidatePurchasePriceShouldReturnNilWhenPriceIsWholeNumber(t *testing.T) {
 	err := domain.ValidatePurchasePrice("10")
 	require.NoError(t, err)
 }
@@ -79,13 +79,13 @@ func TestValidatePurchaseCurrencyShouldReturnNilWhenCurrencyIsLowercase(t *testi
 
 // ── ValidatePurchaseDate ──────────────────────────────────────────────────────
 
-func TestValidatePurchaseDateShouldReturnErrFutureDateNotAllowedWhenDateIsInFuture(t *testing.T) {
+func TestValidatePurchaseDateShouldReturnErrFutureDateNotAllowedWhenDateIsInTheFuture(t *testing.T) {
 	future := time.Now().Add(24 * time.Hour)
 	err := domain.ValidatePurchaseDate(future)
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
 }
 
-func TestValidatePurchaseDateShouldReturnNilWhenDateIsInPast(t *testing.T) {
+func TestValidatePurchaseDateShouldReturnNilWhenDateIsInThePast(t *testing.T) {
 	past := time.Now().Add(-24 * time.Hour)
 	err := domain.ValidatePurchaseDate(past)
 	require.NoError(t, err)
@@ -93,13 +93,13 @@ func TestValidatePurchaseDateShouldReturnNilWhenDateIsInPast(t *testing.T) {
 
 // ── ValidatePurchasePair ──────────────────────────────────────────────────────
 
-func TestValidatePurchasePairShouldReturnErrValidationWhenPriceIsSetButCurrencyIsNil(t *testing.T) {
+func TestValidatePurchasePairShouldReturnErrValidationWhenPriceIsSetAndCurrencyIsNil(t *testing.T) {
 	price := "10.00"
 	err := domain.ValidatePurchasePair(&price, nil)
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
-func TestValidatePurchasePairShouldReturnErrValidationWhenCurrencyIsSetButPriceIsNil(t *testing.T) {
+func TestValidatePurchasePairShouldReturnErrValidationWhenCurrencyIsSetAndPriceIsNil(t *testing.T) {
 	currency := "USD"
 	err := domain.ValidatePurchasePair(nil, &currency)
 	require.ErrorIs(t, err, domain.ErrValidation)

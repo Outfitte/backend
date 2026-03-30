@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 )
 
 // ValidatePurchasePrice validates that price is a non-negative decimal string.
@@ -14,11 +13,11 @@ func ValidatePurchasePrice(price string) error {
 	if price == "" {
 		return fmt.Errorf("%w: purchase price must not be empty", ErrValidation)
 	}
-	val, err := strconv.ParseFloat(price, 64)
+	v, err := strconv.ParseFloat(price, 64)
 	if err != nil {
 		return fmt.Errorf("%w: purchase price must be a valid decimal number", ErrValidation)
 	}
-	if val < 0 {
+	if v < 0 {
 		return fmt.Errorf("%w: purchase price must be non-negative", ErrValidation)
 	}
 	return nil
@@ -33,8 +32,8 @@ func ValidatePurchaseCurrency(currency string) error {
 		return fmt.Errorf("%w: purchase currency must be exactly 3 letters", ErrValidation)
 	}
 	for _, r := range upper {
-		if !unicode.IsLetter(r) {
-			return fmt.Errorf("%w: purchase currency must contain only letters", ErrValidation)
+		if r < 'A' || r > 'Z' {
+			return fmt.Errorf("%w: purchase currency must contain only ASCII letters", ErrValidation)
 		}
 	}
 	return nil
@@ -52,7 +51,7 @@ func ValidatePurchaseDate(date time.Time) error {
 // ValidatePurchasePair validates that price and currency are either both set or both unset.
 // Returns ErrValidation if exactly one of the two is non-nil.
 func ValidatePurchasePair(price *string, currency *string) error {
-	if (price == nil) != (currency == nil) {
+	if (price != nil) != (currency != nil) {
 		return fmt.Errorf("%w: purchase price and currency must both be set or both be absent", ErrValidation)
 	}
 	return nil
