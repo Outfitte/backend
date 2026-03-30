@@ -932,6 +932,22 @@ func TestItemServiceUpdateShouldSetSellerURL(t *testing.T) {
 	require.Equal(t, &url, got.SellerURL)
 }
 
+func TestItemServiceUpdateShouldPreserveExistingSellerURLWhenPatchOmitsIt(t *testing.T) {
+	existingURL := "https://example.com/item"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.SellerURL = &existingURL
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	require.NoError(t, err)
+	require.Equal(t, &existingURL, got.SellerURL)
+}
+
 // ── UploadPhoto ───────────────────────────────────────────────────────────────
 
 func TestItemServiceUploadPhotoShouldReturnErrorWhenContextIsCancelled(t *testing.T) {

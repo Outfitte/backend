@@ -231,7 +231,7 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	item.PurchasePrice = resultPrice
 	item.PurchaseCurrency = resultCurrency
 	item.PurchaseDate = resultDate
-	item.SellerURL = input.SellerURL
+	item.SellerURL = coalesce(input.SellerURL, item.SellerURL)
 	if err := s.items.Save(ctx, item); err != nil {
 		return domain.Item{}, err
 	}
