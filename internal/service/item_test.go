@@ -441,6 +441,69 @@ func TestItemServiceCreateShouldCreateItemWithCallerAsOwner(t *testing.T) {
 	require.Len(t, repo.items, 1)
 }
 
+func TestItemServiceCreateShouldReturnErrValidationWhenPurchasePriceSetWithoutCurrency(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "10.00"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchasePrice: &price})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceCreateShouldReturnErrValidationWhenPurchaseCurrencySetWithoutPrice(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	currency := "USD"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceCreateShouldReturnErrValidationWhenPurchasePriceIsInvalid(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "-5.00"
+	currency := "USD"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceCreateShouldReturnErrValidationWhenPurchaseCurrencyIsInvalid(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "10.00"
+	currency := "US"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceCreateShouldReturnErrFutureDateNotAllowedWhenPurchaseDateIsInFuture(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	future := time.Now().Add(24 * time.Hour)
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchaseDate: &future})
+	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
+}
+
+func TestItemServiceCreateShouldNormalizePurchaseCurrencyToUppercase(t *testing.T) {
+	repo := &mockItemRepo{}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "10.00"
+	currency := "usd"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.NoError(t, err)
+	require.Equal(t, "USD", *repo.items[0].PurchaseCurrency)
+}
+
+func TestItemServiceCreateShouldSetSellerURL(t *testing.T) {
+	repo := &mockItemRepo{}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	url := "https://example.com/item"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", SellerURL: &url})
+	require.NoError(t, err)
+	require.Equal(t, &url, repo.items[0].SellerURL)
+}
+
 // ── GetByID ───────────────────────────────────────────────────────────────────
 
 func TestItemServiceGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -743,6 +806,130 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMergedMetadataExceeds50Fi
 		Metadata: domain.ItemMetadata{Fields: map[string]string{"brand new key": "v"}},
 	})
 	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenPatchPriceSetButNoCurrencyAndExistingHasNone(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "10.00"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenExistingItemHasCurrencyButPatchHasNoPrice(t *testing.T) {
+	existingCurrency := "USD"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.PurchaseCurrency = &existingCurrency // has currency but no price (invalid existing state)
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	// Patch doesn't set price → merged state has nil price, existing currency → invalid pair
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenPatchPriceIsInvalid(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "-5.00"
+	currency := "USD"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenPatchCurrencyIsInvalid(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "10.00"
+	currency := "US"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrFutureDateNotAllowedWhenPatchDateIsInFuture(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	future := time.Now().Add(24 * time.Hour)
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchaseDate: &future})
+	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
+}
+
+func TestItemServiceUpdateShouldAllowPatchCurrencyWhenExistingItemHasPrice(t *testing.T) {
+	existingPrice := "10.00"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.PurchasePrice = &existingPrice
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	currency := "EUR"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchaseCurrency: &currency})
+	require.NoError(t, err)
+	require.Equal(t, &existingPrice, got.PurchasePrice)
+	require.NotNil(t, got.PurchaseCurrency)
+	require.Equal(t, "EUR", *got.PurchaseCurrency)
+}
+
+func TestItemServiceUpdateShouldNormalizePurchaseCurrencyToUppercase(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	price := "10.00"
+	currency := "eur"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.NoError(t, err)
+	require.Equal(t, "EUR", *got.PurchaseCurrency)
+}
+
+func TestItemServiceUpdateShouldSetSellerURL(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	url := "https://example.com/item"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", SellerURL: &url})
+	require.NoError(t, err)
+	require.Equal(t, &url, got.SellerURL)
 }
 
 // ── UploadPhoto ───────────────────────────────────────────────────────────────

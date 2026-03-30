@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,28 +15,32 @@ import (
 
 // CreateItemInput holds the fields required to create a new Item.
 type CreateItemInput struct {
-	Name          string
-	Brand         *string
-	CategoryID    *string
-	Color         *string
-	Metadata      domain.ItemMetadata
-	PhotoKeys     []string
-	LocationID    *string
-	PurchasePrice *string
-	PurchaseDate  *time.Time
+	Name             string
+	Brand            *string
+	CategoryID       *string
+	Color            *string
+	Metadata         domain.ItemMetadata
+	PhotoKeys        []string
+	LocationID       *string
+	PurchasePrice    *string
+	PurchaseCurrency *string
+	PurchaseDate     *time.Time
+	SellerURL        *string
 }
 
 // UpdateItemInput holds the fields that can be updated on an existing Item.
 type UpdateItemInput struct {
-	Name          string
-	Brand         *string
-	CategoryID    *string
-	Color         *string
-	Metadata      domain.ItemMetadata
-	PhotoKeys     []string
-	LocationID    *string
-	PurchasePrice *string
-	PurchaseDate  *time.Time
+	Name             string
+	Brand            *string
+	CategoryID       *string
+	Color            *string
+	Metadata         domain.ItemMetadata
+	PhotoKeys        []string
+	LocationID       *string
+	PurchasePrice    *string
+	PurchaseCurrency *string
+	PurchaseDate     *time.Time
+	SellerURL        *string
 }
 
 // categoryGetter is a narrow interface used by ItemService to validate that a
@@ -107,6 +112,26 @@ func (s *ItemService) Create(ctx context.Context, callerID string, input CreateI
 	if err := domain.ValidateMetadata(input.Metadata); err != nil {
 		return domain.Item{}, err
 	}
+	if err := domain.ValidatePurchasePair(input.PurchasePrice, input.PurchaseCurrency); err != nil {
+		return domain.Item{}, err
+	}
+	if input.PurchasePrice != nil {
+		if err := domain.ValidatePurchasePrice(*input.PurchasePrice); err != nil {
+			return domain.Item{}, err
+		}
+	}
+	if input.PurchaseCurrency != nil {
+		if err := domain.ValidatePurchaseCurrency(*input.PurchaseCurrency); err != nil {
+			return domain.Item{}, err
+		}
+		upper := strings.ToUpper(*input.PurchaseCurrency)
+		input.PurchaseCurrency = &upper
+	}
+	if input.PurchaseDate != nil {
+		if err := domain.ValidatePurchaseDate(*input.PurchaseDate); err != nil {
+			return domain.Item{}, err
+		}
+	}
 	var item domain.Item
 	item.ID = uuid.NewString()
 	item.OwnerID = callerID
@@ -118,7 +143,9 @@ func (s *ItemService) Create(ctx context.Context, callerID string, input CreateI
 	item.Photos = makeItemPhotos(input.PhotoKeys)
 	item.LocationID = input.LocationID
 	item.PurchasePrice = input.PurchasePrice
+	item.PurchaseCurrency = input.PurchaseCurrency
 	item.PurchaseDate = input.PurchaseDate
+	item.SellerURL = input.SellerURL
 	item.CreatedAt = time.Now().UTC()
 	if err := s.items.Save(ctx, item); err != nil {
 		return domain.Item{}, err
@@ -170,6 +197,30 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if err != nil {
 		return domain.Item{}, err
 	}
+	// Compute merged purchase fields: nil in patch means keep existing.
+	resultPrice := coalesce(input.PurchasePrice, item.PurchasePrice)
+	resultCurrency := coalesce(input.PurchaseCurrency, item.PurchaseCurrency)
+	resultDate := coalesceTime(input.PurchaseDate, item.PurchaseDate)
+	if err := domain.ValidatePurchasePair(resultPrice, resultCurrency); err != nil {
+		return domain.Item{}, err
+	}
+	if input.PurchasePrice != nil {
+		if err := domain.ValidatePurchasePrice(*input.PurchasePrice); err != nil {
+			return domain.Item{}, err
+		}
+	}
+	if input.PurchaseCurrency != nil {
+		if err := domain.ValidatePurchaseCurrency(*input.PurchaseCurrency); err != nil {
+			return domain.Item{}, err
+		}
+		upper := strings.ToUpper(*input.PurchaseCurrency)
+		resultCurrency = &upper
+	}
+	if input.PurchaseDate != nil {
+		if err := domain.ValidatePurchaseDate(*input.PurchaseDate); err != nil {
+			return domain.Item{}, err
+		}
+	}
 	item.Name = input.Name
 	item.Brand = input.Brand
 	item.CategoryID = input.CategoryID
@@ -177,12 +228,30 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	item.Metadata = merged
 	item.Photos = makeItemPhotos(input.PhotoKeys)
 	item.LocationID = input.LocationID
-	item.PurchasePrice = input.PurchasePrice
-	item.PurchaseDate = input.PurchaseDate
+	item.PurchasePrice = resultPrice
+	item.PurchaseCurrency = resultCurrency
+	item.PurchaseDate = resultDate
+	item.SellerURL = input.SellerURL
 	if err := s.items.Save(ctx, item); err != nil {
 		return domain.Item{}, err
 	}
 	return item, nil
+}
+
+// coalesce returns a if non-nil, otherwise b.
+func coalesce(a, b *string) *string {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+// coalesceTime returns a if non-nil, otherwise b.
+func coalesceTime(a, b *time.Time) *time.Time {
+	if a != nil {
+		return a
+	}
+	return b
 }
 
 // mergeMetadata applies patch semantics: keys with empty values are deleted,
