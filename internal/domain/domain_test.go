@@ -95,3 +95,31 @@ func TestOutfitShouldHoldItemsAndPhotosWhenSet(t *testing.T) {
 	assert.Len(t, o.Photos, 1)
 	assert.Equal(t, "photo-1", o.Photos[0].ID)
 }
+
+func TestItemSellerURLShouldBeNilWhenNotSet(t *testing.T) {
+	var item domain.Item
+	item.ID = "42"
+	assert.Nil(t, item.SellerURL)
+}
+
+func TestItemSellerURLShouldHoldValueWhenSet(t *testing.T) {
+	var item domain.Item
+	item.ID = "42"
+	url := "https://example.com/jacket"
+	item.SellerURL = &url
+	assert.Equal(t, "https://example.com/jacket", *item.SellerURL)
+}
+
+func TestItemPurchaseCurrencyShouldBeNilWhenNotSet(t *testing.T) {
+	var item domain.Item
+	item.ID = "42"
+	assert.Nil(t, item.PurchaseCurrency)
+}
+
+func TestItemPurchaseCurrencyShouldHoldISO4217CodeWhenSet(t *testing.T) {
+	var item domain.Item
+	item.ID = "42"
+	currency := "USD"
+	item.PurchaseCurrency = &currency
+	assert.Equal(t, "USD", *item.PurchaseCurrency)
+}
