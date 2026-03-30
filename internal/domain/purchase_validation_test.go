@@ -62,6 +62,11 @@ func TestValidatePurchaseCurrencyShouldReturnErrValidationWhenCurrencyContainsDi
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
+func TestValidatePurchaseCurrencyShouldReturnErrValidationWhenCurrencyContainsSymbol(t *testing.T) {
+	err := domain.ValidatePurchaseCurrency("U$D")
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
 func TestValidatePurchaseCurrencyShouldReturnNilWhenCurrencyIsUppercase(t *testing.T) {
 	err := domain.ValidatePurchaseCurrency("USD")
 	require.NoError(t, err)

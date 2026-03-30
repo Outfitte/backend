@@ -24,8 +24,8 @@ func ValidatePurchasePrice(price string) error {
 }
 
 // ValidatePurchaseCurrency validates that currency is exactly 3 ASCII letters.
-// The input is normalised to uppercase before validation.
-// Returns ErrValidation on failure.
+// The check is case-insensitive; the caller is responsible for normalising the
+// stored value to uppercase. Returns ErrValidation on failure.
 func ValidatePurchaseCurrency(currency string) error {
 	upper := strings.ToUpper(currency)
 	if len(upper) != 3 {
