@@ -734,7 +734,7 @@ func TestUpdateHandlerShouldReturn400WhenPurchaseDateHasInvalidJSONType(t *testi
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdateHandlerShouldReturn400WhenPurchaseDateIsNull(t *testing.T) {
+func TestUpdateHandlerShouldClearPurchaseDateWhenNullInBody(t *testing.T) {
 	svc := &fakeItemService{
 		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
 			require.NotNil(t, input.PurchaseDate)

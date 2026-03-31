@@ -246,10 +246,10 @@ func (h *OutfitHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	var input service.UpdateOutfitInput
 
-	// Two-state field: absent = preserve, string = update.
+	// Two-state field: absent = preserve, string = update. Null is rejected.
 	if v, ok := raw["name"]; ok {
 		var s *string
-		if err := json.Unmarshal(v, &s); err != nil {
+		if err := json.Unmarshal(v, &s); err != nil || s == nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 			return
 		}
