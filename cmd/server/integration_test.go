@@ -731,6 +731,46 @@ func TestIntegrationItemShouldRejectWhenUpdatedWithFuturePurchaseDate(t *testing
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }
 
+func TestIntegrationItemShouldClearPurchaseFieldsWhenPatchOmitsThem(t *testing.T) {
+	// PATCH /items/{id} uses full-replace semantics for all optional fields (consistent
+	// with Brand, Color, CategoryID, LocationID). Omitting a field is the same as
+	// sending null — it clears the stored value.
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasereplace", "password-purchase-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Merino Sweater",
+		"purchase_price":    "75.00",
+		"purchase_currency": "EUR",
+		"seller_url":        "https://example.com/sweater",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, createResp, &created)
+
+	// PATCH with only the name — purchase fields are omitted entirely.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"name": "Merino Sweater Updated",
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		Name             string  `json:"name"`
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+		SellerURL        *string `json:"seller_url"`
+	}
+	decodeJSON(t, getResp, &item)
+	assert.Equal(t, "Merino Sweater Updated", item.Name)
+	assert.Nil(t, item.PurchasePrice)
+	assert.Nil(t, item.PurchaseCurrency)
+	assert.Nil(t, item.SellerURL)
+}
+
 func TestIntegrationItemShouldPersistAllPurchaseFieldsWhenCreated(t *testing.T) {
 	srv := startIntegrationServer(t)
 	token, _ := registerUser(t, srv, "purchasehappy1", "password-purchase-secure")

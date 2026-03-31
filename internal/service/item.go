@@ -238,7 +238,6 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	return item, nil
 }
 
-
 // mergeMetadata applies patch semantics: keys with empty values are deleted,
 // other keys overwrite existing ones, and keys absent from the patch are preserved.
 // Returns ErrValidation if the merged result exceeds the maximum field count.
