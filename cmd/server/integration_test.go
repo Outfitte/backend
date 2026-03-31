@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/outfitte/outfitte/internal/config"
 	"github.com/stretchr/testify/assert"
@@ -704,12 +705,13 @@ func TestIntegrationItemShouldRejectWhenCreatedWithInvalidPurchaseCurrency(t *te
 func TestIntegrationItemShouldRejectWhenCreatedWithFuturePurchaseDate(t *testing.T) {
 	srv := startIntegrationServer(t)
 	token, _ := registerUser(t, srv, "purchaseval5", "password-purchase-secure")
+	futureDate := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
 
 	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
 		"name":              "Future Boots",
 		"purchase_price":    "99.00",
 		"purchase_currency": "GBP",
-		"purchase_date":     "2027-01-01",
+		"purchase_date":     futureDate,
 	}, token)
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }
@@ -718,12 +720,13 @@ func TestIntegrationItemShouldRejectWhenUpdatedWithFuturePurchaseDate(t *testing
 	srv := startIntegrationServer(t)
 	token, _ := registerUser(t, srv, "purchaseval6", "password-purchase-secure")
 	itemID := createItem(t, srv, token, "Leather Belt", nil)
+	futureDate := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
 
 	resp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID, map[string]any{
 		"name":              "Leather Belt",
 		"purchase_price":    "25.00",
 		"purchase_currency": "PLN",
-		"purchase_date":     "2027-06-15",
+		"purchase_date":     futureDate,
 	}, token)
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }
