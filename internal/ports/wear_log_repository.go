@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // WearLogRepository is the storage port for WearLog persistence.

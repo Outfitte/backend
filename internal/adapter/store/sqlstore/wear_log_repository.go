@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // wearLogDB is the subset of *sql.DB methods used by WearLogRepository.

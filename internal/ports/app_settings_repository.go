@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // AppSettingsRepository is the storage port for AppSettings persistence.

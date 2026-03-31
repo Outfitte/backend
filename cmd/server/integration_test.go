@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/config"
+	"github.com/outfitte/backend/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

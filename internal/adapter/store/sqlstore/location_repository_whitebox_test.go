@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // ── Delete: RowsAffected error ─────────────────────────────────────────────────

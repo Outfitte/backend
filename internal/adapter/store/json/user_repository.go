@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // UserRepository is a JSON file-backed implementation of ports.UserRepository.

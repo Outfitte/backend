@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 
-	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
 )
 
 func openMigratedDB(t *testing.T) *sql.DB {

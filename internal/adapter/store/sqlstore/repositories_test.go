@@ -3,8 +3,8 @@ package sqlstore_test
 import (
 	"testing"
 
-	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 

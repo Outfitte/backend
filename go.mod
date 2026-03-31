@@ -1,4 +1,4 @@
-module github.com/outfitte/outfitte
+module github.com/outfitte/backend
 
 go 1.26.0
 

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/outfitte/outfitte/internal/adapter/media/local"
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/adapter/media/local"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 

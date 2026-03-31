@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/service"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/service"
 )
 
 // ── GetByID ───────────────────────────────────────────────────────────────────

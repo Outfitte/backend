@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // WearLogRepository is a JSON file-backed implementation of ports.WearLogRepository.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // OutfitLogTransactor is the port for atomic outfit log operations.

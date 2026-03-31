@@ -3,7 +3,7 @@ package sqlstore
 import (
 	"database/sql"
 
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // NewRepositories creates a fully populated ports.Repositories backed by the given SQL database.

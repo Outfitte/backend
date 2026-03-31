@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 func newOutfitLogTransactor(t *testing.T) (*sqlstore.OutfitLogTransactor, *sqlstore.OutfitLogRepository, *sql.DB) {

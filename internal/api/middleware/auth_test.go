@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/outfitte/outfitte/internal/api/middleware"
+	"github.com/outfitte/backend/internal/api/middleware"
 )
 
 const testSecret = "test-secret-that-is-long-enough-for-tests-32chars"

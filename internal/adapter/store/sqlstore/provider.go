@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 func getItem(ctx context.Context, db itemDB, id string) (domain.Item, error) {

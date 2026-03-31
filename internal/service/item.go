@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // CreateItemInput holds the fields required to create a new Item.

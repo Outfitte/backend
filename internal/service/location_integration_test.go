@@ -3,8 +3,8 @@ package service_test
 import (
 	"testing"
 
-	jsonstore "github.com/outfitte/outfitte/internal/adapter/store/json"
-	"github.com/outfitte/outfitte/internal/service"
+	jsonstore "github.com/outfitte/backend/internal/adapter/store/json"
+	"github.com/outfitte/backend/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

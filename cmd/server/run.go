@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	store "github.com/outfitte/outfitte/internal/adapter/store"
-	localmedia "github.com/outfitte/outfitte/internal/adapter/media/local"
-	"github.com/outfitte/outfitte/internal/api/server"
-	"github.com/outfitte/outfitte/internal/config"
+	store "github.com/outfitte/backend/internal/adapter/store"
+	localmedia "github.com/outfitte/backend/internal/adapter/media/local"
+	"github.com/outfitte/backend/internal/api/server"
+	"github.com/outfitte/backend/internal/config"
 )
 
 func run(ctx context.Context) error {
