@@ -822,20 +822,23 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenPatchPriceSetButNoCurrenc
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
-func TestItemServiceUpdateShouldReturnErrValidationWhenExistingItemHasCurrencyButPatchHasNoPrice(t *testing.T) {
+func TestItemServiceUpdateShouldClearPurchaseFieldsWhenBothAreNilInInput(t *testing.T) {
+	existingPrice := "10.00"
 	existingCurrency := "USD"
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	item.Name = "Jacket"
-	item.PurchaseCurrency = &existingCurrency // has currency but no price (invalid existing state)
+	item.PurchasePrice = &existingPrice
+	item.PurchaseCurrency = &existingCurrency
 
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	// Patch doesn't set price → merged state has nil price, existing currency → invalid pair
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
-	require.ErrorIs(t, err, domain.ErrValidation)
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	require.NoError(t, err)
+	require.Nil(t, got.PurchasePrice)
+	require.Nil(t, got.PurchaseCurrency)
 }
 
 func TestItemServiceUpdateShouldReturnErrValidationWhenPatchPriceIsInvalid(t *testing.T) {
@@ -882,7 +885,7 @@ func TestItemServiceUpdateShouldReturnErrFutureDateNotAllowedWhenPatchDateIsInFu
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
 }
 
-func TestItemServiceUpdateShouldAllowPatchCurrencyWhenExistingItemHasPrice(t *testing.T) {
+func TestItemServiceUpdateShouldRejectCurrencyAloneEvenWhenExistingItemHasPrice(t *testing.T) {
 	existingPrice := "10.00"
 	var item domain.Item
 	item.ID = "item-1"
@@ -894,11 +897,8 @@ func TestItemServiceUpdateShouldAllowPatchCurrencyWhenExistingItemHasPrice(t *te
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
 	currency := "EUR"
-	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchaseCurrency: &currency})
-	require.NoError(t, err)
-	require.Equal(t, &existingPrice, got.PurchasePrice)
-	require.NotNil(t, got.PurchaseCurrency)
-	require.Equal(t, "EUR", *got.PurchaseCurrency)
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
 func TestItemServiceUpdateShouldNormalizePurchaseCurrencyToUppercase(t *testing.T) {
@@ -932,7 +932,7 @@ func TestItemServiceUpdateShouldSetSellerURL(t *testing.T) {
 	require.Equal(t, &url, got.SellerURL)
 }
 
-func TestItemServiceUpdateShouldPreserveExistingSellerURLWhenPatchOmitsIt(t *testing.T) {
+func TestItemServiceUpdateShouldClearSellerURLWhenInputIsNil(t *testing.T) {
 	existingURL := "https://example.com/item"
 	var item domain.Item
 	item.ID = "item-1"
@@ -945,7 +945,7 @@ func TestItemServiceUpdateShouldPreserveExistingSellerURLWhenPatchOmitsIt(t *tes
 
 	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
 	require.NoError(t, err)
-	require.Equal(t, &existingURL, got.SellerURL)
+	require.Nil(t, got.SellerURL)
 }
 
 // ── UploadPhoto ───────────────────────────────────────────────────────────────

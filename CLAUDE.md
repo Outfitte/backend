@@ -46,6 +46,11 @@ Decisions:
 - Config: env vars only (no config file)
 - No domain errors defined yet
 
+## Service Guidelines
+
+- **`Update` uses full-replace semantics for all optional fields** — `nil` in `UpdateItemInput` means "clear the field", consistent for `Brand`, `Color`, `CategoryID`, `LocationID`, `PurchasePrice`, `PurchaseCurrency`, `PurchaseDate`, and `SellerURL`. Do not introduce `coalesce` helpers that silently preserve existing values; that creates an inconsistency between fields and makes clearing impossible. If a future field needs preserve-vs-clear distinction, use a three-state wrapper type, not a nil-means-preserve shortcut.
+- **Future dates in tests must be computed dynamically** — never hardcode a year (e.g. `"2027-01-01"`); use `time.Now().AddDate(1, 0, 0).Format("2006-01-02")` so the test never becomes stale.
+
 ## Handler Guidelines
 
 Every HTTP handler constructor must pre-scope the logger with a `"handler"` key set to the handler name (e.g. `logger.With("handler", "auth")`).

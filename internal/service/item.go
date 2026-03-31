@@ -197,10 +197,10 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if err != nil {
 		return domain.Item{}, err
 	}
-	// Compute merged purchase fields: nil in patch means keep existing.
-	resultPrice := coalesce(input.PurchasePrice, item.PurchasePrice)
-	resultCurrency := coalesce(input.PurchaseCurrency, item.PurchaseCurrency)
-	resultDate := coalesceTime(input.PurchaseDate, item.PurchaseDate)
+	// Validate and normalise purchase fields; nil means clear (replace semantics, consistent with Brand/Color).
+	resultPrice := input.PurchasePrice
+	resultCurrency := input.PurchaseCurrency
+	resultDate := input.PurchaseDate
 	if err := domain.ValidatePurchasePair(resultPrice, resultCurrency); err != nil {
 		return domain.Item{}, err
 	}
@@ -231,27 +231,11 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	item.PurchasePrice = resultPrice
 	item.PurchaseCurrency = resultCurrency
 	item.PurchaseDate = resultDate
-	item.SellerURL = coalesce(input.SellerURL, item.SellerURL)
+	item.SellerURL = input.SellerURL
 	if err := s.items.Save(ctx, item); err != nil {
 		return domain.Item{}, err
 	}
 	return item, nil
-}
-
-// coalesce returns a if non-nil, otherwise b.
-func coalesce(a, b *string) *string {
-	if a != nil {
-		return a
-	}
-	return b
-}
-
-// coalesceTime returns a if non-nil, otherwise b.
-func coalesceTime(a, b *time.Time) *time.Time {
-	if a != nil {
-		return a
-	}
-	return b
 }
 
 // mergeMetadata applies patch semantics: keys with empty values are deleted,
