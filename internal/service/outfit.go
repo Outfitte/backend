@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -70,7 +69,23 @@ func (s *OutfitService) ListByOwner(ctx context.Context, callerID string) ([]dom
 }
 
 func (s *OutfitService) Update(ctx context.Context, callerID, outfitID string, input UpdateOutfitInput) (domain.Outfit, error) {
-	return domain.Outfit{}, fmt.Errorf("not implemented")
+	if err := ctx.Err(); err != nil {
+		return domain.Outfit{}, err
+	}
+	outfit, err := s.getOwnedOutfit(ctx, callerID, outfitID)
+	if err != nil {
+		return domain.Outfit{}, err
+	}
+	if input.Name != nil {
+		outfit.Name = input.Name
+	}
+	if input.Notes != nil {
+		outfit.Notes = *input.Notes
+	}
+	if err := s.outfits.Save(ctx, outfit); err != nil {
+		return domain.Outfit{}, err
+	}
+	return outfit, nil
 }
 
 func (s *OutfitService) Delete(ctx context.Context, callerID, outfitID string) error {

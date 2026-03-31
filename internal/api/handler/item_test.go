@@ -708,12 +708,45 @@ func TestUpdateHandlerShouldClearBrandWhenNullInBody(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestUpdateHandlerShouldReturn400WhenNullableFieldHasInvalidType(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	// Sending a number for brand (expected string or null) triggers decodePatchNullable error.
+	w := patchItem(t, h, "item-1", "user-1", `{"brand":123}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestUpdateHandlerShouldReturn400WhenPurchaseDateIsInvalid(t *testing.T) {
 	h := newItemHandler(&fakeItemService{})
 
 	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt","purchase_date":"not-a-date"}`)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn400WhenPurchaseDateHasInvalidJSONType(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	// Sending a number for purchase_date (expected string or null) triggers json.Unmarshal error.
+	w := patchItem(t, h, "item-1", "user-1", `{"purchase_date":123}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn400WhenPurchaseDateIsNull(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.NotNil(t, input.PurchaseDate)
+			require.Nil(t, *input.PurchaseDate)
+			return domain.Item{}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"purchase_date":null}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestUpdateHandlerShouldReturn422WhenServiceReturnsErrFutureDateNotAllowed(t *testing.T) {
@@ -1092,19 +1125,30 @@ func (s *statefulFakeItemService) Update(ctx context.Context, callerID, itemID s
 	if item.OwnerID != callerID {
 		return domain.Item{}, domain.ErrForbidden
 	}
-	item.Name = input.Name
-	item.Brand = input.Brand
-	item.CategoryID = input.CategoryID
-	item.Color = input.Color
-	item.Metadata = input.Metadata
-	photos := make([]domain.ItemPhoto, len(input.PhotoKeys))
-	for i, key := range input.PhotoKeys {
-		photos[i] = domain.ItemPhoto{MediaKey: key, Position: i}
+	if input.Name != nil {
+		item.Name = *input.Name
 	}
-	item.Photos = photos
-	item.LocationID = input.LocationID
-	item.PurchasePrice = input.PurchasePrice
-	item.PurchaseDate = input.PurchaseDate
+	if input.Brand != nil {
+		item.Brand = *input.Brand
+	}
+	if input.CategoryID != nil {
+		item.CategoryID = *input.CategoryID
+	}
+	if input.Color != nil {
+		item.Color = *input.Color
+	}
+	if input.Metadata != nil {
+		item.Metadata = *input.Metadata
+	}
+	if input.LocationID != nil {
+		item.LocationID = *input.LocationID
+	}
+	if input.PurchasePrice != nil {
+		item.PurchasePrice = *input.PurchasePrice
+	}
+	if input.PurchaseDate != nil {
+		item.PurchaseDate = *input.PurchaseDate
+	}
 	s.items[itemID] = item
 	return item, nil
 }

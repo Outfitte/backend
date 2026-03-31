@@ -1098,6 +1098,27 @@ func TestItemServiceUpdateShouldPreserveSellerURLWhenAbsentFromInput(t *testing.
 	require.Equal(t, existingURL, *got.SellerURL)
 }
 
+func TestItemServiceUpdateShouldSetLocationIDWhenNullableValInInput(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	locRepo := &mockLocationRepo{locations: []domain.Location{loc}}
+	svc := NewItemService(repo, &mockMediaProvider{}, locRepo, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, LocationID: nullableVal("loc-1")})
+	require.NoError(t, err)
+	require.NotNil(t, got.LocationID)
+	require.Equal(t, "loc-1", *got.LocationID)
+}
+
 func TestItemServiceUpdateShouldClearSellerURLWhenNullableNilInInput(t *testing.T) {
 	existingURL := "https://example.com/item"
 	var item domain.Item

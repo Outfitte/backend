@@ -523,6 +523,18 @@ func TestOutfitUpdateShouldClearNotesWhenNullInBody(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestOutfitUpdateShouldReturn400WhenNullableFieldHasInvalidType(t *testing.T) {
+	h := newOutfitHandler(&fakeOutfitService{})
+	w := patchOutfit(t, h, "o1", "user1", `{"notes":123}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestOutfitUpdateShouldReturn400WhenNameHasInvalidType(t *testing.T) {
+	h := newOutfitHandler(&fakeOutfitService{})
+	w := patchOutfit(t, h, "o1", "user1", `{"name":123}`)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 // ---- Delete ----
 
 func TestOutfitDeleteShouldReturn500WhenCallerIDMissing(t *testing.T) {
