@@ -227,11 +227,6 @@ func (h *OutfitHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toOutfitResponse(outfit))
 }
 
-type updateOutfitRequest struct {
-	Name  *string `json:"name"`
-	Notes *string `json:"notes"`
-}
-
 // Update handles PATCH /outfits/{id}.
 func (h *OutfitHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -243,17 +238,34 @@ func (h *OutfitHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req updateOutfitRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
+	var input service.UpdateOutfitInput
+
+	// Two-state field: absent = preserve, string = update.
+	if v, ok := raw["name"]; ok {
+		var s *string
+		if err := json.Unmarshal(v, &s); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			return
+		}
+		input.Name = s
+	}
+
+	// Nullable field: absent = preserve, null = clear, string = update.
+	if v, ok := raw["notes"]; ok {
+		if err := decodePatchNullable(v, &input.Notes); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			return
+		}
+	}
+
 	outfitID := r.PathValue("id")
-	outfit, err := h.outfits.Update(ctx, callerID, outfitID, service.UpdateOutfitInput{
-		Name:  req.Name,
-		Notes: req.Notes,
-	})
+	outfit, err := h.outfits.Update(ctx, callerID, outfitID, input)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})

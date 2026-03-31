@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -19,9 +20,10 @@ type CreateOutfitInput struct {
 }
 
 // UpdateOutfitInput holds the fields that can be updated on an existing Outfit.
+// A nil outer pointer (Nullable) means the field was absent — preserve the existing value.
 type UpdateOutfitInput struct {
-	Name  *string
-	Notes *string
+	Name  *string              // two-state: nil = preserve, non-nil = update
+	Notes domain.Nullable[string]
 }
 
 // OutfitService manages outfits, item linking, and photo management.
@@ -68,19 +70,7 @@ func (s *OutfitService) ListByOwner(ctx context.Context, callerID string) ([]dom
 }
 
 func (s *OutfitService) Update(ctx context.Context, callerID, outfitID string, input UpdateOutfitInput) (domain.Outfit, error) {
-	if err := ctx.Err(); err != nil {
-		return domain.Outfit{}, err
-	}
-	outfit, err := s.getOwnedOutfit(ctx, callerID, outfitID)
-	if err != nil {
-		return domain.Outfit{}, err
-	}
-	outfit.Name = input.Name
-	outfit.Notes = input.Notes
-	if err := s.outfits.Save(ctx, outfit); err != nil {
-		return domain.Outfit{}, err
-	}
-	return outfit, nil
+	return domain.Outfit{}, fmt.Errorf("not implemented")
 }
 
 func (s *OutfitService) Delete(ctx context.Context, callerID, outfitID string) error {

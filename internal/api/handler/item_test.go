@@ -638,8 +638,11 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 		updateFn: func(_ context.Context, callerID, itemID string, input service.UpdateItemInput) (domain.Item, error) {
 			require.Equal(t, "user-1", callerID)
 			require.Equal(t, "item-42", itemID)
-			require.Equal(t, "Red Jacket", input.Name)
-			require.Equal(t, &price, input.PurchasePrice)
+			require.NotNil(t, input.Name)
+			require.Equal(t, "Red Jacket", *input.Name)
+			require.NotNil(t, input.PurchasePrice)
+			require.NotNil(t, *input.PurchasePrice)
+			require.Equal(t, price, **input.PurchasePrice)
 			return updated, nil
 		},
 	}
@@ -652,6 +655,57 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Red Jacket", got.Name)
+}
+
+func TestUpdateHandlerShouldReturn400WhenNameIsNull(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":null}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldPreserveNameWhenAbsentFromBody(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.Nil(t, input.Name)
+			return domain.Item{}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestUpdateHandlerShouldPreserveBrandWhenAbsentFromBody(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.Nil(t, input.Brand)
+			return domain.Item{}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestUpdateHandlerShouldClearBrandWhenNullInBody(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.NotNil(t, input.Brand)
+			require.Nil(t, *input.Brand)
+			return domain.Item{}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"brand":null}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestUpdateHandlerShouldReturn400WhenPurchaseDateIsInvalid(t *testing.T) {
@@ -689,10 +743,15 @@ func TestUpdateHandlerShouldReturn200WithPurchaseFieldsInResponse(t *testing.T) 
 
 	svc := &fakeItemService{
 		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
-			require.Equal(t, &currency, input.PurchaseCurrency)
-			require.Equal(t, &seller, input.SellerURL)
+			require.NotNil(t, input.PurchaseCurrency)
+			require.NotNil(t, *input.PurchaseCurrency)
+			require.Equal(t, currency, **input.PurchaseCurrency)
+			require.NotNil(t, input.SellerURL)
+			require.NotNil(t, *input.SellerURL)
+			require.Equal(t, seller, **input.SellerURL)
 			require.NotNil(t, input.PurchaseDate)
-			require.Equal(t, "2021-03-10", input.PurchaseDate.Format("2006-01-02"))
+			require.NotNil(t, *input.PurchaseDate)
+			require.Equal(t, "2021-03-10", (*input.PurchaseDate).Format("2006-01-02"))
 			return updated, nil
 		},
 	}

@@ -487,7 +487,8 @@ func TestOutfitUpdateShouldReturn200WhenSuccessful(t *testing.T) {
 		updateFn: func(_ context.Context, callerID, outfitID string, input service.UpdateOutfitInput) (domain.Outfit, error) {
 			require.Equal(t, "user1", callerID)
 			require.Equal(t, "o1", outfitID)
-			require.Equal(t, &name, input.Name)
+			require.NotNil(t, input.Name)
+			require.Equal(t, name, *input.Name)
 			return updated, nil
 		},
 	}
@@ -497,6 +498,29 @@ func TestOutfitUpdateShouldReturn200WhenSuccessful(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	require.Equal(t, "o1", resp["id"])
 	require.Equal(t, "Winter Fit", resp["name"])
+}
+
+func TestOutfitUpdateShouldPreserveNotesWhenAbsentFromBody(t *testing.T) {
+	svc := &fakeOutfitService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateOutfitInput) (domain.Outfit, error) {
+			require.Nil(t, input.Notes)
+			return domain.Outfit{}, nil
+		},
+	}
+	w := patchOutfit(t, newOutfitHandler(svc), "o1", "user1", `{}`)
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestOutfitUpdateShouldClearNotesWhenNullInBody(t *testing.T) {
+	svc := &fakeOutfitService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateOutfitInput) (domain.Outfit, error) {
+			require.NotNil(t, input.Notes)
+			require.Nil(t, *input.Notes)
+			return domain.Outfit{}, nil
+		},
+	}
+	w := patchOutfit(t, newOutfitHandler(svc), "o1", "user1", `{"notes":null}`)
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 // ---- Delete ----
