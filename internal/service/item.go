@@ -29,18 +29,20 @@ type CreateItemInput struct {
 }
 
 // UpdateItemInput holds the fields that can be updated on an existing Item.
+// A nil outer pointer (Nullable) means the field was absent — preserve the existing value.
+// A non-nil outer pointer to nil means the field was explicitly set to null — clear the value.
+// A non-nil outer pointer to a value means the field was set — update to that value.
 type UpdateItemInput struct {
-	Name             string
-	Brand            *string
-	CategoryID       *string
-	Color            *string
-	Metadata         domain.ItemMetadata
-	PhotoKeys        []string
-	LocationID       *string
-	PurchasePrice    *string
-	PurchaseCurrency *string
-	PurchaseDate     *time.Time
-	SellerURL        *string
+	Name             *string              // two-state: nil = preserve, non-nil = update
+	Brand            domain.Nullable[string]
+	CategoryID       domain.Nullable[string]
+	Color            domain.Nullable[string]
+	LocationID       domain.Nullable[string]
+	Metadata         *domain.ItemMetadata // nil = preserve, non-nil = apply field-merge logic
+	PurchasePrice    domain.Nullable[string]
+	PurchaseCurrency domain.Nullable[string]
+	PurchaseDate     domain.Nullable[time.Time]
+	SellerURL        domain.Nullable[string]
 }
 
 // categoryGetter is a narrow interface used by ItemService to validate that a
@@ -178,13 +180,11 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if err := ctx.Err(); err != nil {
 		return domain.Item{}, err
 	}
-	if err := s.validateNameAndCategory(ctx, input.Name, input.CategoryID); err != nil {
+	if err := s.validateName(input.Name); err != nil {
 		return domain.Item{}, err
 	}
-	for k := range input.Metadata.Fields {
-		if err := domain.ValidateMetadataKey(k); err != nil {
-			return domain.Item{}, err
-		}
+	if err := s.validateMetadataInput(input.Metadata); err != nil {
+		return domain.Item{}, err
 	}
 	item, err := s.items.Get(ctx, itemID)
 	if err != nil {
@@ -193,49 +193,105 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if item.OwnerID != callerID {
 		return domain.Item{}, domain.ErrForbidden
 	}
-	merged, err := s.mergeMetadata(item.Metadata, input.Metadata)
-	if err != nil {
+	if err := s.applyItemMerge(ctx, &item, input); err != nil {
 		return domain.Item{}, err
 	}
-	// Validate and normalise purchase fields; nil means clear (replace semantics, consistent with Brand/Color).
-	resultPrice := input.PurchasePrice
-	resultCurrency := input.PurchaseCurrency
-	resultDate := input.PurchaseDate
-	if err := domain.ValidatePurchasePair(resultPrice, resultCurrency); err != nil {
-		return domain.Item{}, err
-	}
-	if input.PurchasePrice != nil {
-		if err := domain.ValidatePurchasePrice(*input.PurchasePrice); err != nil {
-			return domain.Item{}, err
-		}
-	}
-	if input.PurchaseCurrency != nil {
-		if err := domain.ValidatePurchaseCurrency(*input.PurchaseCurrency); err != nil {
-			return domain.Item{}, err
-		}
-		upper := strings.ToUpper(*input.PurchaseCurrency)
-		resultCurrency = &upper
-	}
-	if input.PurchaseDate != nil {
-		if err := domain.ValidatePurchaseDate(*input.PurchaseDate); err != nil {
-			return domain.Item{}, err
-		}
-	}
-	item.Name = input.Name
-	item.Brand = input.Brand
-	item.CategoryID = input.CategoryID
-	item.Color = input.Color
-	item.Metadata = merged
-	item.Photos = makeItemPhotos(input.PhotoKeys)
-	item.LocationID = input.LocationID
-	item.PurchasePrice = resultPrice
-	item.PurchaseCurrency = resultCurrency
-	item.PurchaseDate = resultDate
-	item.SellerURL = input.SellerURL
 	if err := s.items.Save(ctx, item); err != nil {
 		return domain.Item{}, err
 	}
 	return item, nil
+}
+
+// validateName returns ErrValidation when a non-nil name is empty.
+func (s *ItemService) validateName(name *string) error {
+	if name != nil && *name == "" {
+		return fmt.Errorf("%w: name must not be empty", domain.ErrValidation)
+	}
+	return nil
+}
+
+// validateMetadataInput validates all keys in a non-nil metadata patch.
+func (s *ItemService) validateMetadataInput(meta *domain.ItemMetadata) error {
+	if meta == nil {
+		return nil
+	}
+	for k := range meta.Fields {
+		if err := domain.ValidateMetadataKey(k); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyItemMerge applies three-state merges for all UpdateItemInput fields onto item,
+// then validates the resulting purchase pair state.
+func (s *ItemService) applyItemMerge(ctx context.Context, item *domain.Item, input UpdateItemInput) error {
+	if input.Name != nil {
+		item.Name = *input.Name
+	}
+	if input.Brand != nil {
+		item.Brand = *input.Brand
+	}
+	if input.Color != nil {
+		item.Color = *input.Color
+	}
+	if input.LocationID != nil {
+		item.LocationID = *input.LocationID
+	}
+	if input.SellerURL != nil {
+		item.SellerURL = *input.SellerURL
+	}
+	if input.CategoryID != nil {
+		if *input.CategoryID != nil {
+			if _, err := s.categories.GetByID(ctx, **input.CategoryID); err != nil {
+				return err
+			}
+		}
+		item.CategoryID = *input.CategoryID
+	}
+	if input.Metadata != nil {
+		merged, err := s.mergeMetadata(item.Metadata, *input.Metadata)
+		if err != nil {
+			return err
+		}
+		item.Metadata = merged
+	}
+	if input.PurchasePrice != nil {
+		item.PurchasePrice = *input.PurchasePrice
+	}
+	if input.PurchaseCurrency != nil {
+		item.PurchaseCurrency = *input.PurchaseCurrency
+	}
+	if input.PurchaseDate != nil {
+		item.PurchaseDate = *input.PurchaseDate
+	}
+	return s.validateAndNormalisePurchaseFields(item)
+}
+
+// validateAndNormalisePurchaseFields validates the purchase pair on the merged item state
+// and normalises currency to uppercase.
+func (s *ItemService) validateAndNormalisePurchaseFields(item *domain.Item) error {
+	if err := domain.ValidatePurchasePair(item.PurchasePrice, item.PurchaseCurrency); err != nil {
+		return err
+	}
+	if item.PurchasePrice != nil {
+		if err := domain.ValidatePurchasePrice(*item.PurchasePrice); err != nil {
+			return err
+		}
+	}
+	if item.PurchaseCurrency != nil {
+		if err := domain.ValidatePurchaseCurrency(*item.PurchaseCurrency); err != nil {
+			return err
+		}
+		upper := strings.ToUpper(*item.PurchaseCurrency)
+		item.PurchaseCurrency = &upper
+	}
+	if item.PurchaseDate != nil {
+		if err := domain.ValidatePurchaseDate(*item.PurchaseDate); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // mergeMetadata applies patch semantics: keys with empty values are deleted,

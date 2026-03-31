@@ -288,10 +288,37 @@ func TestUpdateShouldUpdateFieldsWhenSuccessful(t *testing.T) {
 	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
 	name := "Evening Attire"
 	notes := "for special occasions"
-	got, err := svc.Update(t.Context(), "user1", "o1", UpdateOutfitInput{Name: &name, Notes: &notes})
+	notesPtr := &notes
+	got, err := svc.Update(t.Context(), "user1", "o1", UpdateOutfitInput{Name: &name, Notes: &notesPtr})
 	require.NoError(t, err)
 	require.Equal(t, &name, got.Name)
 	require.Equal(t, &notes, got.Notes)
+}
+
+func TestUpdateShouldPreserveNotesWhenAbsentFromInput(t *testing.T) {
+	existingNotes := "casual look"
+	outfit := outfitWithOwner("o1", "user1")
+	outfit.Notes = &existingNotes
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
+	name := "Summer Fit"
+	got, err := svc.Update(t.Context(), "user1", "o1", UpdateOutfitInput{Name: &name})
+	require.NoError(t, err)
+	require.NotNil(t, got.Notes)
+	require.Equal(t, "casual look", *got.Notes)
+}
+
+func TestUpdateShouldClearNotesWhenNullableNilInInput(t *testing.T) {
+	existingNotes := "casual look"
+	outfit := outfitWithOwner("o1", "user1")
+	outfit.Notes = &existingNotes
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
+	name := "Summer Fit"
+	var nilNotes *string
+	got, err := svc.Update(t.Context(), "user1", "o1", UpdateOutfitInput{Name: &name, Notes: &nilNotes})
+	require.NoError(t, err)
+	require.Nil(t, got.Notes)
 }
 
 // ---- Delete ----

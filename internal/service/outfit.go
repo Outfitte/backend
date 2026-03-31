@@ -19,9 +19,10 @@ type CreateOutfitInput struct {
 }
 
 // UpdateOutfitInput holds the fields that can be updated on an existing Outfit.
+// A nil outer pointer (Nullable) means the field was absent — preserve the existing value.
 type UpdateOutfitInput struct {
-	Name  *string
-	Notes *string
+	Name  *string              // two-state: nil = preserve, non-nil = update
+	Notes domain.Nullable[string]
 }
 
 // OutfitService manages outfits, item linking, and photo management.
@@ -75,8 +76,12 @@ func (s *OutfitService) Update(ctx context.Context, callerID, outfitID string, i
 	if err != nil {
 		return domain.Outfit{}, err
 	}
-	outfit.Name = input.Name
-	outfit.Notes = input.Notes
+	if input.Name != nil {
+		outfit.Name = input.Name
+	}
+	if input.Notes != nil {
+		outfit.Notes = *input.Notes
+	}
 	if err := s.outfits.Save(ctx, outfit); err != nil {
 		return domain.Outfit{}, err
 	}

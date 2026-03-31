@@ -177,20 +177,6 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toItemResponse(item))
 }
 
-type updateItemRequest struct {
-	Name             string            `json:"name"`
-	Brand            *string           `json:"brand"`
-	CategoryID       *string           `json:"category_id"`
-	Color            *string           `json:"color"`
-	Metadata         map[string]string `json:"metadata"`
-	PhotoKeys        []string          `json:"photo_keys"`
-	LocationID       *string           `json:"location_id"`
-	PurchasePrice    *string           `json:"purchase_price"`
-	PurchaseCurrency *string           `json:"purchase_currency"`
-	PurchaseDate     *string           `json:"purchase_date"`
-	SellerURL        *string           `json:"seller_url"`
-}
-
 type assignLocationRequest struct {
 	LocationID *string `json:"location_id"`
 }
@@ -317,36 +303,64 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req updateItemRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
-	var purchaseDate *time.Time
-	if req.PurchaseDate != nil {
-		parsed, err := time.Parse("2006-01-02", *req.PurchaseDate)
-		if err != nil {
+	var input service.UpdateItemInput
+
+	// Two-state field: absent = preserve, string = update, null = 400.
+	if v, ok := raw["name"]; ok {
+		var s *string
+		if err := json.Unmarshal(v, &s); err != nil || s == nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name must not be null"})
+			return
+		}
+		input.Name = s
+	}
+
+	// Nullable string fields: absent = preserve, null = clear, string = update.
+	for key, dest := range map[string]*domain.Nullable[string]{
+		"brand":             &input.Brand,
+		"category_id":       &input.CategoryID,
+		"color":             &input.Color,
+		"location_id":       &input.LocationID,
+		"purchase_price":    &input.PurchasePrice,
+		"purchase_currency": &input.PurchaseCurrency,
+		"seller_url":        &input.SellerURL,
+	} {
+		if v, ok := raw[key]; ok {
+			if err := decodePatchNullable(v, dest); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid value for " + key})
+				return
+			}
+		}
+	}
+
+	// purchase_date: Nullable[time.Time] decoded from YYYY-MM-DD string or null.
+	if v, ok := raw["purchase_date"]; ok {
+		var s *string
+		if err := json.Unmarshal(v, &s); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid date format, use YYYY-MM-DD"})
 			return
 		}
-		purchaseDate = &parsed
+		if s == nil {
+			nilTime := (*time.Time)(nil)
+			input.PurchaseDate = &nilTime
+		} else {
+			parsed, err := time.Parse("2006-01-02", *s)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid date format, use YYYY-MM-DD"})
+				return
+			}
+			parsedPtr := &parsed
+			input.PurchaseDate = &parsedPtr
+		}
 	}
 
 	itemID := r.PathValue("id")
-	input := service.UpdateItemInput{
-		Name:             req.Name,
-		Brand:            req.Brand,
-		CategoryID:       req.CategoryID,
-		Color:            req.Color,
-		Metadata:         domain.ItemMetadata{Fields: req.Metadata},
-		PhotoKeys:        req.PhotoKeys,
-		LocationID:       req.LocationID,
-		PurchasePrice:    req.PurchasePrice,
-		PurchaseCurrency: req.PurchaseCurrency,
-		PurchaseDate:     purchaseDate,
-		SellerURL:        req.SellerURL,
-	}
 	item, err := h.items.Update(ctx, callerID, itemID, input)
 	if err != nil {
 		if errors.Is(err, domain.ErrFutureDateNotAllowed) {

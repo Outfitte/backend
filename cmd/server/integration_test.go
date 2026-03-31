@@ -731,46 +731,6 @@ func TestIntegrationItemShouldRejectWhenUpdatedWithFuturePurchaseDate(t *testing
 	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }
 
-func TestIntegrationItemShouldClearPurchaseFieldsWhenPatchOmitsThem(t *testing.T) {
-	// PATCH /items/{id} uses full-replace semantics for all optional fields (consistent
-	// with Brand, Color, CategoryID, LocationID). Omitting a field is the same as
-	// sending null — it clears the stored value.
-	srv := startIntegrationServer(t)
-	token, _ := registerUser(t, srv, "purchasereplace", "password-purchase-secure")
-
-	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
-		"name":              "Merino Sweater",
-		"purchase_price":    "75.00",
-		"purchase_currency": "EUR",
-		"seller_url":        "https://example.com/sweater",
-	}, token)
-	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct {
-		ID string `json:"id"`
-	}
-	decodeJSON(t, createResp, &created)
-
-	// PATCH with only the name — purchase fields are omitted entirely.
-	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
-		"name": "Merino Sweater Updated",
-	}, token)
-	require.Equal(t, http.StatusOK, updateResp.StatusCode)
-
-	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
-	require.Equal(t, http.StatusOK, getResp.StatusCode)
-	var item struct {
-		Name             string  `json:"name"`
-		PurchasePrice    *string `json:"purchase_price"`
-		PurchaseCurrency *string `json:"purchase_currency"`
-		SellerURL        *string `json:"seller_url"`
-	}
-	decodeJSON(t, getResp, &item)
-	assert.Equal(t, "Merino Sweater Updated", item.Name)
-	assert.Nil(t, item.PurchasePrice)
-	assert.Nil(t, item.PurchaseCurrency)
-	assert.Nil(t, item.SellerURL)
-}
-
 func TestIntegrationItemShouldPersistAllPurchaseFieldsWhenCreated(t *testing.T) {
 	srv := startIntegrationServer(t)
 	token, _ := registerUser(t, srv, "purchasehappy1", "password-purchase-secure")
@@ -973,6 +933,229 @@ func TestIntegrationItemShouldClearSellerURLIndependentlyOfPurchaseFields(t *tes
 	require.NotNil(t, item.PurchaseCurrency)
 	assert.Equal(t, "CHF", *item.PurchaseCurrency)
 	assert.Nil(t, item.SellerURL)
+}
+
+func TestIntegrationItemPatchPreservesAbsentFields(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "patchpreserve1", "password-patchpreserve-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":  "Sneaker",
+		"brand": "Nike",
+		"color": "Red",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH with only color — brand should be preserved.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"color": "Blue",
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		Brand *string `json:"brand"`
+		Color *string `json:"color"`
+	}
+	decodeJSON(t, getResp, &item)
+	require.NotNil(t, item.Brand)
+	assert.Equal(t, "Nike", *item.Brand)
+	require.NotNil(t, item.Color)
+	assert.Equal(t, "Blue", *item.Color)
+}
+
+func TestIntegrationItemPatchClearsNullableField(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "patchclear1", "password-patchclear-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":  "Hoodie",
+		"brand": "Nike",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH brand with explicit null — should clear.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"brand": nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		Brand *string `json:"brand"`
+	}
+	decodeJSON(t, getResp, &item)
+	assert.Nil(t, item.Brand)
+}
+
+func TestIntegrationItemPatchClearsLocation(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "patchclearloc1", "password-patchclearloc-secure")
+
+	locResp := doJSON(t, srv, http.MethodPost, "/locations", map[string]any{"label": "Wardrobe"}, token)
+	require.Equal(t, http.StatusCreated, locResp.StatusCode)
+	var loc struct{ ID string `json:"id"` }
+	decodeJSON(t, locResp, &loc)
+
+	itemID := createItem(t, srv, token, "Jeans", &loc.ID)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var before struct{ LocationID *string `json:"location_id"` }
+	decodeJSON(t, getResp, &before)
+	require.NotNil(t, before.LocationID)
+
+	// PATCH with location_id: null — should clear.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID, map[string]any{
+		"location_id": nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp2 := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, token)
+	require.Equal(t, http.StatusOK, getResp2.StatusCode)
+	var after struct{ LocationID *string `json:"location_id"` }
+	decodeJSON(t, getResp2, &after)
+	assert.Nil(t, after.LocationID)
+}
+
+func TestIntegrationItemPatchClearsCategory(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "patchclearcat1", "password-patchclearcat-secure")
+
+	// Get a valid category ID.
+	listResp := doJSON(t, srv, http.MethodGet, "/categories", nil, token)
+	require.Equal(t, http.StatusOK, listResp.StatusCode)
+	var categories []struct{ ID string `json:"id"` }
+	decodeJSON(t, listResp, &categories)
+	require.NotEmpty(t, categories)
+	catID := categories[0].ID
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":        "Blazer",
+		"category_id": catID,
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH with category_id: null — should clear.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"category_id": nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct{ CategoryID *string `json:"category_id"` }
+	decodeJSON(t, getResp, &item)
+	assert.Nil(t, item.CategoryID)
+}
+
+func TestIntegrationItemPatchClearsPurchaseFields(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "patchclearpurchase1", "password-patchclearpurchase-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Cardigan",
+		"purchase_price":    "10.00",
+		"purchase_currency": "USD",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH with both purchase fields as null — should clear both.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"purchase_price":    nil,
+		"purchase_currency": nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+	}
+	decodeJSON(t, getResp, &item)
+	assert.Nil(t, item.PurchasePrice)
+	assert.Nil(t, item.PurchaseCurrency)
+}
+
+func TestIntegrationItemPatchRejectsPurchasePairViolationOnPreservedField(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "patchpurchasepair1", "password-patchpurchasepair-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Trousers",
+		"purchase_price":    "10.00",
+		"purchase_currency": "USD",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH with only currency=null: price is preserved from existing, resulting state
+	// has price without currency — must be 422.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"purchase_currency": nil,
+	}, token)
+	assert.Equal(t, http.StatusUnprocessableEntity, updateResp.StatusCode)
+}
+
+func TestIntegrationOutfitPatchPreservesNotes(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "outfitpatchnotes1", "password-outfitpatch-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{
+		"notes": "casual",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH with only name — notes should be preserved.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/outfits/"+created.ID, map[string]any{
+		"name": "Summer",
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/outfits/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var outfit struct{ Notes *string `json:"notes"` }
+	decodeJSON(t, getResp, &outfit)
+	require.NotNil(t, outfit.Notes)
+	assert.Equal(t, "casual", *outfit.Notes)
+}
+
+func TestIntegrationOutfitPatchClearsNotes(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "outfitpatchnotes2", "password-outfitpatch-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{
+		"notes": "casual",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct{ ID string `json:"id"` }
+	decodeJSON(t, createResp, &created)
+
+	// PATCH notes with explicit null — should clear.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/outfits/"+created.ID, map[string]any{
+		"notes": nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/outfits/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var outfit struct{ Notes *string `json:"notes"` }
+	decodeJSON(t, getResp, &outfit)
+	assert.Nil(t, outfit.Notes)
 }
 
 func TestIntegrationCrossUserOutfitAccessForbidden(t *testing.T) {

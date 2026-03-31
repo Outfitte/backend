@@ -611,56 +611,19 @@ func TestItemServiceListByOwnerShouldReturnOnlyCallerItems(t *testing.T) {
 	require.Equal(t, []domain.Item{item1, item3}, got)
 }
 
+// nullableVal returns a Nullable[T] with the given value (three-state: update).
+func nullableVal[T any](v T) domain.Nullable[T] {
+	p := &v
+	return &p
+}
+
+// nullableNil returns a Nullable[T] pointing to nil (three-state: clear).
+func nullableNil[T any]() domain.Nullable[T] {
+	var p *T
+	return &p
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
-
-func TestItemServiceUpdateShouldReturnErrValidationWhenNameIsEmpty(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
-
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: ""})
-	require.ErrorIs(t, err, domain.ErrValidation)
-}
-
-func TestItemServiceUpdateShouldReturnErrNotFoundWhenCategoryIDIsUnknown(t *testing.T) {
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
-
-	catID := "unknown-cat-id"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", CategoryID: &catID})
-	require.ErrorIs(t, err, domain.ErrNotFound)
-}
-
-func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
-
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: map[string]string{"bad!key": "value"}},
-	})
-	require.ErrorIs(t, err, domain.ErrValidation)
-}
-
-func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
-
-	fields := make(map[string]string, 51)
-	for i := range 51 {
-		fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
-	}
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: fields},
-	})
-	require.ErrorIs(t, err, domain.ErrValidation)
-}
 
 func TestItemServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
@@ -671,10 +634,74 @@ func TestItemServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) 
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestItemServiceUpdateShouldReturnErrValidationWhenNameIsEmpty(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	emptyName := ""
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &emptyName})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrNotFoundWhenCategoryIDIsUnknown(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	catID := "unknown-cat-id"
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, CategoryID: nullableVal(catID)})
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataKeyIsInvalid(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	meta := domain.ItemMetadata{Fields: map[string]string{"bad!key": "value"}}
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:     &name,
+		Metadata: &meta,
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenMetadataExceedsMaxFields(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	fields := make(map[string]string, 51)
+	for i := range 51 {
+		fields["field"+string(rune('a'+i%26))+string(rune('0'+i/26))] = "v"
+	}
+	meta := domain.ItemMetadata{Fields: fields}
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:     &name,
+		Metadata: &meta,
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
 func TestItemServiceUpdateShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
 	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -682,7 +709,8 @@ func TestItemServiceUpdateShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockItemRepo{getErr: domain.ErrIO}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -694,7 +722,8 @@ func TestItemServiceUpdateShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testin
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	_, err := svc.Update(t.Context(), "owner-2", "item-1", UpdateItemInput{Name: "Jacket"})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-2", "item-1", UpdateItemInput{Name: &name})
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
@@ -702,11 +731,13 @@ func TestItemServiceUpdateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
 
 	repo := &mockItemRepo{items: []domain.Item{item}, saveErr: domain.ErrIO}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Updated"})
+	name := "Updated"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -723,16 +754,17 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	cats, err := catSvc.ListAll(t.Context())
 	require.NoError(t, err)
 
+	name := "New Name"
 	brand := "New Brand"
 	catID := cats[0].ID
 	color := "Blue"
+	meta := domain.ItemMetadata{Fields: map[string]string{"size": "L"}}
 	input := UpdateItemInput{
-		Name:       "New Name",
-		Brand:      &brand,
-		CategoryID: &catID,
-		Color:      &color,
-		Metadata:   domain.ItemMetadata{Fields: map[string]string{"size": "L"}},
-		PhotoKeys:  []string{"new-photo.jpg"},
+		Name:       &name,
+		Brand:      nullableVal(brand),
+		CategoryID: nullableVal(catID),
+		Color:      nullableVal(color),
+		Metadata:   &meta,
 	}
 
 	got, err := svc.Update(t.Context(), "owner-1", "item-1", input)
@@ -744,8 +776,58 @@ func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	require.Equal(t, &catID, got.CategoryID)
 	require.Equal(t, &color, got.Color)
 	require.Equal(t, "L", got.Metadata.Fields["size"])
-	require.Len(t, got.Photos, 1)
-	require.Equal(t, "new-photo.jpg", got.Photos[0].MediaKey)
+}
+
+func TestItemServiceUpdateShouldPreserveBrandWhenAbsentFromInput(t *testing.T) {
+	existingBrand := "Nike"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.Brand = &existingBrand
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
+	require.NoError(t, err)
+	require.NotNil(t, got.Brand)
+	require.Equal(t, "Nike", *got.Brand)
+}
+
+func TestItemServiceUpdateShouldClearBrandWhenNullableNilInInput(t *testing.T) {
+	existingBrand := "Nike"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.Brand = &existingBrand
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, Brand: nullableNil[string]()})
+	require.NoError(t, err)
+	require.Nil(t, got.Brand)
+}
+
+func TestItemServiceUpdateShouldPreserveMetadataWhenAbsentFromInput(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.Metadata = domain.ItemMetadata{Fields: map[string]string{"color": "red", "size": "M"}}
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
+	require.NoError(t, err)
+	require.Equal(t, "red", got.Metadata.Fields["color"])
+	require.Equal(t, "M", got.Metadata.Fields["size"])
 }
 
 func TestItemServiceUpdateShouldPreserveExistingMetadataKeysNotInPatch(t *testing.T) {
@@ -758,9 +840,11 @@ func TestItemServiceUpdateShouldPreserveExistingMetadataKeysNotInPatch(t *testin
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
+	name := "Jacket"
+	meta := domain.ItemMetadata{Fields: map[string]string{"size": "L"}}
 	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: map[string]string{"size": "L"}},
+		Name:     &name,
+		Metadata: &meta,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "L", got.Metadata.Fields["size"])
@@ -777,9 +861,11 @@ func TestItemServiceUpdateShouldDeleteMetadataKeyWhenValueIsEmptyString(t *testi
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
+	name := "Jacket"
+	meta := domain.ItemMetadata{Fields: map[string]string{"color": ""}}
 	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: map[string]string{"color": ""}},
+		Name:     &name,
+		Metadata: &meta,
 	})
 	require.NoError(t, err)
 	require.NotContains(t, got.Metadata.Fields, "color")
@@ -801,9 +887,11 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenMergedMetadataExceeds50Fi
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
 	// Adding a new key would push the merged count to 51.
+	name := "Jacket"
+	meta := domain.ItemMetadata{Fields: map[string]string{"brand new key": "v"}}
 	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
-		Name:     "Jacket",
-		Metadata: domain.ItemMetadata{Fields: map[string]string{"brand new key": "v"}},
+		Name:     &name,
+		Metadata: &meta,
 	})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
@@ -817,12 +905,12 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenPatchPriceSetButNoCurrenc
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	price := "10.00"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, PurchasePrice: nullableVal("10.00")})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
-func TestItemServiceUpdateShouldClearPurchaseFieldsWhenBothAreNilInInput(t *testing.T) {
+func TestItemServiceUpdateShouldPreservePurchaseFieldsWhenAbsentFromInput(t *testing.T) {
 	existingPrice := "10.00"
 	existingCurrency := "USD"
 	var item domain.Item
@@ -835,7 +923,34 @@ func TestItemServiceUpdateShouldClearPurchaseFieldsWhenBothAreNilInInput(t *test
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
+	require.NoError(t, err)
+	require.NotNil(t, got.PurchasePrice)
+	require.Equal(t, "10.00", *got.PurchasePrice)
+	require.NotNil(t, got.PurchaseCurrency)
+	require.Equal(t, "USD", *got.PurchaseCurrency)
+}
+
+func TestItemServiceUpdateShouldClearPurchaseFieldsWhenNullableNilInInput(t *testing.T) {
+	existingPrice := "10.00"
+	existingCurrency := "USD"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.PurchasePrice = &existingPrice
+	item.PurchaseCurrency = &existingCurrency
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:             &name,
+		PurchasePrice:    nullableNil[string](),
+		PurchaseCurrency: nullableNil[string](),
+	})
 	require.NoError(t, err)
 	require.Nil(t, got.PurchasePrice)
 	require.Nil(t, got.PurchaseCurrency)
@@ -850,9 +965,12 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenPatchPriceIsInvalid(t *te
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	price := "-5.00"
-	currency := "USD"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:             &name,
+		PurchasePrice:    nullableVal("-5.00"),
+		PurchaseCurrency: nullableVal("USD"),
+	})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
@@ -865,9 +983,12 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenPatchCurrencyIsInvalid(t 
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	price := "10.00"
-	currency := "US"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:             &name,
+		PurchasePrice:    nullableVal("10.00"),
+		PurchaseCurrency: nullableVal("US"),
+	})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
@@ -881,11 +1002,12 @@ func TestItemServiceUpdateShouldReturnErrFutureDateNotAllowedWhenPatchDateIsInFu
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
 	future := time.Now().Add(24 * time.Hour)
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchaseDate: &future})
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, PurchaseDate: nullableVal(future)})
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
 }
 
-func TestItemServiceUpdateShouldRejectCurrencyAloneEvenWhenExistingItemHasPrice(t *testing.T) {
+func TestItemServiceUpdateShouldSucceedWhenSettingCurrencyOnItemWithExistingPrice(t *testing.T) {
 	existingPrice := "10.00"
 	var item domain.Item
 	item.ID = "item-1"
@@ -896,8 +1018,30 @@ func TestItemServiceUpdateShouldRejectCurrencyAloneEvenWhenExistingItemHasPrice(
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	currency := "EUR"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchaseCurrency: &currency})
+	// Setting currency while price is preserved from existing — results in both set, which is valid.
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, PurchaseCurrency: nullableVal("EUR")})
+	require.NoError(t, err)
+	require.NotNil(t, got.PurchasePrice)
+	require.Equal(t, "10.00", *got.PurchasePrice)
+	require.NotNil(t, got.PurchaseCurrency)
+	require.Equal(t, "EUR", *got.PurchaseCurrency)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenClearingCurrencyPreservesPrice(t *testing.T) {
+	existingPrice := "10.00"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.PurchasePrice = &existingPrice
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	// Clearing currency but price is preserved → resulting state has price without currency → invalid.
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, PurchaseCurrency: nullableNil[string]()})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
@@ -910,9 +1054,12 @@ func TestItemServiceUpdateShouldNormalizePurchaseCurrencyToUppercase(t *testing.
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	price := "10.00"
-	currency := "eur"
-	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:             &name,
+		PurchasePrice:    nullableVal("10.00"),
+		PurchaseCurrency: nullableVal("eur"),
+	})
 	require.NoError(t, err)
 	require.Equal(t, "EUR", *got.PurchaseCurrency)
 }
@@ -926,13 +1073,14 @@ func TestItemServiceUpdateShouldSetSellerURL(t *testing.T) {
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
+	name := "Jacket"
 	url := "https://example.com/item"
-	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket", SellerURL: &url})
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, SellerURL: nullableVal(url)})
 	require.NoError(t, err)
 	require.Equal(t, &url, got.SellerURL)
 }
 
-func TestItemServiceUpdateShouldClearSellerURLWhenInputIsNil(t *testing.T) {
+func TestItemServiceUpdateShouldPreserveSellerURLWhenAbsentFromInput(t *testing.T) {
 	existingURL := "https://example.com/item"
 	var item domain.Item
 	item.ID = "item-1"
@@ -943,7 +1091,47 @@ func TestItemServiceUpdateShouldClearSellerURLWhenInputIsNil(t *testing.T) {
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
 
-	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: "Jacket"})
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
+	require.NoError(t, err)
+	require.NotNil(t, got.SellerURL)
+	require.Equal(t, existingURL, *got.SellerURL)
+}
+
+func TestItemServiceUpdateShouldSetLocationIDWhenNullableValInInput(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	locRepo := &mockLocationRepo{locations: []domain.Location{loc}}
+	svc := NewItemService(repo, &mockMediaProvider{}, locRepo, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, LocationID: nullableVal("loc-1")})
+	require.NoError(t, err)
+	require.NotNil(t, got.LocationID)
+	require.Equal(t, "loc-1", *got.LocationID)
+}
+
+func TestItemServiceUpdateShouldClearSellerURLWhenNullableNilInInput(t *testing.T) {
+	existingURL := "https://example.com/item"
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+	item.SellerURL = &existingURL
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService())
+
+	name := "Jacket"
+	got, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name, SellerURL: nullableNil[string]()})
 	require.NoError(t, err)
 	require.Nil(t, got.SellerURL)
 }
