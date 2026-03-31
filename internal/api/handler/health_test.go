@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/outfitte/outfitte/internal/api/handler"
+	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/stretchr/testify/require"
 )
 

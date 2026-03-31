@@ -11,7 +11,7 @@ import (
 	migrate "github.com/golang-migrate/migrate/v4"
 	migrateDB "github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/source"
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )

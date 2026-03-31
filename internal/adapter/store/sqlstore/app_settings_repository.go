@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // appSettingsDB is the subset of *sql.DB methods used by AppSettingsRepository.

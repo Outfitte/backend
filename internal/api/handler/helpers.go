@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/outfitte/outfitte/internal/api/middleware"
+	"github.com/outfitte/backend/internal/api/middleware"
 )
 
 // callerIDFromContext extracts the authenticated caller ID from ctx.

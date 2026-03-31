@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
-	"github.com/outfitte/outfitte/internal/config"
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/config"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 func TestOpenShouldReturnErrWhenContextCancelled(t *testing.T) {

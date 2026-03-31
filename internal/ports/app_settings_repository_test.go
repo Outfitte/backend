@@ -3,8 +3,8 @@ package ports_test
 import (
 	"context"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // Compile-time assertion: appSettingsRepositoryStub must satisfy AppSettingsRepository.

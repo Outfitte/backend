@@ -4,11 +4,11 @@ import (
 	"context"
 	"io"
 
-	storejson "github.com/outfitte/outfitte/internal/adapter/store/json"
-	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
-	"github.com/outfitte/outfitte/internal/config"
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	storejson "github.com/outfitte/backend/internal/adapter/store/json"
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/config"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // nopCloser is an io.Closer that does nothing on Close.
