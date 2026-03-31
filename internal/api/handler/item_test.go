@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/outfitte/outfitte/internal/api/handler"
 	"github.com/outfitte/outfitte/internal/api/middleware"
@@ -282,6 +283,63 @@ func TestCreateHandlerShouldReturn201WithItemWhenCreatedSuccessfully(t *testing.
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Blue Shirt", got.Name)
+}
+
+func TestCreateHandlerShouldReturn400WhenPurchaseDateIsInvalid(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	w := postItem(t, h, "user-1", `{"name":"shirt","purchase_date":"not-a-date"}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreateHandlerShouldReturn422WhenServiceReturnsErrFutureDateNotAllowed(t *testing.T) {
+	svc := &fakeItemService{
+		createFn: func(_ context.Context, _ string, _ service.CreateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrFutureDateNotAllowed
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := postItem(t, h, "user-1", `{"name":"shirt","purchase_date":"2020-01-01"}`)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
+func TestCreateHandlerShouldReturn201WithPurchaseFieldsInResponse(t *testing.T) {
+	price := "49.99"
+	currency := "USD"
+	seller := "https://example.com/shirt"
+	purchaseDate, _ := time.Parse("2006-01-02", "2020-06-15")
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "user-1"
+	item.Name = "shirt"
+	item.PurchasePrice = &price
+	item.PurchaseCurrency = &currency
+	item.PurchaseDate = &purchaseDate
+	item.SellerURL = &seller
+
+	svc := &fakeItemService{
+		createFn: func(_ context.Context, _ string, input service.CreateItemInput) (domain.Item, error) {
+			require.Equal(t, &price, input.PurchasePrice)
+			require.Equal(t, &currency, input.PurchaseCurrency)
+			require.Equal(t, &seller, input.SellerURL)
+			require.NotNil(t, input.PurchaseDate)
+			require.Equal(t, "2020-06-15", input.PurchaseDate.Format("2006-01-02"))
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := postItem(t, h, "user-1", `{"name":"shirt","purchase_price":"49.99","purchase_currency":"USD","purchase_date":"2020-06-15","seller_url":"https://example.com/shirt"}`)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, &currency, got.PurchaseCurrency)
+	require.Equal(t, ptr("2020-06-15"), got.PurchaseDate)
+	require.Equal(t, &seller, got.SellerURL)
 }
 
 // ── AssignLocation ────────────────────────────────────────────────────────────
@@ -596,6 +654,60 @@ func TestUpdateHandlerShouldReturn200WithUpdatedItemWhenSuccessful(t *testing.T)
 	require.Equal(t, "Red Jacket", got.Name)
 }
 
+func TestUpdateHandlerShouldReturn400WhenPurchaseDateIsInvalid(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt","purchase_date":"not-a-date"}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn422WhenServiceReturnsErrFutureDateNotAllowed(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrFutureDateNotAllowed
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt","purchase_date":"2020-01-01"}`)
+
+	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
+func TestUpdateHandlerShouldReturn200WithPurchaseFieldsInResponse(t *testing.T) {
+	currency := "EUR"
+	seller := "https://example.com/jacket"
+	purchaseDate, _ := time.Parse("2006-01-02", "2021-03-10")
+	var updated domain.Item
+	updated.ID = "item-42"
+	updated.OwnerID = "user-1"
+	updated.Name = "Red Jacket"
+	updated.PurchaseCurrency = &currency
+	updated.PurchaseDate = &purchaseDate
+	updated.SellerURL = &seller
+
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.Equal(t, &currency, input.PurchaseCurrency)
+			require.Equal(t, &seller, input.SellerURL)
+			require.NotNil(t, input.PurchaseDate)
+			require.Equal(t, "2021-03-10", input.PurchaseDate.Format("2006-01-02"))
+			return updated, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-42", "user-1", `{"name":"Red Jacket","purchase_currency":"EUR","purchase_date":"2021-03-10","seller_url":"https://example.com/jacket"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, &currency, got.PurchaseCurrency)
+	require.Equal(t, ptr("2021-03-10"), got.PurchaseDate)
+	require.Equal(t, &seller, got.SellerURL)
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 func TestDeleteHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
@@ -835,13 +947,18 @@ func TestDeletePhotoHandlerShouldReturn204WhenPhotoDeletedSuccessfully(t *testin
 
 // testItemResp mirrors the snake_case JSON shape returned by the item handlers.
 type testItemResp struct {
-	ID      string            `json:"id"`
-	OwnerID string            `json:"owner_id"`
-	Name    string            `json:"name"`
-	Brand   *string           `json:"brand"`
-	Color   *string           `json:"color"`
-	Meta    map[string]string `json:"metadata"`
+	ID               string            `json:"id"`
+	OwnerID          string            `json:"owner_id"`
+	Name             string            `json:"name"`
+	Brand            *string           `json:"brand"`
+	Color            *string           `json:"color"`
+	Meta             map[string]string `json:"metadata"`
+	PurchaseCurrency *string           `json:"purchase_currency"`
+	PurchaseDate     *string           `json:"purchase_date"`
+	SellerURL        *string           `json:"seller_url"`
 }
+
+func ptr(s string) *string { return &s }
 
 // statefulFakeItemService is an in-memory item store used in the lifecycle integration test.
 type statefulFakeItemService struct {
