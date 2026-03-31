@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: Outfitte API
-  version: "3"
+  version: "4"
   description: |
     REST API for Outfitte — a self-hosted wardrobe management application.
-    Current milestone: M3 (Outfits & Calendar).
+    Current milestone: M4 (Seller URL & Price Tracking).
 
 servers:
   - url: http://localhost:8080
@@ -69,7 +69,7 @@ components:
 
     Item:
       type: object
-      required: [id, owner_id, name, brand, category_id, color, metadata, photos, location_id, purchase_price, created_at]
+      required: [id, owner_id, name, brand, category_id, color, metadata, photos, location_id, purchase_price, purchase_currency, purchase_date, seller_url, created_at]
       properties:
         id:
           type: string
@@ -99,7 +99,20 @@ components:
           format: uuid
         purchase_price:
           type: [string, "null"]
-          description: Decimal string, e.g. "29.99"
+          description: Decimal string, e.g. "29.99". Must be accompanied by purchase_currency (both set or both absent).
+        purchase_currency:
+          type: [string, "null"]
+          description: 3-letter ISO 4217 currency code (case-insensitive input, stored uppercase). Must be accompanied by purchase_price.
+          example: "USD"
+        purchase_date:
+          type: [string, "null"]
+          format: date
+          description: Purchase date in YYYY-MM-DD format. Must not be a future date.
+          example: "2023-06-15"
+        seller_url:
+          type: [string, "null"]
+          description: URL of the seller or product page.
+          example: "https://example.com/product"
         created_at:
           type: string
           format: date-time
@@ -500,6 +513,21 @@ paths:
                 location_id:
                   type: [string, "null"]
                   format: uuid
+                purchase_price:
+                  type: [string, "null"]
+                  description: Decimal string, e.g. "29.99". Must be accompanied by purchase_currency (both set or both absent).
+                purchase_currency:
+                  type: [string, "null"]
+                  description: 3-letter ISO 4217 currency code (case-insensitive, stored uppercase). Must be accompanied by purchase_price.
+                  example: "USD"
+                purchase_date:
+                  type: [string, "null"]
+                  format: date
+                  description: Purchase date in YYYY-MM-DD format. Must not be a future date.
+                  example: "2023-06-15"
+                seller_url:
+                  type: [string, "null"]
+                  description: URL of the seller or product page.
       responses:
         "201":
           description: Item created
@@ -579,7 +607,19 @@ paths:
                   format: uuid
                 purchase_price:
                   type: [string, "null"]
-                  description: Decimal string, e.g. "29.99"
+                  description: Decimal string, e.g. "29.99". Must be accompanied by purchase_currency (both set or both absent).
+                purchase_currency:
+                  type: [string, "null"]
+                  description: 3-letter ISO 4217 currency code (case-insensitive, stored uppercase). Must be accompanied by purchase_price.
+                  example: "USD"
+                purchase_date:
+                  type: [string, "null"]
+                  format: date
+                  description: Purchase date in YYYY-MM-DD format. Must not be a future date.
+                  example: "2023-06-15"
+                seller_url:
+                  type: [string, "null"]
+                  description: URL of the seller or product page.
       responses:
         "200":
           description: Item updated
