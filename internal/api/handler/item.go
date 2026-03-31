@@ -23,18 +23,20 @@ type photoResponse struct {
 }
 
 type itemResponse struct {
-	ID            string            `json:"id"`
-	OwnerID       string            `json:"owner_id"`
-	Name          string            `json:"name"`
-	Brand         *string           `json:"brand"`
-	CategoryID    *string           `json:"category_id"`
-	Color         *string           `json:"color"`
-	Metadata      map[string]string `json:"metadata"`
-	Photos        []photoResponse   `json:"photos"`
-	LocationID    *string           `json:"location_id"`
-	PurchasePrice *string           `json:"purchase_price"`
-	// PurchaseDate is omitted intentionally — it is deferred to M4+.
-	CreatedAt time.Time `json:"created_at"`
+	ID               string            `json:"id"`
+	OwnerID          string            `json:"owner_id"`
+	Name             string            `json:"name"`
+	Brand            *string           `json:"brand"`
+	CategoryID       *string           `json:"category_id"`
+	Color            *string           `json:"color"`
+	Metadata         map[string]string `json:"metadata"`
+	Photos           []photoResponse   `json:"photos"`
+	LocationID       *string           `json:"location_id"`
+	PurchasePrice    *string           `json:"purchase_price"`
+	PurchaseCurrency *string           `json:"purchase_currency"`
+	PurchaseDate     *string           `json:"purchase_date"`
+	SellerURL        *string           `json:"seller_url"`
+	CreatedAt        time.Time         `json:"created_at"`
 }
 
 func toItemResponse(item domain.Item) itemResponse {
@@ -51,18 +53,26 @@ func toItemResponse(item domain.Item) itemResponse {
 	if meta == nil {
 		meta = map[string]string{}
 	}
+	var purchaseDate *string
+	if item.PurchaseDate != nil {
+		s := item.PurchaseDate.Format("2006-01-02")
+		purchaseDate = &s
+	}
 	return itemResponse{
-		ID:            item.ID,
-		OwnerID:       item.OwnerID,
-		Name:          item.Name,
-		Brand:         item.Brand,
-		CategoryID:    item.CategoryID,
-		Color:         item.Color,
-		Metadata:      meta,
-		Photos:        photos,
-		LocationID:    item.LocationID,
-		PurchasePrice: item.PurchasePrice,
-		CreatedAt:     item.CreatedAt,
+		ID:               item.ID,
+		OwnerID:          item.OwnerID,
+		Name:             item.Name,
+		Brand:            item.Brand,
+		CategoryID:       item.CategoryID,
+		Color:            item.Color,
+		Metadata:         meta,
+		Photos:           photos,
+		LocationID:       item.LocationID,
+		PurchasePrice:    item.PurchasePrice,
+		PurchaseCurrency: item.PurchaseCurrency,
+		PurchaseDate:     purchaseDate,
+		SellerURL:        item.SellerURL,
+		CreatedAt:        item.CreatedAt,
 	}
 }
 
@@ -92,13 +102,17 @@ func NewItemHandler(items itemService, log *slog.Logger) *ItemHandler {
 }
 
 type createItemRequest struct {
-	Name       string            `json:"name"`
-	Brand      *string           `json:"brand"`
-	CategoryID *string           `json:"category_id"`
-	Color      *string           `json:"color"`
-	Metadata   map[string]string `json:"metadata"`
-	PhotoKeys  []string          `json:"photo_keys"`
-	LocationID *string           `json:"location_id"`
+	Name             string            `json:"name"`
+	Brand            *string           `json:"brand"`
+	CategoryID       *string           `json:"category_id"`
+	Color            *string           `json:"color"`
+	Metadata         map[string]string `json:"metadata"`
+	PhotoKeys        []string          `json:"photo_keys"`
+	LocationID       *string           `json:"location_id"`
+	PurchasePrice    *string           `json:"purchase_price"`
+	PurchaseCurrency *string           `json:"purchase_currency"`
+	PurchaseDate     *string           `json:"purchase_date"`
+	SellerURL        *string           `json:"seller_url"`
 }
 
 // Create handles POST /items.
@@ -120,20 +134,38 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var purchaseDate *time.Time
+	if req.PurchaseDate != nil {
+		parsed, err := time.Parse("2006-01-02", *req.PurchaseDate)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid date format, use YYYY-MM-DD"})
+			return
+		}
+		purchaseDate = &parsed
+	}
+
 	input := service.CreateItemInput{
-		Name:       req.Name,
-		Brand:      req.Brand,
-		CategoryID: req.CategoryID,
-		Color:      req.Color,
-		Metadata:   domain.ItemMetadata{Fields: req.Metadata},
-		PhotoKeys:  req.PhotoKeys,
-		LocationID: req.LocationID,
+		Name:             req.Name,
+		Brand:            req.Brand,
+		CategoryID:       req.CategoryID,
+		Color:            req.Color,
+		Metadata:         domain.ItemMetadata{Fields: req.Metadata},
+		PhotoKeys:        req.PhotoKeys,
+		LocationID:       req.LocationID,
+		PurchasePrice:    req.PurchasePrice,
+		PurchaseCurrency: req.PurchaseCurrency,
+		PurchaseDate:     purchaseDate,
+		SellerURL:        req.SellerURL,
 	}
 
 	item, err := h.items.Create(ctx, callerID, input)
 	if err != nil {
 		if errors.Is(err, domain.ErrValidation) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
+			return
+		}
+		if errors.Is(err, domain.ErrFutureDateNotAllowed) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
 		log.ErrorContext(ctx, "create item failed", "error", err)
@@ -146,14 +178,17 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateItemRequest struct {
-	Name          string            `json:"name"`
-	Brand         *string           `json:"brand"`
-	CategoryID    *string           `json:"category_id"`
-	Color         *string           `json:"color"`
-	Metadata      map[string]string `json:"metadata"`
-	PhotoKeys     []string          `json:"photo_keys"`
-	LocationID    *string           `json:"location_id"`
-	PurchasePrice *string           `json:"purchase_price"`
+	Name             string            `json:"name"`
+	Brand            *string           `json:"brand"`
+	CategoryID       *string           `json:"category_id"`
+	Color            *string           `json:"color"`
+	Metadata         map[string]string `json:"metadata"`
+	PhotoKeys        []string          `json:"photo_keys"`
+	LocationID       *string           `json:"location_id"`
+	PurchasePrice    *string           `json:"purchase_price"`
+	PurchaseCurrency *string           `json:"purchase_currency"`
+	PurchaseDate     *string           `json:"purchase_date"`
+	SellerURL        *string           `json:"seller_url"`
 }
 
 type assignLocationRequest struct {
@@ -288,21 +323,38 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var purchaseDate *time.Time
+	if req.PurchaseDate != nil {
+		parsed, err := time.Parse("2006-01-02", *req.PurchaseDate)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid date format, use YYYY-MM-DD"})
+			return
+		}
+		purchaseDate = &parsed
+	}
+
 	itemID := r.PathValue("id")
 	input := service.UpdateItemInput{
-		Name:          req.Name,
-		Brand:         req.Brand,
-		CategoryID:    req.CategoryID,
-		Color:         req.Color,
-		Metadata:      domain.ItemMetadata{Fields: req.Metadata},
-		PhotoKeys:     req.PhotoKeys,
-		LocationID:    req.LocationID,
-		PurchasePrice: req.PurchasePrice,
+		Name:             req.Name,
+		Brand:            req.Brand,
+		CategoryID:       req.CategoryID,
+		Color:            req.Color,
+		Metadata:         domain.ItemMetadata{Fields: req.Metadata},
+		PhotoKeys:        req.PhotoKeys,
+		LocationID:       req.LocationID,
+		PurchasePrice:    req.PurchasePrice,
+		PurchaseCurrency: req.PurchaseCurrency,
+		PurchaseDate:     purchaseDate,
+		SellerURL:        req.SellerURL,
 	}
 	item, err := h.items.Update(ctx, callerID, itemID, input)
 	if err != nil {
 		if errors.Is(err, domain.ErrValidation) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
+			return
+		}
+		if errors.Is(err, domain.ErrFutureDateNotAllowed) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
 		if errors.Is(err, domain.ErrNotFound) {
