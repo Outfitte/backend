@@ -641,6 +641,297 @@ func TestIntegrationOutfitLogsByDateRangeShouldReturnCorrectLogs(t *testing.T) {
 	assert.Empty(t, outOfRange)
 }
 
+// --- purchase fields ---
+
+func TestIntegrationItemShouldRejectWhenCreatedWithPurchasePriceButNoCurrency(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchaseval1", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":           "Test Jacket",
+		"purchase_price": "29.99",
+	}, token)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+}
+
+func TestIntegrationItemShouldRejectWhenCreatedWithPurchaseCurrencyButNoPrice(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchaseval2", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Test Coat",
+		"purchase_currency": "USD",
+	}, token)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+}
+
+func TestIntegrationItemShouldRejectWhenCreatedWithNegativePurchasePrice(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchaseval3", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Test Shirt",
+		"purchase_price":    "-5.00",
+		"purchase_currency": "EUR",
+	}, token)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+}
+
+func TestIntegrationItemShouldRejectWhenCreatedWithInvalidPurchaseCurrency(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchaseval4", "password-purchase-secure")
+
+	tests := []struct {
+		name     string
+		currency string
+	}{
+		{"two letters", "US"},
+		{"four letters", "USDD"},
+		{"digits", "U5D"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+				"name":              "Test Trousers",
+				"purchase_price":    "10.00",
+				"purchase_currency": tc.currency,
+			}, token)
+			assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+		})
+	}
+}
+
+func TestIntegrationItemShouldRejectWhenCreatedWithFuturePurchaseDate(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchaseval5", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Future Boots",
+		"purchase_price":    "99.00",
+		"purchase_currency": "GBP",
+		"purchase_date":     "2027-01-01",
+	}, token)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+}
+
+func TestIntegrationItemShouldRejectWhenUpdatedWithFuturePurchaseDate(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchaseval6", "password-purchase-secure")
+	itemID := createItem(t, srv, token, "Leather Belt", nil)
+
+	resp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID, map[string]any{
+		"name":              "Leather Belt",
+		"purchase_price":    "25.00",
+		"purchase_currency": "PLN",
+		"purchase_date":     "2027-06-15",
+	}, token)
+	assert.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+}
+
+func TestIntegrationItemShouldPersistAllPurchaseFieldsWhenCreated(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasehappy1", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Denim Jacket",
+		"purchase_price":    "59.99",
+		"purchase_currency": "USD",
+		"purchase_date":     "2025-06-15",
+		"seller_url":        "https://example.com/jacket",
+	}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &created)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+		PurchaseDate     *string `json:"purchase_date"`
+		SellerURL        *string `json:"seller_url"`
+	}
+	decodeJSON(t, getResp, &item)
+	require.NotNil(t, item.PurchasePrice)
+	assert.Equal(t, "59.99", *item.PurchasePrice)
+	require.NotNil(t, item.PurchaseCurrency)
+	assert.Equal(t, "USD", *item.PurchaseCurrency)
+	require.NotNil(t, item.PurchaseDate)
+	assert.Equal(t, "2025-06-15", *item.PurchaseDate)
+	require.NotNil(t, item.SellerURL)
+	assert.Equal(t, "https://example.com/jacket", *item.SellerURL)
+}
+
+func TestIntegrationItemShouldPersistPurchaseFieldsWhenUpdated(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasehappy2", "password-purchase-secure")
+	itemID := createItem(t, srv, token, "Wool Coat", nil)
+
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID, map[string]any{
+		"name":              "Wool Coat",
+		"purchase_price":    "120.00",
+		"purchase_currency": "EUR",
+		"purchase_date":     "2024-12-01",
+		"seller_url":        "https://example.com/coat",
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+		PurchaseDate     *string `json:"purchase_date"`
+		SellerURL        *string `json:"seller_url"`
+	}
+	decodeJSON(t, getResp, &item)
+	require.NotNil(t, item.PurchasePrice)
+	assert.Equal(t, "120.00", *item.PurchasePrice)
+	require.NotNil(t, item.PurchaseCurrency)
+	assert.Equal(t, "EUR", *item.PurchaseCurrency)
+	require.NotNil(t, item.PurchaseDate)
+	assert.Equal(t, "2024-12-01", *item.PurchaseDate)
+	require.NotNil(t, item.SellerURL)
+	assert.Equal(t, "https://example.com/coat", *item.SellerURL)
+}
+
+func TestIntegrationItemShouldClearPurchaseFieldsWhenUpdatedWithNulls(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasehappy3", "password-purchase-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Silk Blouse",
+		"purchase_price":    "45.00",
+		"purchase_currency": "GBP",
+		"purchase_date":     "2025-03-10",
+		"seller_url":        "https://example.com/blouse",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, createResp, &created)
+
+	// Update with explicit nulls to clear the fields.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"name":              "Silk Blouse",
+		"purchase_price":    nil,
+		"purchase_currency": nil,
+		"purchase_date":     nil,
+		"seller_url":        nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+		PurchaseDate     *string `json:"purchase_date"`
+		SellerURL        *string `json:"seller_url"`
+	}
+	decodeJSON(t, getResp, &item)
+	assert.Nil(t, item.PurchasePrice)
+	assert.Nil(t, item.PurchaseCurrency)
+	assert.Nil(t, item.PurchaseDate)
+	assert.Nil(t, item.SellerURL)
+}
+
+func TestIntegrationItemShouldNormaliseCurrencyToUppercaseWhenCreated(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasehappy4", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Cotton Tee",
+		"purchase_price":    "15.00",
+		"purchase_currency": "usd",
+	}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &created)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchaseCurrency *string `json:"purchase_currency"`
+	}
+	decodeJSON(t, getResp, &item)
+	require.NotNil(t, item.PurchaseCurrency)
+	assert.Equal(t, "USD", *item.PurchaseCurrency)
+}
+
+func TestIntegrationItemShouldAllowSellerURLWithoutPurchaseFields(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasehappy5", "password-purchase-secure")
+
+	resp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":       "Canvas Sneakers",
+		"seller_url": "https://example.com/sneakers",
+	}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &created)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+		SellerURL        *string `json:"seller_url"`
+	}
+	decodeJSON(t, getResp, &item)
+	assert.Nil(t, item.PurchasePrice)
+	assert.Nil(t, item.PurchaseCurrency)
+	require.NotNil(t, item.SellerURL)
+	assert.Equal(t, "https://example.com/sneakers", *item.SellerURL)
+}
+
+func TestIntegrationItemShouldClearSellerURLIndependentlyOfPurchaseFields(t *testing.T) {
+	srv := startIntegrationServer(t)
+	token, _ := registerUser(t, srv, "purchasehappy6", "password-purchase-secure")
+
+	createResp := doJSON(t, srv, http.MethodPost, "/items", map[string]any{
+		"name":              "Oxford Shoes",
+		"purchase_price":    "80.00",
+		"purchase_currency": "CHF",
+		"seller_url":        "https://example.com/shoes",
+	}, token)
+	require.Equal(t, http.StatusCreated, createResp.StatusCode)
+	var created struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, createResp, &created)
+
+	// Clear only seller_url while keeping purchase fields intact.
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+created.ID, map[string]any{
+		"name":              "Oxford Shoes",
+		"purchase_price":    "80.00",
+		"purchase_currency": "CHF",
+		"seller_url":        nil,
+	}, token)
+	require.Equal(t, http.StatusOK, updateResp.StatusCode)
+
+	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	var item struct {
+		PurchasePrice    *string `json:"purchase_price"`
+		PurchaseCurrency *string `json:"purchase_currency"`
+		SellerURL        *string `json:"seller_url"`
+	}
+	decodeJSON(t, getResp, &item)
+	require.NotNil(t, item.PurchasePrice)
+	assert.Equal(t, "80.00", *item.PurchasePrice)
+	require.NotNil(t, item.PurchaseCurrency)
+	assert.Equal(t, "CHF", *item.PurchaseCurrency)
+	assert.Nil(t, item.SellerURL)
+}
+
 func TestIntegrationCrossUserOutfitAccessForbidden(t *testing.T) {
 	srv := startIntegrationServer(t)
 	tokenA, _ := registerUser(t, srv, "outfit-forbid-alice", "password-alice-secure")
