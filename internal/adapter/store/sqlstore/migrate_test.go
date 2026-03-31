@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/outfitte/outfitte/internal/adapter/store/sqlstore"
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )

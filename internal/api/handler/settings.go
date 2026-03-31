@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/outfitte/outfitte/internal/api/middleware"
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/api/middleware"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 type settingsService interface {

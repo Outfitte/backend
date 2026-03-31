@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/ports"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 // LocationService manages wardrobe locations.

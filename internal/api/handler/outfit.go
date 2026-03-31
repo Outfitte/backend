@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/service"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/service"
 )
 
 type outfitService interface {

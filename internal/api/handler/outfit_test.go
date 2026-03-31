@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/outfitte/internal/api/handler"
-	"github.com/outfitte/outfitte/internal/api/middleware"
-	"github.com/outfitte/outfitte/internal/domain"
-	"github.com/outfitte/outfitte/internal/service"
+	"github.com/outfitte/backend/internal/api/handler"
+	"github.com/outfitte/backend/internal/api/middleware"
+	"github.com/outfitte/backend/internal/domain"
+	"github.com/outfitte/backend/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

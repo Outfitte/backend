@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	store "github.com/outfitte/outfitte/internal/adapter/store"
-	"github.com/outfitte/outfitte/internal/config"
-	"github.com/outfitte/outfitte/internal/domain"
+	store "github.com/outfitte/backend/internal/adapter/store"
+	"github.com/outfitte/backend/internal/config"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 func TestNewRepositoriesShouldReturnErrUnsupportedDriverWhenDriverIsPostgres(t *testing.T) {
