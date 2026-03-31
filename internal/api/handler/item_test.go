@@ -678,11 +678,13 @@ func TestUpdateHandlerShouldReturn422WhenServiceReturnsErrFutureDateNotAllowed(t
 func TestUpdateHandlerShouldReturn200WithPurchaseFieldsInResponse(t *testing.T) {
 	currency := "EUR"
 	seller := "https://example.com/jacket"
+	purchaseDate, _ := time.Parse("2006-01-02", "2021-03-10")
 	var updated domain.Item
 	updated.ID = "item-42"
 	updated.OwnerID = "user-1"
 	updated.Name = "Red Jacket"
 	updated.PurchaseCurrency = &currency
+	updated.PurchaseDate = &purchaseDate
 	updated.SellerURL = &seller
 
 	svc := &fakeItemService{
@@ -702,6 +704,7 @@ func TestUpdateHandlerShouldReturn200WithPurchaseFieldsInResponse(t *testing.T) 
 	var got testItemResp
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, &currency, got.PurchaseCurrency)
+	require.Equal(t, ptr("2021-03-10"), got.PurchaseDate)
 	require.Equal(t, &seller, got.SellerURL)
 }
 

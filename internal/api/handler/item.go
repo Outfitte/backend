@@ -160,12 +160,12 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	item, err := h.items.Create(ctx, callerID, input)
 	if err != nil {
-		if errors.Is(err, domain.ErrValidation) {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
-			return
-		}
 		if errors.Is(err, domain.ErrFutureDateNotAllowed) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, domain.ErrValidation) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
 			return
 		}
 		log.ErrorContext(ctx, "create item failed", "error", err)
@@ -349,12 +349,12 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	item, err := h.items.Update(ctx, callerID, itemID, input)
 	if err != nil {
-		if errors.Is(err, domain.ErrValidation) {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
-			return
-		}
 		if errors.Is(err, domain.ErrFutureDateNotAllowed) {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, domain.ErrValidation) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "validation error"})
 			return
 		}
 		if errors.Is(err, domain.ErrNotFound) {
