@@ -3,7 +3,7 @@ package handler
 import (
 	"encoding/json"
 
-	"github.com/outfitte/outfitte/internal/domain"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // decodePatchNullable unmarshals a raw JSON value into a Nullable[T] field.
