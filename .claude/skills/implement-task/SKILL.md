@@ -129,13 +129,15 @@ EOF
 
 A bare coverage report without a `## Why coverage is not 100%` section is **not acceptable** when coverage is below 100%.
 
-## Step 8 — PR review (background)
+## Step 8 — PR review loop
 
-Spawn two **background** subagents in parallel: a `pr-reviewer` (`subagent_type: "pr-reviewer"`) and a `Code Reviewer` (`subagent_type: "Code Reviewer"`). Do not pass file contents — let them fetch from GitHub.
+Run the review cycle in a **foreground loop** until both reviewers give a clean pass. A clean pass means neither reviewer reports any blockers or required changes — nits and suggestions do not block.
 
-### pr-reviewer subagent
+### Each iteration
 
-Spawn with `subagent_type: "pr-reviewer"`. Do not pass file contents — let it fetch from GitHub:
+Spawn two **foreground** subagents in parallel: a `pr-reviewer` (`subagent_type: "pr-reviewer"`) and a `Code Reviewer` (`subagent_type: "Code Reviewer"`). Wait for both to finish before evaluating.
+
+#### pr-reviewer subagent prompt
 
 ```
 Review PR #<pr_number> in the Outfitte/Outfitte repo.
@@ -159,14 +161,12 @@ Run:
 - t.Context() is used instead of context.Background() in tests
 - Extracted helpers (pure functions) have 100% coverage independently
 
-Report any violations, concerns, or suggestions. If everything looks good, say so.
+End your response with one of:
+- VERDICT: APPROVED — if there are no blockers or required changes
+- VERDICT: CHANGES REQUIRED — if there are blockers or required changes (list them)
 ```
 
-Report the review findings to the user once complete.
-
-### Code Reviewer subagent
-
-Spawn with `subagent_type: "Code Reviewer"`. Pass the following prompt so it knows where to find the code:
+#### Code Reviewer subagent prompt
 
 ```
 Review the code changes in PR #<pr_number> of the Outfitte/Outfitte GitHub repo.
@@ -175,10 +175,17 @@ Fetch the diff using:
   gh pr view <pr_number> --repo Outfitte/Outfitte
   gh pr diff <pr_number> --repo Outfitte/Outfitte
 
-Focus on correctness, security, maintainability, and performance. Report any blockers, suggestions, or nits. If everything looks good, say so.
+Focus on correctness, security, maintainability, and performance.
+
+End your response with one of:
+- VERDICT: APPROVED — if there are no blockers or required changes
+- VERDICT: CHANGES REQUIRED — if there are blockers or required changes (list them)
 ```
 
-Report the review findings to the user once complete.
+### After both reviewers finish
+
+- If **both** return `VERDICT: APPROVED` — the review loop is done. Report the findings to the user and proceed to Step 9.
+- If **either** returns `VERDICT: CHANGES REQUIRED` — fix every blocker and required change, commit and push the fixes, then restart the loop from the top of Step 8. Do not proceed to Step 9 until both reviewers approve.
 
 ## Step 9 — Capture learnings
 
