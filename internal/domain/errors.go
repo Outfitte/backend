@@ -20,4 +20,6 @@ var (
 	ErrFutureDateNotAllowed = errors.New("date cannot be in the future")
 	ErrAlreadyArchived      = errors.New("already archived")
 	ErrNotArchived          = errors.New("not archived")
+	ErrSelfShare            = errors.New("cannot share with yourself")
+	ErrDuplicateShare       = errors.New("share already exists")
 )
