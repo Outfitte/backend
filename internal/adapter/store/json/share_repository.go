@@ -9,9 +9,17 @@ import (
 
 var _ ports.ShareRepository = (*ShareRepository)(nil)
 
+// shareProvider is the subset of Provider[domain.Share] methods used by ShareRepository.
+type shareProvider interface {
+	Get(ctx context.Context, id string) (domain.Share, error)
+	Save(ctx context.Context, share domain.Share) error
+	Delete(ctx context.Context, id string) error
+	List(ctx context.Context) ([]domain.Share, error)
+}
+
 // ShareRepository is a JSON file-backed implementation of ports.ShareRepository.
 type ShareRepository struct {
-	provider *Provider[domain.Share]
+	provider shareProvider
 }
 
 // NewShareRepository creates a ShareRepository that stores shares in root/shares.json.
