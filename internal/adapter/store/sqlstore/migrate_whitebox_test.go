@@ -365,6 +365,209 @@ func TestMigration006DownShouldRemoveSellerUrlAndPurchaseCurrencyFromItems(t *te
 	require.NotContains(t, cols, "purchase_currency")
 }
 
+func TestMigration007DownShouldDropSharesTable(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+	require.NoError(t, m.Steps(-1))
+
+	var count int
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='shares'`,
+	).Scan(&count))
+	require.Equal(t, 0, count, "shares table should be dropped after down migration")
+}
+
+func TestMigration007UpShouldRejectInvalidTargetType(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+
+	_, err = db.ExecContext(t.Context(), `PRAGMA foreign_keys = ON`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'b@c.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO shares (id, owner_id, recipient_id, target_type, target_id, created_at) VALUES ('s1', 'u1', 'u2', 'invalid', 'tgt1', '2024-01-01')`)
+	require.Error(t, err, "CHECK constraint should reject invalid target_type")
+}
+
+func TestMigration007UpShouldRejectDuplicateShare(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+
+	_, err = db.ExecContext(t.Context(), `PRAGMA foreign_keys = ON`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'b@c.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO shares (id, owner_id, recipient_id, target_type, target_id, created_at) VALUES ('s1', 'u1', 'u2', 'item', 'tgt1', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO shares (id, owner_id, recipient_id, target_type, target_id, created_at) VALUES ('s2', 'u1', 'u2', 'item', 'tgt1', '2024-01-01')`)
+	require.Error(t, err, "UNIQUE constraint should reject duplicate share")
+}
+
+func TestMigration007UpShouldCascadeDeleteSharesWhenOwnerDeleted(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+
+	_, err = db.ExecContext(t.Context(), `PRAGMA foreign_keys = ON`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'b@c.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO shares (id, owner_id, recipient_id, target_type, target_id, created_at) VALUES ('s1', 'u1', 'u2', 'item', 'tgt1', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `DELETE FROM users WHERE id = 'u1'`)
+	require.NoError(t, err)
+
+	var count int
+	require.NoError(t, db.QueryRowContext(t.Context(),
+		`SELECT COUNT(*) FROM shares WHERE id = 's1'`).Scan(&count))
+	require.Equal(t, 0, count, "share should be deleted when owner is deleted")
+}
+
+func TestMigration007UpShouldCascadeDeleteSharesWhenRecipientDeleted(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+
+	_, err = db.ExecContext(t.Context(), `PRAGMA foreign_keys = ON`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u1', 'a@b.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO users (id, email, password_hash, created_at) VALUES ('u2', 'b@c.com', 'h', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(),
+		`INSERT INTO shares (id, owner_id, recipient_id, target_type, target_id, created_at) VALUES ('s1', 'u1', 'u2', 'item', 'tgt1', '2024-01-01')`)
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(t.Context(), `DELETE FROM users WHERE id = 'u2'`)
+	require.NoError(t, err)
+
+	var count int
+	require.NoError(t, db.QueryRowContext(t.Context(),
+		`SELECT COUNT(*) FROM shares WHERE id = 's1'`).Scan(&count))
+	require.Equal(t, 0, count, "share should be deleted when recipient is deleted")
+}
+
+func TestMigration007UpShouldCreateSharesTable(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+
+	var count int
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='shares'`,
+	).Scan(&count))
+	require.Equal(t, 1, count, "shares table should exist after up migration")
+}
+
+func TestMigration007UpShouldCreateSharesIndexes(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
+	src, err := newMigrationSource(migrationsFS, "migrations")
+	require.NoError(t, err)
+
+	m, err := newMigrateRunner(src, db)
+	require.NoError(t, err)
+
+	require.NoError(t, m.Steps(7))
+
+	for _, idx := range []string{
+		"idx_shares_owner_id",
+		"idx_shares_recipient_id",
+		"idx_shares_target",
+	} {
+		var count int
+		require.NoError(t, db.QueryRow(
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?`, idx,
+		).Scan(&count))
+		require.Equal(t, 1, count, "index %s should exist after up migration", idx)
+	}
+}
+
 func TestTokenHashIndexIsUsedForLookup(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
