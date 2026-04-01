@@ -7,7 +7,7 @@ import (
 	"github.com/outfitte/backend/internal/ports"
 )
 
-// Compile-time assertion: Repositories must hold all nine repository interfaces.
+// Compile-time assertion: Repositories must hold all ten repository interfaces.
 var _ = ports.Repositories{
 	Items:               (*itemRepositoryStub)(nil),
 	Users:               (*userRepositoryStub)(nil),
@@ -18,6 +18,7 @@ var _ = ports.Repositories{
 	Outfits:             (*outfitRepositoryStub)(nil),
 	OutfitLogs:          (*outfitLogRepositoryStub)(nil),
 	OutfitLogTransactor: (*outfitLogTransactorStub)(nil),
+	Shares:              (*shareRepositoryStub)(nil),
 }
 
 // Compile-time assertions: stubs must satisfy their interfaces.

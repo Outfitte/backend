@@ -13,4 +13,5 @@ type Repositories struct {
 	Outfits             OutfitRepository
 	OutfitLogs          OutfitLogRepository
 	OutfitLogTransactor OutfitLogTransactor
+	Shares              ShareRepository
 }
