@@ -43,6 +43,7 @@ func TestNewRepositoriesShouldReturnRepositoriesAndCloserWhenDriverIsSQLite(t *t
 	require.NotNil(t, repos.Locations)
 	require.NotNil(t, repos.WearLogs)
 	require.NotNil(t, repos.AppSettings)
+	require.NotNil(t, repos.Shares)
 	require.NoError(t, closer.Close())
 }
 
@@ -63,5 +64,6 @@ func TestNewRepositoriesShouldReturnRepositoriesAndNopCloserWhenDriverIsJSON(t *
 	require.NotNil(t, repos.Locations)
 	require.NotNil(t, repos.WearLogs)
 	require.NotNil(t, repos.AppSettings)
+	require.NotNil(t, repos.Shares)
 	require.NoError(t, closer.Close())
 }
