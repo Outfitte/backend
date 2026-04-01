@@ -36,9 +36,8 @@ type ShareRepository interface {
 	// No error is returned if no entries exist. Called when the target entity is deleted.
 	DeleteByTarget(ctx context.Context, targetType domain.ShareTargetType, targetID string) error
 
-	// HasDirectAccess reports whether a share entry exists granting recipientID access
-	// to the exact target. It does not walk location ancestors — that logic lives in the
-	// service layer.
+	// HasDirectAccess reports whether a share entry exists granting recipientID direct
+	// access to the exact target.
 	HasDirectAccess(ctx context.Context, recipientID string, targetType domain.ShareTargetType, targetID string) (bool, error)
 
 	// ListByRecipientAndType returns all incoming shares of a specific type for recipientID.
