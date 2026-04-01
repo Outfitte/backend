@@ -42,6 +42,11 @@ jobs:
                   "Read(*)",
                   "Write(*)",
                   "Edit(*)"
+                ],
+                "deny": [
+                  "Bash(git *--force*)",
+                  "Bash(git * -f)",
+                  "Bash(git * -f *)"
                 ]
               }
             }
