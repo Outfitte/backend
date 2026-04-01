@@ -1038,3 +1038,87 @@ func (m *mockShareRepoSelectiveAccess) HasDirectAccess(_ context.Context, _ stri
 	return targetType == m.trueForType && targetID == m.trueForID, nil
 }
 
+func TestShareServiceHasReadAccessShouldReturnFalseWhenLocationTreeHasCycle(t *testing.T) {
+	parent1 := "loc-2"
+	parent2 := "loc-1"
+	var loc1 domain.Location
+	loc1.ID = "loc-1"
+	loc1.ParentID = &parent1
+	var loc2 domain.Location
+	loc2.ID = "loc-2"
+	loc2.ParentID = &parent2
+
+	locRepo := &mockLocationRepo{locations: []domain.Location{loc1, loc2}}
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, locRepo)
+
+	ok, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetLocation, "loc-1")
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+// ── collectDescendantIDs ──────────────────────────────────────────────────────
+
+func TestCollectDescendantIDsShouldReturnOnlyRootWhenNoChildren(t *testing.T) {
+	locs := []domain.Location{}
+	got := collectDescendantIDs("root-1", locs)
+	require.Equal(t, map[string]bool{"root-1": true}, got)
+}
+
+func TestCollectDescendantIDsShouldReturnRootAndDirectChildren(t *testing.T) {
+	parent := "root-1"
+	var child1 domain.Location
+	child1.ID = "child-1"
+	child1.ParentID = &parent
+	var child2 domain.Location
+	child2.ID = "child-2"
+	child2.ParentID = &parent
+
+	got := collectDescendantIDs("root-1", []domain.Location{child1, child2})
+	require.Equal(t, map[string]bool{"root-1": true, "child-1": true, "child-2": true}, got)
+}
+
+func TestCollectDescendantIDsShouldReturnMultiLevelDescendants(t *testing.T) {
+	grandparent := "root-1"
+	parent := "child-1"
+	var child domain.Location
+	child.ID = "child-1"
+	child.ParentID = &grandparent
+	var grandchild domain.Location
+	grandchild.ID = "grandchild-1"
+	grandchild.ParentID = &parent
+
+	got := collectDescendantIDs("root-1", []domain.Location{child, grandchild})
+	require.Equal(t, map[string]bool{"root-1": true, "child-1": true, "grandchild-1": true}, got)
+}
+
+func TestCollectDescendantIDsShouldNotIncludeUnrelatedLocations(t *testing.T) {
+	parent := "root-1"
+	var child domain.Location
+	child.ID = "child-1"
+	child.ParentID = &parent
+	otherParent := "other-root"
+	var unrelated domain.Location
+	unrelated.ID = "unrelated-1"
+	unrelated.ParentID = &otherParent
+
+	got := collectDescendantIDs("root-1", []domain.Location{child, unrelated})
+	require.Equal(t, map[string]bool{"root-1": true, "child-1": true}, got)
+}
+
+// ── Create — unknown target type ──────────────────────────────────────────────
+
+func TestShareServiceCreateShouldReturnErrValidationWhenTargetTypeIsUnknown(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetType("unknown"),
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+

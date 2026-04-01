@@ -139,6 +139,8 @@ func (s *ShareService) validateTargetOwnership(ctx context.Context, callerID str
 		if loc.OwnerID != callerID {
 			return domain.ErrForbidden
 		}
+	default:
+		return domain.ErrValidation
 	}
 	return nil
 }
