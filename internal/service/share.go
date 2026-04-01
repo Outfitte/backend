@@ -80,11 +80,11 @@ func (s *ShareService) Create(ctx context.Context, callerID string, input Create
 	if err := ctx.Err(); err != nil {
 		return domain.Share{}, err
 	}
-	if _, err := s.users.Get(ctx, input.RecipientID); err != nil {
-		return domain.Share{}, err
-	}
 	if input.RecipientID == callerID {
 		return domain.Share{}, domain.ErrSelfShare
+	}
+	if _, err := s.users.Get(ctx, input.RecipientID); err != nil {
+		return domain.Share{}, err
 	}
 	if err := s.validateTargetOwnership(ctx, callerID, input.TargetType, input.TargetID); err != nil {
 		return domain.Share{}, err
@@ -354,7 +354,12 @@ func (s *ShareService) hasItemReadAccess(ctx context.Context, callerID, itemID s
 
 func (s *ShareService) hasLocationReadAccess(ctx context.Context, callerID, locationID string) (bool, error) {
 	current := locationID
+	visited := make(map[string]bool)
 	for current != "" {
+		if visited[current] {
+			break
+		}
+		visited[current] = true
 		ok, err := s.shares.HasDirectAccess(ctx, callerID, domain.ShareTargetLocation, current)
 		if err != nil || ok {
 			return ok, err

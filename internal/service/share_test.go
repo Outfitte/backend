@@ -159,6 +159,194 @@ func TestShareServiceCreateShouldReturnErrorWhenRepoSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestShareServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.Create(ctx, "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestShareServiceCreateShouldReturnErrNotFoundWhenRecipientDoesNotExist(t *testing.T) {
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestShareServiceCreateShouldReturnErrSelfShareWhenRecipientIsTheCaller(t *testing.T) {
+	var user domain.User
+	user.ID = "owner-1"
+	user.Email = "owner@example.com"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{user}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "owner-1",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrSelfShare)
+}
+
+func TestShareServiceCreateShouldReturnErrNotFoundWhenItemTargetDoesNotExist(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnItemTarget(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-2"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestShareServiceCreateShouldReturnErrNotFoundWhenOutfitTargetDoesNotExist(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetOutfit,
+		TargetID:    "outfit-1",
+	})
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnOutfitTarget(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var outfit domain.Outfit
+	outfit.ID = "outfit-1"
+	outfit.OwnerID = "owner-2"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetOutfit,
+		TargetID:    "outfit-1",
+	})
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestShareServiceCreateShouldReturnErrNotFoundWhenLocationTargetDoesNotExist(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetLocation,
+		TargetID:    "loc-1",
+	})
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnLocationTarget(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-2"
+
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetLocation,
+		TargetID:    "loc-1",
+	})
+	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestShareServiceCreateShouldReturnErrDuplicateShareWhenShareAlreadyExists(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	var existing domain.Share
+	existing.ID = "share-1"
+	existing.OwnerID = "owner-1"
+	existing.RecipientID = "user-2"
+	existing.TargetType = domain.ShareTargetItem
+	existing.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{findByTargetResult: &existing}
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrDuplicateShare)
+}
+
+func TestShareServiceCreateShouldReturnErrorWhenFindByTargetFails(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	shareRepo := &mockShareRepo{findByTargetErr: domain.ErrIO}
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestShareServiceCreateShouldReturnShareWhenInputIsValid(t *testing.T) {
 	var recipient domain.User
 	recipient.ID = "user-2"
@@ -850,192 +1038,3 @@ func (m *mockShareRepoSelectiveAccess) HasDirectAccess(_ context.Context, _ stri
 	return targetType == m.trueForType && targetID == m.trueForID, nil
 }
 
-// ── Create (continued) ────────────────────────────────────────────────────────
-
-func TestShareServiceCreateShouldReturnErrorWhenFindByTargetFails(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	shareRepo := &mockShareRepo{findByTargetErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestShareServiceCreateShouldReturnErrNotFoundWhenItemTargetDoesNotExist(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, domain.ErrNotFound)
-}
-
-func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnItemTarget(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-2"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, domain.ErrForbidden)
-}
-
-func TestShareServiceCreateShouldReturnErrNotFoundWhenOutfitTargetDoesNotExist(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetOutfit,
-		TargetID:    "outfit-1",
-	})
-	require.ErrorIs(t, err, domain.ErrNotFound)
-}
-
-func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnOutfitTarget(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	var outfit domain.Outfit
-	outfit.ID = "outfit-1"
-	outfit.OwnerID = "owner-2"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetOutfit,
-		TargetID:    "outfit-1",
-	})
-	require.ErrorIs(t, err, domain.ErrForbidden)
-}
-
-func TestShareServiceCreateShouldReturnErrNotFoundWhenLocationTargetDoesNotExist(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetLocation,
-		TargetID:    "loc-1",
-	})
-	require.ErrorIs(t, err, domain.ErrNotFound)
-}
-
-func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnLocationTarget(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	var loc domain.Location
-	loc.ID = "loc-1"
-	loc.OwnerID = "owner-2"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetLocation,
-		TargetID:    "loc-1",
-	})
-	require.ErrorIs(t, err, domain.ErrForbidden)
-}
-
-func TestShareServiceCreateShouldReturnErrDuplicateShareWhenShareAlreadyExists(t *testing.T) {
-	var recipient domain.User
-	recipient.ID = "user-2"
-	recipient.Email = "user2@example.com"
-
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	var existing domain.Share
-	existing.ID = "share-1"
-	existing.OwnerID = "owner-1"
-	existing.RecipientID = "user-2"
-	existing.TargetType = domain.ShareTargetItem
-	existing.TargetID = "item-1"
-
-	shareRepo := &mockShareRepo{findByTargetResult: &existing}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, domain.ErrDuplicateShare)
-}
-
-func TestShareServiceCreateShouldReturnErrSelfShareWhenRecipientIsTheCaller(t *testing.T) {
-	var user domain.User
-	user.ID = "owner-1"
-	user.Email = "owner@example.com"
-
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{user}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "owner-1",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, domain.ErrSelfShare)
-}
-
-func TestShareServiceCreateShouldReturnErrNotFoundWhenRecipientDoesNotExist(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
-
-	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, domain.ErrNotFound)
-}
-
-func TestShareServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	_, err := svc.Create(ctx, "owner-1", CreateShareInput{
-		RecipientID: "user-2",
-		TargetType:  domain.ShareTargetItem,
-		TargetID:    "item-1",
-	})
-	require.ErrorIs(t, err, context.Canceled)
-}
