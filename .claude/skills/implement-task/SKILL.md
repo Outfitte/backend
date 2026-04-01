@@ -144,7 +144,7 @@ Review PR #<pr_number> in the Outfitte/Outfitte repo.
 
 Run:
   gh pr view <pr_number> --repo Outfitte/Outfitte
-  gh pr diff <pr_number> --repo Outfitte/Outfitte
+  git diff main
 
 ## Architecture checks (CLAUDE.md)
 - Branch, commit, and PR title follow naming conventions
@@ -173,7 +173,7 @@ Review the code changes in PR #<pr_number> of the Outfitte/Outfitte GitHub repo.
 
 Fetch the diff using:
   gh pr view <pr_number> --repo Outfitte/Outfitte
-  gh pr diff <pr_number> --repo Outfitte/Outfitte
+  git diff main
 
 Focus on correctness, security, maintainability, and performance.
 
