@@ -42,6 +42,6 @@ type ShareRepository interface {
 	HasDirectAccess(ctx context.Context, recipientID string, targetType domain.ShareTargetType, targetID string) (bool, error)
 
 	// ListByRecipientAndType returns all incoming shares of a specific type for recipientID.
-	// Used by the hydrated shared-with-me endpoint.
+	// Useful when callers need to filter incoming shares by target type.
 	ListByRecipientAndType(ctx context.Context, recipientID string, targetType domain.ShareTargetType) ([]domain.Share, error)
 }
