@@ -17,5 +17,6 @@ func NewRepositories(dataPath string) ports.Repositories {
 		Outfits:             NewOutfitRepository(dataPath),
 		OutfitLogs:          outfitLogs,
 		OutfitLogTransactor: NewOutfitLogTransactor(outfitLogs, wearLogs),
+		Shares:              NewShareRepository(dataPath),
 	}
 }
