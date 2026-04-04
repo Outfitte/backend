@@ -105,8 +105,10 @@ func TestUserListHandlerShouldReturn200WithUsersWhenUsersExist(t *testing.T) {
 	require.Equal(t, "user-1", body[0]["id"])
 	require.Equal(t, "alice@example.com", body[0]["email"])
 	require.Equal(t, "admin", body[0]["role"])
+	require.Equal(t, "2024-01-01T00:00:00Z", body[0]["created_at"])
 
 	require.Equal(t, "user-2", body[1]["id"])
 	require.Equal(t, "bob@example.com", body[1]["email"])
 	require.Equal(t, "member", body[1]["role"])
+	require.Equal(t, "2024-02-01T00:00:00Z", body[1]["created_at"])
 }
