@@ -25,6 +25,6 @@ type UserRepository interface {
 	// Count returns the total number of users.
 	Count(ctx context.Context) (int, error)
 
-	// List returns all users. Retained for admin ListAll only.
+	// List returns all users.
 	List(ctx context.Context) ([]domain.User, error)
 }

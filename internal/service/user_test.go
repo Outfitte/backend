@@ -198,6 +198,38 @@ func TestUpdateRegistrationEnabledShouldUpdateSettingsWhenCallerIsAdmin(t *testi
 	require.True(t, settings.settings.RegistrationEnabled)
 }
 
+func TestListShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := svc.List(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestListShouldReturnErrorWhenRepositoryFails(t *testing.T) {
+	store := &mockUserStore{listErr: domain.ErrIO}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	_, err := svc.List(t.Context())
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestListShouldReturnAllUsers(t *testing.T) {
+	var u1, u2 domain.User
+	u1.ID = "1"
+	u1.Role = domain.RoleAdmin
+	u2.ID = "2"
+	u2.Role = domain.RoleMember
+
+	store := &mockUserStore{users: []domain.User{u1, u2}}
+	svc := NewUserService(store, &mockSettingsStore{})
+
+	got, err := svc.List(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []domain.User{u1, u2}, got)
+}
+
 func TestListAllShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewUserService(&mockUserStore{}, &mockSettingsStore{})
 	ctx, cancel := context.WithCancel(t.Context())

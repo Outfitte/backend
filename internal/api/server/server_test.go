@@ -416,3 +416,12 @@ func TestNewShouldReturn401WhenGetOutfitLogsByDateRangeCalledWithoutAuth(t *test
 	resp := getURL(t, ts, "/outfit-logs")
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
+
+func TestNewShouldReturn401WhenGetUsersCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/users")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
