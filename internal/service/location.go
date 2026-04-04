@@ -15,11 +15,12 @@ import (
 type LocationService struct {
 	locations ports.LocationRepository
 	items     ports.ItemRepository
+	shares    shareAccessChecker
 }
 
 // NewLocationService constructs a LocationService backed by the given repositories.
-func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository) *LocationService {
-	return &LocationService{locations: locations, items: items}
+func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker) *LocationService {
+	return &LocationService{locations: locations, items: items, shares: shares}
 }
 
 func (s *LocationService) getOwnedLocation(ctx context.Context, callerID, locationID string) (domain.Location, error) {
@@ -47,12 +48,31 @@ func (s *LocationService) validateParent(ctx context.Context, callerID string, p
 	return nil
 }
 
-// GetByID returns the location identified by locationID if it belongs to callerID.
+func (s *LocationService) getSharedLocation(ctx context.Context, callerID string, loc domain.Location) (domain.Location, error) {
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetLocation, loc.ID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	if !ok {
+		return domain.Location{}, domain.ErrForbidden
+	}
+	return loc, nil
+}
+
+// GetByID returns the location identified by locationID if it belongs to callerID,
+// or if callerID has shared read access to it.
 func (s *LocationService) GetByID(ctx context.Context, callerID, locationID string) (domain.Location, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.Location{}, err
 	}
-	return s.getOwnedLocation(ctx, callerID, locationID)
+	loc, err := s.locations.Get(ctx, locationID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	if loc.OwnerID == callerID {
+		return loc, nil
+	}
+	return s.getSharedLocation(ctx, callerID, loc)
 }
 
 // ListByOwner returns all locations belonging to callerID.
