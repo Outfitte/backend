@@ -43,6 +43,7 @@ func New(
 	wearLogHandler := handler.NewWearLogHandler(wearLogSvc, logger)
 	outfitHandler := handler.NewOutfitHandler(outfitSvc, logger)
 	outfitLogHandler := handler.NewOutfitLogHandler(outfitLogSvc, logger)
+	userHandler := handler.NewUserHandler(repos.Users, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
@@ -98,6 +99,8 @@ func New(
 	mux.Handle("DELETE /outfits/{id}/items/{itemID}", auth(http.HandlerFunc(outfitHandler.RemoveItem)))
 	mux.Handle("POST /outfits/{id}/photos", auth(http.HandlerFunc(outfitHandler.UploadPhoto)))
 	mux.Handle("DELETE /outfits/{id}/photos/{key...}", auth(http.HandlerFunc(outfitHandler.DeletePhoto)))
+
+	mux.Handle("GET /users", auth(http.HandlerFunc(userHandler.List)))
 
 	mux.Handle("GET /admin/settings", admin(http.HandlerFunc(settingsHandler.GetSettings)))
 	mux.Handle("PATCH /admin/settings", admin(http.HandlerFunc(settingsHandler.UpdateSettings)))

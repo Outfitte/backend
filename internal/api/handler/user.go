@@ -25,4 +25,27 @@ func NewUserHandler(users userLister, log *slog.Logger) *UserHandler {
 
 // List handles GET /users.
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "List")
+	log.InfoContext(ctx, "started")
+
+	users, err := h.users.List(ctx)
+	if err != nil {
+		log.ErrorContext(ctx, "list failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	resp := make([]userResponse, len(users))
+	for i, u := range users {
+		resp[i] = userResponse{
+			ID:        u.GetID(),
+			Email:     u.Email,
+			Role:      string(u.Role),
+			CreatedAt: u.CreatedAt,
+		}
+	}
+
+	log.InfoContext(ctx, "succeeded", "count", len(users))
+	writeJSON(w, http.StatusOK, resp)
 }
