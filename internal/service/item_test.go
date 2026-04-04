@@ -592,44 +592,16 @@ func TestItemServiceGetByIDShouldReturnErrForbiddenWhenCallerHasNoShare(t *testi
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
-func TestItemServiceGetByIDShouldReturnItemWhenCallerHasDirectItemShare(t *testing.T) {
+// TestItemServiceGetByIDShouldReturnItemWhenShareCheckerGrantsAccess covers the
+// direct-item-share, location-share, and ancestor-location-share paths as a group:
+// all three resolve to HasReadAccess returning true, which is the contract
+// ItemService depends on. The per-path logic is tested in share_test.go.
+func TestItemServiceGetByIDShouldReturnItemWhenShareCheckerGrantsAccess(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 	item.Name = "Jacket"
 
-	shareChecker := &mockShareAccessChecker{hasAccess: true}
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shareChecker)
-
-	got, err := svc.GetByID(t.Context(), "caller-2", "item-1")
-	require.NoError(t, err)
-	require.Equal(t, item, got)
-}
-
-func TestItemServiceGetByIDShouldReturnItemWhenCallerHasLocationShareCoveringItem(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.Name = "Jacket"
-
-	// HasReadAccess returns true when the item's location is shared with the caller.
-	shareChecker := &mockShareAccessChecker{hasAccess: true}
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shareChecker)
-
-	got, err := svc.GetByID(t.Context(), "caller-2", "item-1")
-	require.NoError(t, err)
-	require.Equal(t, item, got)
-}
-
-func TestItemServiceGetByIDShouldReturnItemWhenCallerHasAncestorLocationShare(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.Name = "Jacket"
-
-	// HasReadAccess returns true when an ancestor location is shared with the caller.
 	shareChecker := &mockShareAccessChecker{hasAccess: true}
 	repo := &mockItemRepo{items: []domain.Item{item}}
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shareChecker)
