@@ -6,11 +6,29 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/outfitte/backend/internal/api/middleware"
 	"github.com/outfitte/backend/internal/domain"
 )
 
+type locationResponse struct {
+	ID        string    `json:"id"`
+	OwnerID   string    `json:"owner_id"`
+	ParentID  *string   `json:"parent_id"`
+	Label     string    `json:"label"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func toLocationResponse(loc domain.Location) locationResponse {
+	return locationResponse{
+		ID:        loc.GetID(),
+		OwnerID:   loc.OwnerID,
+		ParentID:  loc.ParentID,
+		Label:     loc.Label,
+		CreatedAt: loc.CreatedAt,
+	}
+}
 
 type locationService interface {
 	Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)
@@ -72,7 +90,7 @@ func (h *LocationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusCreated, loc)
+	writeJSON(w, http.StatusCreated, toLocationResponse(loc))
 }
 
 // GetByID handles GET /locations/{id}.
@@ -110,7 +128,7 @@ func (h *LocationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusOK, loc)
+	writeJSON(w, http.StatusOK, toLocationResponse(loc))
 }
 
 type updateLocationRequest struct {
@@ -159,7 +177,7 @@ func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusOK, loc)
+	writeJSON(w, http.StatusOK, toLocationResponse(loc))
 }
 
 // Delete handles DELETE /locations/{id}.
@@ -225,8 +243,12 @@ func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp := make([]locationResponse, len(locs))
+	for i, loc := range locs {
+		resp[i] = toLocationResponse(loc)
+	}
 	log.InfoContext(ctx, "succeeded", "count", len(locs))
-	writeJSON(w, http.StatusOK, locs)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type moveLocationRequest struct {
@@ -279,5 +301,5 @@ func (h *LocationHandler) Move(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusOK, loc)
+	writeJSON(w, http.StatusOK, toLocationResponse(loc))
 }

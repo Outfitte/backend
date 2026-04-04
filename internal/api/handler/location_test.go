@@ -138,10 +138,11 @@ func TestCreateLocationHandlerShouldReturn201WithLocationWhenCreatedSuccessfully
 	w := postLocation(t, h, "user-1", `{"label":"Wardrobe","parent_id":"loc-parent"}`)
 
 	require.Equal(t, http.StatusCreated, w.Code)
-	var got domain.Location
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
-	require.Equal(t, "loc-42", got.ID)
-	require.Equal(t, "Wardrobe", got.Label)
+	require.Equal(t, "loc-42", got["id"])
+	require.Equal(t, "user-1", got["owner_id"])
+	require.Equal(t, "Wardrobe", got["label"])
 }
 
 func TestCreateLocationHandlerShouldReturn404WhenParentLocationNotFound(t *testing.T) {
@@ -268,10 +269,10 @@ func TestGetLocationByIDHandlerShouldReturn200WithLocationWhenSuccessful(t *test
 	h.GetByID(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Location
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
-	require.Equal(t, "loc-42", got.ID)
-	require.Equal(t, "Wardrobe", got.Label)
+	require.Equal(t, "loc-42", got["id"])
+	require.Equal(t, "Wardrobe", got["label"])
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -386,10 +387,10 @@ func TestUpdateLocationHandlerShouldReturn200WithUpdatedLocationWhenSuccessful(t
 	h.Update(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Location
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
-	require.Equal(t, "loc-42", got.ID)
-	require.Equal(t, "New Label", got.Label)
+	require.Equal(t, "loc-42", got["id"])
+	require.Equal(t, "New Label", got["label"])
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────
@@ -554,14 +555,13 @@ func TestListLocationsHandlerShouldReturn200WithLocationsWhenSuccessful(t *testi
 	h.List(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got []domain.Location
+	var got []map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Len(t, got, 2)
-	require.Equal(t, "loc-1", got[0].ID)
-	require.Equal(t, "loc-2", got[1].ID)
-	require.Equal(t, "Shelf", got[1].Label)
-	require.NotNil(t, got[1].ParentID)
-	require.Equal(t, parentID, *got[1].ParentID)
+	require.Equal(t, "loc-1", got[0]["id"])
+	require.Equal(t, "loc-2", got[1]["id"])
+	require.Equal(t, "Shelf", got[1]["label"])
+	require.Equal(t, parentID, got[1]["parent_id"])
 }
 
 // ── Move ──────────────────────────────────────────────────────────────────────
@@ -693,10 +693,10 @@ func TestMoveLocationHandlerShouldReturn200WithLocationWhenMovedToRoot(t *testin
 	h.Move(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Location
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
-	require.Equal(t, "loc-42", got.ID)
-	require.Nil(t, got.ParentID)
+	require.Equal(t, "loc-42", got["id"])
+	require.Nil(t, got["parent_id"])
 }
 
 func TestMoveLocationHandlerShouldReturn200WithLocationWhenReparented(t *testing.T) {
@@ -725,9 +725,8 @@ func TestMoveLocationHandlerShouldReturn200WithLocationWhenReparented(t *testing
 	h.Move(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var got domain.Location
+	var got map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
-	require.Equal(t, "loc-42", got.ID)
-	require.NotNil(t, got.ParentID)
-	require.Equal(t, newParent, *got.ParentID)
+	require.Equal(t, "loc-42", got["id"])
+	require.Equal(t, newParent, got["parent_id"])
 }
