@@ -30,10 +30,16 @@ func NewShareRepository(root string) *ShareRepository {
 }
 
 func (r *ShareRepository) Get(ctx context.Context, id string) (domain.Share, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Share{}, err
+	}
 	return r.provider.Get(ctx, id)
 }
 
 func (r *ShareRepository) Save(ctx context.Context, share domain.Share) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return r.provider.Save(ctx, share)
 }
 
