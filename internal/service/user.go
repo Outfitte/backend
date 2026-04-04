@@ -34,6 +34,13 @@ func (s *UserService) GetByID(ctx context.Context, id string) (domain.User, erro
 	return s.users.Get(ctx, id)
 }
 
+func (s *UserService) List(ctx context.Context) ([]domain.User, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s.users.List(ctx)
+}
+
 func (s *UserService) ListAll(ctx context.Context, callerID string) ([]domain.User, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

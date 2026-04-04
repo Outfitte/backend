@@ -43,7 +43,7 @@ func New(
 	wearLogHandler := handler.NewWearLogHandler(wearLogSvc, logger)
 	outfitHandler := handler.NewOutfitHandler(outfitSvc, logger)
 	outfitLogHandler := handler.NewOutfitLogHandler(outfitLogSvc, logger)
-	userHandler := handler.NewUserHandler(repos.Users, logger)
+	userHandler := handler.NewUserHandler(userSvc, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
