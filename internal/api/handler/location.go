@@ -72,7 +72,7 @@ func (h *LocationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusCreated, loc)
+	writeJSON(w, http.StatusCreated, toLocationResponse(loc))
 }
 
 // GetByID handles GET /locations/{id}.
@@ -110,7 +110,7 @@ func (h *LocationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusOK, loc)
+	writeJSON(w, http.StatusOK, toLocationResponse(loc))
 }
 
 type updateLocationRequest struct {
@@ -159,7 +159,7 @@ func (h *LocationHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusOK, loc)
+	writeJSON(w, http.StatusOK, toLocationResponse(loc))
 }
 
 // Delete handles DELETE /locations/{id}.
@@ -225,8 +225,12 @@ func (h *LocationHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp := make([]locationResponse, len(locs))
+	for i, loc := range locs {
+		resp[i] = toLocationResponse(loc)
+	}
 	log.InfoContext(ctx, "succeeded", "count", len(locs))
-	writeJSON(w, http.StatusOK, locs)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type moveLocationRequest struct {
@@ -279,5 +283,5 @@ func (h *LocationHandler) Move(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "location_id", loc.ID)
-	writeJSON(w, http.StatusOK, loc)
+	writeJSON(w, http.StatusOK, toLocationResponse(loc))
 }

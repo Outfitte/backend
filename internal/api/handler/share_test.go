@@ -119,6 +119,30 @@ func TestShareCreateShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestShareCreateShouldReturn400WhenRecipientIDIsEmpty(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+
+	w := postShare(t, h, "user-1", `{"recipient_id":"","target_type":"item","target_id":"item-1"}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestShareCreateShouldReturn400WhenTargetIDIsEmpty(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+
+	w := postShare(t, h, "user-1", `{"recipient_id":"user-2","target_type":"item","target_id":""}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestShareCreateShouldReturn400WhenTargetTypeIsInvalid(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+
+	w := postShare(t, h, "user-1", `{"recipient_id":"user-2","target_type":"unknown","target_id":"item-1"}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestShareCreateShouldReturn422WhenServiceReturnsSelfShareError(t *testing.T) {
 	svc := &fakeShareService{
 		createFn: func(_ context.Context, _ string, _ service.CreateShareInput) (domain.Share, error) {

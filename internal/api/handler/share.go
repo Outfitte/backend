@@ -61,6 +61,17 @@ func (h *ShareHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.RecipientID == "" || req.TargetID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "recipient_id and target_id are required"})
+		return
+	}
+	switch req.TargetType {
+	case domain.ShareTargetItem, domain.ShareTargetOutfit, domain.ShareTargetLocation:
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid target_type"})
+		return
+	}
+
 	share, err := h.shares.Create(ctx, callerID, service.CreateShareInput{
 		RecipientID: req.RecipientID,
 		TargetType:  req.TargetType,
