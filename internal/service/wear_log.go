@@ -14,11 +14,12 @@ import (
 type WearLogService struct {
 	wearLogs ports.WearLogRepository
 	items    ports.ItemRepository
+	shares   shareAccessChecker
 }
 
 // NewWearLogService constructs a WearLogService backed by the given repositories.
-func NewWearLogService(wearLogs ports.WearLogRepository, items ports.ItemRepository) *WearLogService {
-	return &WearLogService{wearLogs: wearLogs, items: items}
+func NewWearLogService(wearLogs ports.WearLogRepository, items ports.ItemRepository, shares shareAccessChecker) *WearLogService {
+	return &WearLogService{wearLogs: wearLogs, items: items, shares: shares}
 }
 
 // LogWear records a wear event for itemID on the given date.
