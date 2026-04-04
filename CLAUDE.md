@@ -63,6 +63,12 @@ Every HTTP handler must emit two `slog` log lines via `InfoContext`:
 
 Error log calls must use `"error"` as the key for the error value (e.g. `log.ErrorContext(ctx, "...", "error", err)`).
 
+Every HTTP handler method must check `ctx.Err()` immediately after the "started" log line, before any service call. On cancellation, return 503 with `{"error": "request cancelled"}`.
+
+Error messages in JSON responses must always be hardcoded string literals — never use `err.Error()`. If the domain error message is intentionally user-facing, copy the string explicitly. Using `err.Error()` couples the API contract to domain error wording, which can change silently.
+
+Response DTO types belong in the same file as the handler for their primary entity (e.g. `locationResponse` lives in `location.go`, not in `share.go` even though `share.go` embeds it). Define a response type once in its primary handler file; other handlers import it from there.
+
 ## Ports Guidelines
 
 - **Comments must be implementation-agnostic** — port interface comments must not mention storage-specific concepts such as "row", "record", "upsert", "insert", "N+1 queries", column names, or SQL keywords. Use domain-neutral language: "creates or updates", "entry", "association", "WornOn descending", "batched call".
