@@ -170,7 +170,18 @@ func (s *ItemService) GetByID(ctx context.Context, callerID, itemID string) (dom
 	if err != nil {
 		return domain.Item{}, err
 	}
-	if item.OwnerID != callerID {
+	if item.OwnerID == callerID {
+		return item, nil
+	}
+	return s.getSharedItem(ctx, callerID, item)
+}
+
+func (s *ItemService) getSharedItem(ctx context.Context, callerID string, item domain.Item) (domain.Item, error) {
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetItem, item.GetID())
+	if err != nil {
+		return domain.Item{}, err
+	}
+	if !ok {
 		return domain.Item{}, domain.ErrForbidden
 	}
 	return item, nil
