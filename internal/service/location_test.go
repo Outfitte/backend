@@ -335,16 +335,55 @@ func TestLocationServiceGetByIDShouldReturnErrorWhenStoreGetFails(t *testing.T) 
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestLocationServiceGetByIDShouldReturnErrForbiddenWhenCallerIsNotOwner(t *testing.T) {
+func TestLocationServiceGetByIDShouldReturnErrForbiddenWhenCallerHasNoShareAccess(t *testing.T) {
 	var loc domain.Location
 	loc.ID = "loc-1"
-	loc.OwnerID = "owner-1"
+	loc.OwnerID = "owner-2"
 
+	shareChecker := &mockShareAccessChecker{hasAccess: false}
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
 
-	_, err := svc.GetByID(t.Context(), "owner-2", "loc-1")
+	_, err := svc.GetByID(t.Context(), "caller-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+// TestLocationServiceGetByIDShouldReturnLocationWhenShareCheckerGrantsAccess covers the
+// direct-share and ancestor-share paths as a group: all resolve to HasReadAccess returning
+// true. Per-path logic is tested in share_test.go.
+func TestLocationServiceGetByIDShouldReturnLocationWhenShareCheckerGrantsAccess(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-2"
+	loc.Label = "Closet"
+
+	shareChecker := &mockShareAccessChecker{hasAccess: true}
+	repo := &mockLocationRepo{locations: []domain.Location{loc}}
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
+
+	got, err := svc.GetByID(t.Context(), "caller-1", "loc-1")
+	require.NoError(t, err)
+	require.Equal(t, loc, got)
+}
+
+// TestLocationServiceGetByIDShouldReturnChildWhenParentLocationIsShared verifies that
+// a child location is accessible when HasReadAccess grants it. Ancestor traversal is
+// the ShareService's responsibility; LocationService just passes the child's ID.
+func TestLocationServiceGetByIDShouldReturnChildWhenParentLocationIsShared(t *testing.T) {
+	parentID := "parent-1"
+	var child domain.Location
+	child.ID = "child-1"
+	child.OwnerID = "owner-2"
+	child.ParentID = &parentID
+	child.Label = "Shelf"
+
+	shareChecker := &mockShareAccessChecker{hasAccess: true}
+	repo := &mockLocationRepo{locations: []domain.Location{child}}
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
+
+	got, err := svc.GetByID(t.Context(), "caller-1", "child-1")
+	require.NoError(t, err)
+	require.Equal(t, child, got)
 }
 
 func TestLocationServiceGetByIDShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {

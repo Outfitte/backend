@@ -55,7 +55,14 @@ func (s *LocationService) validateParent(ctx context.Context, callerID string, p
 }
 
 func (s *LocationService) getSharedLocation(ctx context.Context, callerID string, loc domain.Location) (domain.Location, error) {
-	return domain.Location{}, errors.New("not implemented")
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetLocation, loc.ID)
+	if err != nil {
+		return domain.Location{}, err
+	}
+	if !ok {
+		return domain.Location{}, domain.ErrForbidden
+	}
+	return loc, nil
 }
 
 // GetByID returns the location identified by locationID if it belongs to callerID,
