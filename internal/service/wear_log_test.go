@@ -176,6 +176,35 @@ func TestWearLogServiceListByItemShouldReturnErrForbiddenWhenCallerIsNotOwner(t 
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
+func TestWearLogServiceListByItemShouldReturnErrorWhenShareCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-2"
+
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{err: domain.ErrIO})
+
+	_, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestWearLogServiceListByItemShouldReturnLogsWhenCallerHasSharedAccess(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-2"
+
+	var log1 domain.WearLog
+	log1.ID = "log-1"
+	log1.ItemID = "item-1"
+	log1.OwnerID = "owner-2"
+
+	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log1}}
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{hasAccess: true})
+
+	got, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+}
+
 func TestWearLogServiceListByItemShouldReturnErrorWhenRepoListByItemFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"

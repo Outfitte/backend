@@ -55,10 +55,28 @@ func (s *WearLogService) ListByItem(ctx context.Context, callerID, itemID string
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if _, err := s.getOwnedItem(ctx, callerID, itemID); err != nil {
+	if err := s.verifyItemAccess(ctx, callerID, itemID); err != nil {
 		return nil, err
 	}
 	return s.wearLogs.ListByItem(ctx, itemID)
+}
+
+func (s *WearLogService) verifyItemAccess(ctx context.Context, callerID, itemID string) error {
+	item, err := s.items.Get(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if item.OwnerID == callerID {
+		return nil
+	}
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetItem, itemID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
 // DeleteWearLog removes the wear log identified by logID.
