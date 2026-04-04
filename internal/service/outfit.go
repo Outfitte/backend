@@ -31,11 +31,12 @@ type OutfitService struct {
 	items      ports.ItemRepository
 	media      ports.MediaProvider
 	outfitLogs ports.OutfitLogRepository
+	shares     shareAccessChecker
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
-func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository) *OutfitService {
-	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs}
+func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker) *OutfitService {
+	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares}
 }
 
 func (s *OutfitService) Create(ctx context.Context, callerID string, input CreateOutfitInput) (domain.Outfit, error) {
@@ -58,7 +59,25 @@ func (s *OutfitService) GetByID(ctx context.Context, callerID, outfitID string) 
 	if err := ctx.Err(); err != nil {
 		return domain.Outfit{}, err
 	}
-	return s.getOwnedOutfit(ctx, callerID, outfitID)
+	outfit, err := s.outfits.Get(ctx, outfitID)
+	if err != nil {
+		return domain.Outfit{}, err
+	}
+	if outfit.OwnerID == callerID {
+		return outfit, nil
+	}
+	return s.getSharedOutfit(ctx, callerID, outfit)
+}
+
+func (s *OutfitService) getSharedOutfit(ctx context.Context, callerID string, outfit domain.Outfit) (domain.Outfit, error) {
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetOutfit, outfit.ID)
+	if err != nil {
+		return domain.Outfit{}, err
+	}
+	if !ok {
+		return domain.Outfit{}, domain.ErrForbidden
+	}
+	return outfit, nil
 }
 
 func (s *OutfitService) ListByOwner(ctx context.Context, callerID string) ([]domain.Outfit, error) {
