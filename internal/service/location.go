@@ -11,21 +11,15 @@ import (
 	"github.com/outfitte/backend/internal/ports"
 )
 
-// locationShareChecker is a narrow interface used by LocationService to check
-// whether a caller has shared read access to a location they do not own.
-type locationShareChecker interface {
-	HasReadAccess(ctx context.Context, callerID string, targetType domain.ShareTargetType, targetID string) (bool, error)
-}
-
 // LocationService manages wardrobe locations.
 type LocationService struct {
 	locations ports.LocationRepository
 	items     ports.ItemRepository
-	shares    locationShareChecker
+	shares    shareAccessChecker
 }
 
 // NewLocationService constructs a LocationService backed by the given repositories.
-func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares locationShareChecker) *LocationService {
+func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker) *LocationService {
 	return &LocationService{locations: locations, items: items, shares: shares}
 }
 

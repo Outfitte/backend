@@ -348,6 +348,13 @@ func TestLocationServiceGetByIDShouldReturnErrForbiddenWhenCallerHasNoShareAcces
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
+func TestLocationServiceGetByIDShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+
+	_, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 // TestLocationServiceGetByIDShouldReturnLocationWhenShareCheckerGrantsAccess covers the
 // direct-share and ancestor-share paths as a group: all resolve to HasReadAccess returning
 // true. Per-path logic is tested in share_test.go.
@@ -384,13 +391,6 @@ func TestLocationServiceGetByIDShouldReturnChildWhenParentLocationIsShared(t *te
 	got, err := svc.GetByID(t.Context(), "caller-1", "child-1")
 	require.NoError(t, err)
 	require.Equal(t, child, got)
-}
-
-func TestLocationServiceGetByIDShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
-
-	_, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
-	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func TestLocationServiceGetByIDShouldReturnLocationWhenCallerIsOwner(t *testing.T) {
