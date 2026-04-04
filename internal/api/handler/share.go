@@ -50,6 +50,11 @@ func (h *ShareHandler) Create(w http.ResponseWriter, r *http.Request) {
 	log := h.log.With("call", "Create")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	callerID, ok := callerIDFromContext(ctx, w, log)
 	if !ok {
 		return
@@ -79,7 +84,7 @@ func (h *ShareHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrSelfShare) {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "cannot share with yourself"})
 			return
 		}
 		if errors.Is(err, domain.ErrDuplicateShare) {
@@ -128,6 +133,11 @@ func (h *ShareHandler) ListOutgoing(w http.ResponseWriter, r *http.Request) {
 	log := h.log.With("call", "ListOutgoing")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	callerID, ok := callerIDFromContext(ctx, w, log)
 	if !ok {
 		return
@@ -165,14 +175,6 @@ type sharedOutfitResponse struct {
 	SharedBy userSummaryResponse `json:"shared_by"`
 }
 
-type locationResponse struct {
-	ID        string    `json:"id"`
-	OwnerID   string    `json:"owner_id"`
-	ParentID  *string   `json:"parent_id"`
-	Label     string    `json:"label"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 type sharedLocationResponse struct {
 	Location locationResponse    `json:"location"`
 	Items    []itemResponse      `json:"items"`
@@ -191,6 +193,11 @@ func (h *ShareHandler) ListSharedWithMe(w http.ResponseWriter, r *http.Request) 
 	log := h.log.With("call", "ListSharedWithMe")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	callerID, ok := callerIDFromContext(ctx, w, log)
 	if !ok {
 		return
@@ -206,16 +213,6 @@ func (h *ShareHandler) ListSharedWithMe(w http.ResponseWriter, r *http.Request) 
 	resp := buildSharedWithMeResponse(result)
 	log.InfoContext(ctx, "succeeded", "item_count", len(result.Items), "outfit_count", len(result.Outfits), "location_count", len(result.Locations))
 	writeJSON(w, http.StatusOK, resp)
-}
-
-func toLocationResponse(loc domain.Location) locationResponse {
-	return locationResponse{
-		ID:        loc.GetID(),
-		OwnerID:   loc.OwnerID,
-		ParentID:  loc.ParentID,
-		Label:     loc.Label,
-		CreatedAt: loc.CreatedAt,
-	}
 }
 
 func toUserSummaryResponse(u service.UserSummary) userSummaryResponse {
@@ -257,6 +254,11 @@ func (h *ShareHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := h.log.With("call", "Revoke")
 	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
 
 	callerID, ok := callerIDFromContext(ctx, w, log)
 	if !ok {

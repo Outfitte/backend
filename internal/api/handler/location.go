@@ -6,11 +6,29 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/outfitte/backend/internal/api/middleware"
 	"github.com/outfitte/backend/internal/domain"
 )
 
+type locationResponse struct {
+	ID        string    `json:"id"`
+	OwnerID   string    `json:"owner_id"`
+	ParentID  *string   `json:"parent_id"`
+	Label     string    `json:"label"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func toLocationResponse(loc domain.Location) locationResponse {
+	return locationResponse{
+		ID:        loc.GetID(),
+		OwnerID:   loc.OwnerID,
+		ParentID:  loc.ParentID,
+		Label:     loc.Label,
+		CreatedAt: loc.CreatedAt,
+	}
+}
 
 type locationService interface {
 	Create(ctx context.Context, callerID, label string, parentID *string) (domain.Location, error)

@@ -103,6 +103,16 @@ func noCallerCtx(t *testing.T) context.Context {
 
 // --- Create tests ---
 
+func TestShareCreateShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/shares", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	h.Create(w, req)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 func TestShareCreateShouldReturn500WhenCallerIDMissingFromContext(t *testing.T) {
 	h := newShareHandler(&fakeShareService{})
 	req := httptest.NewRequestWithContext(noCallerCtx(t), http.MethodPost, "/shares", strings.NewReader(`{}`))
@@ -247,6 +257,16 @@ func TestShareCreateShouldReturn201WithShareWhenSuccessful(t *testing.T) {
 
 // --- ListOutgoing tests ---
 
+func TestShareListOutgoingShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/shares", nil)
+	w := httptest.NewRecorder()
+	h.ListOutgoing(w, req)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
 func TestShareListOutgoingShouldReturn500WhenCallerIDMissingFromContext(t *testing.T) {
 	h := newShareHandler(&fakeShareService{})
 	req := httptest.NewRequestWithContext(noCallerCtx(t), http.MethodGet, "/shares", nil)
@@ -326,6 +346,16 @@ func TestShareListOutgoingShouldReturn200WithShareViewsWhenSharesExist(t *testin
 }
 
 // --- ListSharedWithMe tests ---
+
+func TestShareListSharedWithMeShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/shares/with-me", nil)
+	w := httptest.NewRecorder()
+	h.ListSharedWithMe(w, req)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
 
 func TestShareListSharedWithMeShouldReturn500WhenCallerIDMissingFromContext(t *testing.T) {
 	h := newShareHandler(&fakeShareService{})
@@ -434,6 +464,17 @@ func TestShareListSharedWithMeShouldReturn200WithHydratedDataWhenSharesExist(t *
 }
 
 // --- Revoke tests ---
+
+func TestShareRevokeShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := newShareHandler(&fakeShareService{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/shares/share-1", nil)
+	req.SetPathValue("id", "share-1")
+	w := httptest.NewRecorder()
+	h.Revoke(w, req)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
 
 func TestShareRevokeShouldReturn500WhenCallerIDMissingFromContext(t *testing.T) {
 	h := newShareHandler(&fakeShareService{})
