@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -12,11 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// noopShareChecker always denies access, satisfying the shareAccessChecker
+// interface for tests that never exercise the shared-access path.
+type noopShareChecker struct{}
+
+func (n *noopShareChecker) HasReadAccess(_ context.Context, _ string, _ domain.ShareTargetType, _ string) (bool, error) {
+	return false, nil
+}
+
 func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T) {
 	itemRepo := jsonstore.NewItemRepository(t.TempDir())
 	media := local.NewProvider(t.TempDir())
 	locRepo := jsonstore.NewLocationRepository(t.TempDir())
-	svc := service.NewItemService(itemRepo, media, locRepo, service.NewCategoryService())
+	svc := service.NewItemService(itemRepo, media, locRepo, service.NewCategoryService(), &noopShareChecker{})
 
 	ctx := t.Context()
 

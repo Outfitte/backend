@@ -51,17 +51,24 @@ type categoryGetter interface {
 	GetByID(ctx context.Context, id string) (domain.Category, error)
 }
 
+// shareAccessChecker is a narrow interface used by ItemService to check whether
+// a caller has shared read access to an entity they do not own.
+type shareAccessChecker interface {
+	HasReadAccess(ctx context.Context, callerID string, targetType domain.ShareTargetType, targetID string) (bool, error)
+}
+
 // ItemService manages wardrobe items.
 type ItemService struct {
 	items      ports.ItemRepository
 	locations  ports.LocationRepository
 	media      ports.MediaProvider
 	categories categoryGetter
+	shares     shareAccessChecker
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media, categories: categories}
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
