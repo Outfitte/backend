@@ -51,17 +51,24 @@ type categoryGetter interface {
 	GetByID(ctx context.Context, id string) (domain.Category, error)
 }
 
+// shareAccessChecker is a narrow interface used by ItemService to check whether
+// a caller has shared read access to an entity they do not own.
+type shareAccessChecker interface {
+	HasReadAccess(ctx context.Context, callerID string, targetType domain.ShareTargetType, targetID string) (bool, error)
+}
+
 // ItemService manages wardrobe items.
 type ItemService struct {
 	items      ports.ItemRepository
 	locations  ports.LocationRepository
 	media      ports.MediaProvider
 	categories categoryGetter
+	shares     shareAccessChecker
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media, categories: categories}
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -163,7 +170,18 @@ func (s *ItemService) GetByID(ctx context.Context, callerID, itemID string) (dom
 	if err != nil {
 		return domain.Item{}, err
 	}
-	if item.OwnerID != callerID {
+	if item.OwnerID == callerID {
+		return item, nil
+	}
+	return s.getSharedItem(ctx, callerID, item)
+}
+
+func (s *ItemService) getSharedItem(ctx context.Context, callerID string, item domain.Item) (domain.Item, error) {
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetItem, item.ID)
+	if err != nil {
+		return domain.Item{}, err
+	}
+	if !ok {
 		return domain.Item{}, domain.ErrForbidden
 	}
 	return item, nil
