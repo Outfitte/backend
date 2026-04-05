@@ -29,7 +29,7 @@ func New(
 	shareSvc := service.NewShareService(repos.Shares, repos.Users, repos.Items, repos.Outfits, repos.Locations)
 	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc, shareSvc)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items, shareSvc)
-	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items)
+	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items, shareSvc)
 	outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs, shareSvc)
 	outfitLogSvc := service.NewOutfitLogService(repos.Outfits, repos.OutfitLogs, repos.OutfitLogTransactor)
 
