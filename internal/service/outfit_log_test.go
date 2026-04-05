@@ -141,8 +141,8 @@ func outfitLogWithOwner(id, outfitID, ownerID string, wornOn time.Time) domain.O
 	return l
 }
 
-func newOutfitLogSvc(outfits *mockOutfitRepo, outfitLogs *mockOutfitLogRepo, transactor *mockOutfitLogTransactor) *OutfitLogService {
-	return NewOutfitLogService(outfits, outfitLogs, transactor)
+func newOutfitLogSvc(outfits *mockOutfitRepo, outfitLogs *mockOutfitLogRepo, transactor *mockOutfitLogTransactor, shares *mockShareAccessChecker) *OutfitLogService {
+	return NewOutfitLogService(outfits, outfitLogs, transactor, shares)
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -150,14 +150,14 @@ func newOutfitLogSvc(outfits *mockOutfitRepo, outfitLogs *mockOutfitLogRepo, tra
 func TestOutfitLogServiceDeleteShouldReturnContextErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	err := svc.Delete(ctx, "owner-1", "log-1")
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestOutfitLogServiceDeleteShouldReturnNotFoundWhenOutfitLogDoesNotExist(t *testing.T) {
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	err := svc.Delete(t.Context(), "owner-1", "log-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -167,7 +167,7 @@ func TestOutfitLogServiceDeleteShouldReturnForbiddenWhenCallerIsNotOwner(t *test
 	past := time.Now().Add(-24 * time.Hour).UTC()
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-2", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	err := svc.Delete(t.Context(), "owner-1", "log-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -178,7 +178,7 @@ func TestOutfitLogServiceDeleteShouldReturnErrorWhenTransactorDeleteFails(t *tes
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-1", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
 	transactor := &mockOutfitLogTransactor{deleteErr: domain.ErrIO}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor)
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor, &mockShareAccessChecker{})
 
 	err := svc.Delete(t.Context(), "owner-1", "log-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -189,7 +189,7 @@ func TestOutfitLogServiceDeleteShouldDeleteWhenCallerIsOwner(t *testing.T) {
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-1", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
 	transactor := &mockOutfitLogTransactor{}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor)
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor, &mockShareAccessChecker{})
 
 	err := svc.Delete(t.Context(), "owner-1", "log-1")
 	require.NoError(t, err)
@@ -201,21 +201,21 @@ func TestOutfitLogServiceDeleteShouldDeleteWhenCallerIsOwner(t *testing.T) {
 func TestOutfitLogServiceUpdateDateShouldReturnContextErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.UpdateDate(ctx, "owner-1", "log-1", time.Now().Add(-time.Hour))
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestOutfitLogServiceUpdateDateShouldReturnErrFutureDateNotAllowedWhenNewDateIsInFuture(t *testing.T) {
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.UpdateDate(t.Context(), "owner-1", "log-1", time.Now().Add(24*time.Hour))
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
 }
 
 func TestOutfitLogServiceUpdateDateShouldReturnNotFoundWhenOutfitLogDoesNotExist(t *testing.T) {
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.UpdateDate(t.Context(), "owner-1", "log-1", time.Now().Add(-time.Hour))
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -225,7 +225,7 @@ func TestOutfitLogServiceUpdateDateShouldReturnForbiddenWhenCallerIsNotOwner(t *
 	past := time.Now().Add(-24 * time.Hour).UTC()
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-2", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.UpdateDate(t.Context(), "owner-1", "log-1", time.Now().Add(-time.Hour))
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -236,7 +236,7 @@ func TestOutfitLogServiceUpdateDateShouldReturnErrorWhenTransactorUpdateFails(t 
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-1", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
 	transactor := &mockOutfitLogTransactor{updateDateErr: domain.ErrIO}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor)
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor, &mockShareAccessChecker{})
 
 	_, err := svc.UpdateDate(t.Context(), "owner-1", "log-1", time.Now().Add(-time.Hour))
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -248,7 +248,7 @@ func TestOutfitLogServiceUpdateDateShouldReturnUpdatedLogWhenSuccessful(t *testi
 	log := outfitLogWithOwner("log-1", "outfit-1", "owner-1", past)
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log}}
 	transactor := &mockOutfitLogTransactor{repo: logRepo}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor)
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, transactor, &mockShareAccessChecker{})
 
 	got, err := svc.UpdateDate(t.Context(), "owner-1", "log-1", newDate)
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestOutfitLogServiceUpdateDateShouldReturnUpdatedLogWhenSuccessful(t *testi
 // ── ListByDateRange ───────────────────────────────────────────────────────────
 
 func TestOutfitLogServiceListByDateRangeShouldReturnValidationErrorWhenFromIsAfterTo(t *testing.T) {
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	from := time.Now().UTC()
 	to := from.Add(-24 * time.Hour)
@@ -272,7 +272,7 @@ func TestOutfitLogServiceListByDateRangeShouldReturnValidationErrorWhenFromIsAft
 func TestOutfitLogServiceListByDateRangeShouldReturnContextErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	from := time.Now().Add(-7 * 24 * time.Hour)
 	_, err := svc.ListByDateRange(ctx, "owner-1", from, time.Now())
@@ -281,7 +281,7 @@ func TestOutfitLogServiceListByDateRangeShouldReturnContextErrorWhenContextIsCan
 
 func TestOutfitLogServiceListByDateRangeShouldReturnErrorWhenRepoFails(t *testing.T) {
 	logRepo := &mockOutfitLogRepo{listByDateRangeErr: domain.ErrIO}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	from := time.Now().Add(-7 * 24 * time.Hour)
 	_, err := svc.ListByDateRange(t.Context(), "owner-1", from, time.Now())
@@ -293,7 +293,7 @@ func TestOutfitLogServiceListByDateRangeShouldReturnLogsWithinRangeWhenSuccessfu
 	log1 := outfitLogWithOwner("log-1", "outfit-1", "owner-1", base.Add(-1*24*time.Hour))
 	log2 := outfitLogWithOwner("log-2", "outfit-1", "owner-1", base.Add(-3*24*time.Hour))
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1, log2}}
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	from := base.Add(-7 * 24 * time.Hour)
 	got, err := svc.ListByDateRange(t.Context(), "owner-1", from, base)
@@ -306,23 +306,23 @@ func TestOutfitLogServiceListByDateRangeShouldReturnLogsWithinRangeWhenSuccessfu
 func TestOutfitLogServiceListByOutfitShouldReturnContextErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.ListByOutfit(ctx, "owner-1", "outfit-1")
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestOutfitLogServiceListByOutfitShouldReturnNotFoundWhenOutfitDoesNotExist(t *testing.T) {
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
-func TestOutfitLogServiceListByOutfitShouldReturnForbiddenWhenCallerIsNotOutfitOwner(t *testing.T) {
+func TestOutfitLogServiceListByOutfitShouldReturnForbiddenWhenCallerIsNotOutfitOwnerAndHasNoSharedAccess(t *testing.T) {
 	outfit := outfitWithOwner("outfit-1", "owner-2")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
-	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{hasAccess: false})
 
 	_, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -332,7 +332,7 @@ func TestOutfitLogServiceListByOutfitShouldReturnErrorWhenRepoListFails(t *testi
 	outfit := outfitWithOwner("outfit-1", "owner-1")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	logRepo := &mockOutfitLogRepo{listByOutfitErr: domain.ErrIO}
-	svc := newOutfitLogSvc(outfitRepo, logRepo, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(outfitRepo, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -345,7 +345,7 @@ func TestOutfitLogServiceListByOutfitShouldReturnLogsWhenCallerIsOwner(t *testin
 	log1 := outfitLogWithOwner("log-1", "outfit-1", "owner-1", past)
 	log2 := outfitLogWithOwner("log-2", "outfit-1", "owner-1", past.Add(-time.Hour))
 	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1, log2}}
-	svc := newOutfitLogSvc(outfitRepo, logRepo, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(outfitRepo, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	got, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
 	require.NoError(t, err)
@@ -357,14 +357,14 @@ func TestOutfitLogServiceListByOutfitShouldReturnLogsWhenCallerIsOwner(t *testin
 func TestOutfitLogServiceLogWearShouldReturnContextErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.LogWear(ctx, "owner-1", "outfit-1", time.Now(), nil)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestOutfitLogServiceLogWearShouldReturnNotFoundWhenOutfitDoesNotExist(t *testing.T) {
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", time.Now(), nil)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -373,7 +373,7 @@ func TestOutfitLogServiceLogWearShouldReturnNotFoundWhenOutfitDoesNotExist(t *te
 func TestOutfitLogServiceLogWearShouldReturnForbiddenWhenCallerIsNotOutfitOwner(t *testing.T) {
 	outfit := outfitWithOwner("outfit-1", "owner-2")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
-	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", time.Now(), nil)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -381,7 +381,7 @@ func TestOutfitLogServiceLogWearShouldReturnForbiddenWhenCallerIsNotOutfitOwner(
 
 func TestOutfitLogServiceLogWearShouldReturnErrFutureDateNotAllowedWhenWornOnIsInFuture(t *testing.T) {
 	// Date guard fires before ownership lookup — no outfit needed in repo.
-	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{})
+	svc := newOutfitLogSvc(&mockOutfitRepo{}, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{})
 
 	future := time.Now().Add(24 * time.Hour)
 	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", future, nil)
@@ -392,7 +392,7 @@ func TestOutfitLogServiceLogWearShouldReturnErrorWhenTransactorCreateFails(t *te
 	outfit := outfitWithOwner("outfit-1", "owner-1")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	transactor := &mockOutfitLogTransactor{createErr: domain.ErrIO}
-	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, transactor)
+	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, transactor, &mockShareAccessChecker{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", time.Now().Add(-time.Hour), nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -406,7 +406,7 @@ func TestOutfitLogServiceLogWearShouldCreateOutfitLogWithWearLogsPerItemWhenSucc
 	}
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	transactor := &mockOutfitLogTransactor{}
-	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, transactor)
+	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, transactor, &mockShareAccessChecker{})
 
 	note := "first wear"
 	wornOn := time.Now().Add(-24 * time.Hour).UTC()
