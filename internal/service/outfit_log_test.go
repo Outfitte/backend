@@ -319,6 +319,15 @@ func TestOutfitLogServiceListByOutfitShouldReturnNotFoundWhenOutfitDoesNotExist(
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func TestOutfitLogServiceListByOutfitShouldReturnErrorWhenShareCheckFails(t *testing.T) {
+	outfit := outfitWithOwner("outfit-1", "owner-2")
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	svc := newOutfitLogSvc(outfitRepo, &mockOutfitLogRepo{}, &mockOutfitLogTransactor{}, &mockShareAccessChecker{err: domain.ErrIO})
+
+	_, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestOutfitLogServiceListByOutfitShouldReturnForbiddenWhenCallerIsNotOutfitOwnerAndHasNoSharedAccess(t *testing.T) {
 	outfit := outfitWithOwner("outfit-1", "owner-2")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
@@ -336,6 +345,20 @@ func TestOutfitLogServiceListByOutfitShouldReturnErrorWhenRepoListFails(t *testi
 
 	_, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestOutfitLogServiceListByOutfitShouldReturnLogsWhenCallerHasSharedAccess(t *testing.T) {
+	outfit := outfitWithOwner("outfit-1", "owner-2")
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	past := time.Now().Add(-24 * time.Hour).UTC()
+	log1 := outfitLogWithOwner("log-1", "outfit-1", "owner-2", past)
+	log2 := outfitLogWithOwner("log-2", "outfit-1", "owner-2", past.Add(-time.Hour))
+	logRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1, log2}}
+	svc := newOutfitLogSvc(outfitRepo, logRepo, &mockOutfitLogTransactor{}, &mockShareAccessChecker{hasAccess: true})
+
+	got, err := svc.ListByOutfit(t.Context(), "owner-1", "outfit-1")
+	require.NoError(t, err)
+	require.Len(t, got, 2)
 }
 
 func TestOutfitLogServiceListByOutfitShouldReturnLogsWhenCallerIsOwner(t *testing.T) {

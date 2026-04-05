@@ -93,7 +93,14 @@ func (s *OutfitLogService) ListByOutfit(ctx context.Context, callerID, outfitID 
 }
 
 func (s *OutfitLogService) checkSharedOutfitAccess(ctx context.Context, callerID, outfitID string) error {
-	return errors.New("not implemented")
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetOutfit, outfitID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
 // ListByDateRange returns all outfit logs for callerID within [from, to].
