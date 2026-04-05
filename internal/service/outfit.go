@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -119,7 +120,17 @@ func (s *OutfitService) Delete(ctx context.Context, callerID, outfitID string) e
 	if err := s.deleteOutfitPhotos(ctx, outfit); err != nil {
 		return err
 	}
-	return s.outfits.Delete(ctx, outfitID)
+	if err := s.outfits.Delete(ctx, outfitID); err != nil {
+		return err
+	}
+	s.cleanupShares(ctx, domain.ShareTargetOutfit, outfitID)
+	return nil
+}
+
+func (s *OutfitService) cleanupShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
+	if err := s.shareDeleter.DeleteByTarget(ctx, targetType, targetID); err != nil {
+		slog.ErrorContext(ctx, "share cleanup failed after entity delete", "target_type", targetType, "target_id", targetID, "error", err)
+	}
 }
 
 func (s *OutfitService) AddItem(ctx context.Context, callerID, outfitID, itemID string) error {

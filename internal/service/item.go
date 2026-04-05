@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -399,7 +400,17 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 			return err
 		}
 	}
-	return s.items.Delete(ctx, itemID)
+	if err := s.items.Delete(ctx, itemID); err != nil {
+		return err
+	}
+	s.cleanupShares(ctx, domain.ShareTargetItem, itemID)
+	return nil
+}
+
+func (s *ItemService) cleanupShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
+	if err := s.shareDeleter.DeleteByTarget(ctx, targetType, targetID); err != nil {
+		slog.ErrorContext(ctx, "share cleanup failed after entity delete", "target_type", targetType, "target_id", targetID, "error", err)
+	}
 }
 
 func (s *ItemService) Archive(ctx context.Context, callerID, itemID string) error {

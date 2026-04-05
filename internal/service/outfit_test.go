@@ -408,6 +408,29 @@ func TestDeleteShouldDeleteMediaAndOutfitWhenSuccessful(t *testing.T) {
 	require.Empty(t, repo.outfits)
 }
 
+func TestOutfitServiceDeleteShouldSucceedWhenShareDeleteFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	sd := &mockShareDeleter{err: domain.ErrIO}
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, sd)
+
+	err := svc.Delete(t.Context(), "user1", "o1")
+	require.NoError(t, err)
+}
+
+func TestOutfitServiceDeleteShouldCallShareDeleteByTargetWithOutfitTargetWhenSuccessful(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	sd := &mockShareDeleter{}
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, sd)
+
+	err := svc.Delete(t.Context(), "user1", "o1")
+	require.NoError(t, err)
+	require.True(t, sd.called)
+	require.Equal(t, domain.ShareTargetOutfit, sd.calledTargetType)
+	require.Equal(t, "o1", sd.calledTargetID)
+}
+
 // ---- AddItem ----
 
 func TestAddItemShouldReturnContextErrorWhenContextCancelled(t *testing.T) {
