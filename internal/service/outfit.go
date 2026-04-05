@@ -27,16 +27,17 @@ type UpdateOutfitInput struct {
 
 // OutfitService manages outfits, item linking, and photo management.
 type OutfitService struct {
-	outfits    ports.OutfitRepository
-	items      ports.ItemRepository
-	media      ports.MediaProvider
-	outfitLogs ports.OutfitLogRepository
-	shares     shareAccessChecker
+	outfits      ports.OutfitRepository
+	items        ports.ItemRepository
+	media        ports.MediaProvider
+	outfitLogs   ports.OutfitLogRepository
+	shares       shareAccessChecker
+	shareDeleter shareDeleter
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
-func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker) *OutfitService {
-	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares}
+func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker, shareDeleter shareDeleter) *OutfitService {
+	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares, shareDeleter: shareDeleter}
 }
 
 func (s *OutfitService) Create(ctx context.Context, callerID string, input CreateOutfitInput) (domain.Outfit, error) {

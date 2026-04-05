@@ -57,18 +57,25 @@ type shareAccessChecker interface {
 	HasReadAccess(ctx context.Context, callerID string, targetType domain.ShareTargetType, targetID string) (bool, error)
 }
 
+// shareDeleter is a narrow interface used by service types to remove all shares
+// targeting an entity when that entity is deleted.
+type shareDeleter interface {
+	DeleteByTarget(ctx context.Context, targetType domain.ShareTargetType, targetID string) error
+}
+
 // ItemService manages wardrobe items.
 type ItemService struct {
-	items      ports.ItemRepository
-	locations  ports.LocationRepository
-	media      ports.MediaProvider
-	categories categoryGetter
-	shares     shareAccessChecker
+	items        ports.ItemRepository
+	locations    ports.LocationRepository
+	media        ports.MediaProvider
+	categories   categoryGetter
+	shares       shareAccessChecker
+	shareDeleter shareDeleter
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares}
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker, shareDeleter shareDeleter) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares, shareDeleter: shareDeleter}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {

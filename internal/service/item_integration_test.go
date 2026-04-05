@@ -21,11 +21,19 @@ func (n *noopShareChecker) HasReadAccess(_ context.Context, _ string, _ domain.S
 	return false, nil
 }
 
+// noopShareDeleter silently succeeds, satisfying the shareDeleter interface
+// for tests that never exercise the share-cleanup path.
+type noopShareDeleter struct{}
+
+func (n *noopShareDeleter) DeleteByTarget(_ context.Context, _ domain.ShareTargetType, _ string) error {
+	return nil
+}
+
 func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T) {
 	itemRepo := jsonstore.NewItemRepository(t.TempDir())
 	media := local.NewProvider(t.TempDir())
 	locRepo := jsonstore.NewLocationRepository(t.TempDir())
-	svc := service.NewItemService(itemRepo, media, locRepo, service.NewCategoryService(), &noopShareChecker{})
+	svc := service.NewItemService(itemRepo, media, locRepo, service.NewCategoryService(), &noopShareChecker{}, &noopShareDeleter{})
 
 	ctx := t.Context()
 

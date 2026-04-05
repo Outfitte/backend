@@ -11,7 +11,7 @@ import (
 func TestLocationServiceShouldCompleteFullCycleWhenCreateUpdateListMoveDelete(t *testing.T) {
 	locStore := jsonstore.NewLocationRepository(t.TempDir())
 	itemStore := jsonstore.NewItemRepository(t.TempDir())
-	svc := service.NewLocationService(locStore, itemStore, &noopShareChecker{})
+	svc := service.NewLocationService(locStore, itemStore, &noopShareChecker{}, &noopShareDeleter{})
 
 	ctx := t.Context()
 

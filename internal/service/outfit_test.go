@@ -143,7 +143,7 @@ func (m *mockOutfitRepo) DeletePhoto(_ context.Context, outfitID, mediaKey strin
 // helpers
 
 func newOutfitSvc(outfits *mockOutfitRepo, items *mockItemRepo, media *mockMediaProvider) *OutfitService {
-	return NewOutfitService(outfits, items, media, &mockOutfitLogRepo{}, &mockShareAccessChecker{})
+	return NewOutfitService(outfits, items, media, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 }
 
 func outfitWithOwner(id, ownerID string) domain.Outfit {
@@ -228,7 +228,7 @@ func TestGetByIDShouldReturnErrorWhenShareCheckerFails(t *testing.T) {
 	outfit := outfitWithOwner("o1", "owner-1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	shares := &mockShareAccessChecker{err: domain.ErrIO}
-	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares)
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares, &mockShareDeleter{})
 
 	_, err := svc.GetByID(t.Context(), "caller-2", "o1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -238,7 +238,7 @@ func TestGetByIDShouldReturnErrForbiddenWhenCallerHasNoShare(t *testing.T) {
 	outfit := outfitWithOwner("o1", "owner-1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	shares := &mockShareAccessChecker{hasAccess: false}
-	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares)
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares, &mockShareDeleter{})
 
 	_, err := svc.GetByID(t.Context(), "caller-2", "o1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -248,7 +248,7 @@ func TestGetByIDShouldReturnOutfitWhenShareCheckerGrantsAccess(t *testing.T) {
 	outfit := outfitWithOwner("o1", "owner-1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	shares := &mockShareAccessChecker{hasAccess: true}
-	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares)
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares, &mockShareDeleter{})
 
 	got, err := svc.GetByID(t.Context(), "caller-2", "o1")
 	require.NoError(t, err)
@@ -669,7 +669,7 @@ func TestListByDateRangeShouldReturnValidationErrorWhenFromIsAfterTo(t *testing.
 
 func TestListByDateRangeShouldReturnRepoErrorWhenLogsFetchFails(t *testing.T) {
 	logs := &mockOutfitLogRepo{listByDateRangeErr: domain.ErrIO}
-	svc := NewOutfitService(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{}, logs, &mockShareAccessChecker{})
+	svc := NewOutfitService(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{}, logs, &mockShareAccessChecker{}, &mockShareDeleter{})
 	from := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
 	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
@@ -688,7 +688,7 @@ func TestListByDateRangeShouldReturnRepoErrorWhenOutfitFetchFails(t *testing.T) 
 
 	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
 	outfitsRepo := &mockOutfitRepo{getErr: domain.ErrIO}
-	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{})
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.ListByDateRange(t.Context(), "user1", from, to)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -712,7 +712,7 @@ func TestListByDateRangeShouldDeduplicateOutfitsWhenMultipleLogsForSameOutfit(t 
 
 	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1, log2}}
 	outfitsRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit1}}
-	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{})
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
 	require.NoError(t, err)
@@ -731,7 +731,7 @@ func TestListByDateRangeShouldSkipOutfitsNotFoundWhenDeletedAfterLog(t *testing.
 
 	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
 	outfitsRepo := &mockOutfitRepo{} // no outfits — simulates deleted outfit
-	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{})
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
 	require.NoError(t, err)
@@ -754,7 +754,7 @@ func TestListByDateRangeShouldReturnOutfitsWithLogsInRangeWhenSuccessful(t *test
 
 	logsRepo := &mockOutfitLogRepo{logs: []domain.OutfitLog{log1}}
 	outfitsRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit1, outfit2}}
-	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{})
+	svc := NewOutfitService(outfitsRepo, &mockItemRepo{}, &mockMediaProvider{}, logsRepo, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.ListByDateRange(t.Context(), "user1", from, to)
 	require.NoError(t, err)

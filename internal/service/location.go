@@ -13,14 +13,15 @@ import (
 
 // LocationService manages wardrobe locations.
 type LocationService struct {
-	locations ports.LocationRepository
-	items     ports.ItemRepository
-	shares    shareAccessChecker
+	locations    ports.LocationRepository
+	items        ports.ItemRepository
+	shares       shareAccessChecker
+	shareDeleter shareDeleter
 }
 
 // NewLocationService constructs a LocationService backed by the given repositories.
-func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker) *LocationService {
-	return &LocationService{locations: locations, items: items, shares: shares}
+func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker, shareDeleter shareDeleter) *LocationService {
+	return &LocationService{locations: locations, items: items, shares: shares, shareDeleter: shareDeleter}
 }
 
 func (s *LocationService) getOwnedLocation(ctx context.Context, callerID, locationID string) (domain.Location, error) {

@@ -11,7 +11,7 @@ import (
 // ── Move ──────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceMoveShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -25,7 +25,7 @@ func TestLocationServiceMoveShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	loc.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}, saveErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -47,7 +47,7 @@ func TestLocationServiceMoveShouldReturnErrorWhenGetFailsDuringCircularCheck(t *
 		locations: []domain.Location{loc, parent},
 		getErrFor: map[string]error{"grandparent-1": domain.ErrIO},
 	}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -66,7 +66,7 @@ func TestLocationServiceMoveShouldReturnErrConflictWhenNewParentIsADescendant(t 
 
 	newParentID := "child-1"
 	repo := &mockLocationRepo{locations: []domain.Location{loc, child}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
 	require.ErrorIs(t, err, domain.ErrConflict)
@@ -83,7 +83,7 @@ func TestLocationServiceMoveShouldReturnErrForbiddenWhenNewParentBelongsToDiffer
 
 	newParentID := "parent-2"
 	repo := &mockLocationRepo{locations: []domain.Location{loc, other}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -96,7 +96,7 @@ func TestLocationServiceMoveShouldReturnErrNotFoundWhenNewParentDoesNotExist(t *
 
 	newParentID := "nonexistent-parent"
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -108,14 +108,14 @@ func TestLocationServiceMoveShouldReturnErrForbiddenWhenCallerIsNotOwner(t *test
 	loc.OwnerID = "owner-2"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
 func TestLocationServiceMoveShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -123,7 +123,7 @@ func TestLocationServiceMoveShouldReturnErrNotFoundWhenLocationDoesNotExist(t *t
 
 func TestLocationServiceMoveShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockLocationRepo{getErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -137,7 +137,7 @@ func TestLocationServiceMoveShouldMakeLocationRootWhenNewParentIDIsNil(t *testin
 	loc.ParentID = &parentID
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.Move(t.Context(), "owner-1", "loc-1", nil)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestLocationServiceMoveShouldSucceedWhenAncestorInChainIsMissing(t *testing
 
 	newParentID := "parent-1"
 	repo := &mockLocationRepo{locations: []domain.Location{loc, parent}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
 	require.NoError(t, err)
@@ -180,7 +180,7 @@ func TestLocationServiceMoveShouldReparentLocationWhenNewParentExists(t *testing
 
 	newParentID := "parent-2"
 	repo := &mockLocationRepo{locations: []domain.Location{loc, newParent}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.Move(t.Context(), "owner-1", "loc-1", &newParentID)
 	require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestLocationServiceMoveShouldReparentLocationWhenNewParentExists(t *testing
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceDeleteShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -203,14 +203,14 @@ func TestLocationServiceDeleteShouldReturnErrorWhenContextIsCancelled(t *testing
 
 func TestLocationServiceDeleteShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockLocationRepo{getErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestLocationServiceDeleteShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -222,7 +222,7 @@ func TestLocationServiceDeleteShouldReturnErrForbiddenWhenCallerIsNotOwner(t *te
 	loc.OwnerID = "owner-2"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -234,7 +234,7 @@ func TestLocationServiceDeleteShouldReturnErrorWhenHasChildrenFails(t *testing.T
 	loc.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}, hasChildrenErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -246,7 +246,7 @@ func TestLocationServiceDeleteShouldReturnErrConflictWhenLocationHasChildren(t *
 	loc.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}, hasChildrenResult: true}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrConflict)
@@ -259,7 +259,7 @@ func TestLocationServiceDeleteShouldReturnErrorWhenCountByLocationFails(t *testi
 
 	locRepo := &mockLocationRepo{locations: []domain.Location{loc}}
 	itemRepo := &mockItemRepo{countByLocationErr: domain.ErrIO}
-	svc := NewLocationService(locRepo, itemRepo, &mockShareAccessChecker{})
+	svc := NewLocationService(locRepo, itemRepo, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -272,7 +272,7 @@ func TestLocationServiceDeleteShouldReturnErrConflictWhenLocationHasItemsAssigne
 
 	locRepo := &mockLocationRepo{locations: []domain.Location{loc}}
 	itemRepo := &mockItemRepo{countByLocationResult: 1}
-	svc := NewLocationService(locRepo, itemRepo, &mockShareAccessChecker{})
+	svc := NewLocationService(locRepo, itemRepo, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrConflict)
@@ -284,7 +284,7 @@ func TestLocationServiceDeleteShouldReturnErrorWhenStoreDeleteFails(t *testing.T
 	loc.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}, deleteErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -296,7 +296,7 @@ func TestLocationServiceDeleteShouldDeleteLocationWhenCallerIsOwnerAndNoConflict
 	loc.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
 	require.NoError(t, err)
@@ -306,7 +306,7 @@ func TestLocationServiceDeleteShouldDeleteLocationWhenCallerIsOwnerAndNoConflict
 // ── GetByID ───────────────────────────────────────────────────────────────────
 
 func TestLocationServiceGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -321,7 +321,7 @@ func TestLocationServiceGetByIDShouldReturnErrorWhenHasReadAccessFails(t *testin
 
 	shareChecker := &mockShareAccessChecker{err: domain.ErrIO}
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker, &mockShareDeleter{})
 
 	_, err := svc.GetByID(t.Context(), "caller-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -329,7 +329,7 @@ func TestLocationServiceGetByIDShouldReturnErrorWhenHasReadAccessFails(t *testin
 
 func TestLocationServiceGetByIDShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockLocationRepo{getErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -342,14 +342,14 @@ func TestLocationServiceGetByIDShouldReturnErrForbiddenWhenCallerHasNoShareAcces
 
 	shareChecker := &mockShareAccessChecker{hasAccess: false}
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker, &mockShareDeleter{})
 
 	_, err := svc.GetByID(t.Context(), "caller-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
 func TestLocationServiceGetByIDShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -366,7 +366,7 @@ func TestLocationServiceGetByIDShouldReturnLocationWhenShareCheckerGrantsAccess(
 
 	shareChecker := &mockShareAccessChecker{hasAccess: true}
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker, &mockShareDeleter{})
 
 	got, err := svc.GetByID(t.Context(), "caller-1", "loc-1")
 	require.NoError(t, err)
@@ -386,7 +386,7 @@ func TestLocationServiceGetByIDShouldReturnChildWhenParentLocationIsShared(t *te
 
 	shareChecker := &mockShareAccessChecker{hasAccess: true}
 	repo := &mockLocationRepo{locations: []domain.Location{child}}
-	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker)
+	svc := NewLocationService(repo, &mockItemRepo{}, shareChecker, &mockShareDeleter{})
 
 	got, err := svc.GetByID(t.Context(), "caller-1", "child-1")
 	require.NoError(t, err)
@@ -400,7 +400,7 @@ func TestLocationServiceGetByIDShouldReturnLocationWhenCallerIsOwner(t *testing.
 	loc.Label = "Closet"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.GetByID(t.Context(), "owner-1", "loc-1")
 	require.NoError(t, err)
@@ -410,7 +410,7 @@ func TestLocationServiceGetByIDShouldReturnLocationWhenCallerIsOwner(t *testing.
 // ── ListByOwner ───────────────────────────────────────────────────────────────
 
 func TestLocationServiceListByOwnerShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -420,7 +420,7 @@ func TestLocationServiceListByOwnerShouldReturnErrorWhenContextIsCancelled(t *te
 
 func TestLocationServiceListByOwnerShouldReturnErrorWhenRepoListByOwnerFails(t *testing.T) {
 	repo := &mockLocationRepo{listByOwnerErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.ListByOwner(t.Context(), "owner-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -436,7 +436,7 @@ func TestLocationServiceListByOwnerShouldReturnOnlyCallerLocations(t *testing.T)
 	loc3.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc1, loc2, loc3}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.ListByOwner(t.Context(), "owner-1")
 	require.NoError(t, err)
@@ -446,7 +446,7 @@ func TestLocationServiceListByOwnerShouldReturnOnlyCallerLocations(t *testing.T)
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -456,14 +456,14 @@ func TestLocationServiceUpdateShouldReturnErrorWhenContextIsCancelled(t *testing
 
 func TestLocationServiceUpdateShouldReturnErrorWhenStoreGetFails(t *testing.T) {
 	repo := &mockLocationRepo{getErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestLocationServiceUpdateShouldReturnErrNotFoundWhenLocationDoesNotExist(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -475,7 +475,7 @@ func TestLocationServiceUpdateShouldReturnErrForbiddenWhenCallerIsNotOwner(t *te
 	loc.OwnerID = "owner-2"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -487,7 +487,7 @@ func TestLocationServiceUpdateShouldReturnErrorWhenStoreSaveFails(t *testing.T) 
 	loc.OwnerID = "owner-1"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}, saveErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -500,7 +500,7 @@ func TestLocationServiceUpdateShouldReturnUpdatedLocationWhenCallerIsOwner(t *te
 	loc.Label = "Old Label"
 
 	repo := &mockLocationRepo{locations: []domain.Location{loc}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	got, err := svc.Update(t.Context(), "owner-1", "loc-1", "New Label")
 	require.NoError(t, err)
@@ -513,7 +513,7 @@ func TestLocationServiceUpdateShouldReturnUpdatedLocationWhenCallerIsOwner(t *te
 // ── Create ────────────────────────────────────────────────────────────────────
 
 func TestLocationServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -524,7 +524,7 @@ func TestLocationServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing
 func TestLocationServiceCreateShouldReturnErrorWhenParentStoreGetFails(t *testing.T) {
 	parentID := "parent-1"
 	repo := &mockLocationRepo{getErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Create(t.Context(), "owner-1", "Shelf", &parentID)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -532,7 +532,7 @@ func TestLocationServiceCreateShouldReturnErrorWhenParentStoreGetFails(t *testin
 
 func TestLocationServiceCreateShouldReturnErrNotFoundWhenParentDoesNotExist(t *testing.T) {
 	parentID := "parent-1"
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Create(t.Context(), "owner-1", "Shelf", &parentID)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -545,7 +545,7 @@ func TestLocationServiceCreateShouldReturnErrForbiddenWhenParentBelongsToDiffere
 
 	parentID := "parent-1"
 	repo := &mockLocationRepo{locations: []domain.Location{parent}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Create(t.Context(), "owner-1", "Shelf", &parentID)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -553,7 +553,7 @@ func TestLocationServiceCreateShouldReturnErrForbiddenWhenParentBelongsToDiffere
 
 func TestLocationServiceCreateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	repo := &mockLocationRepo{saveErr: domain.ErrIO}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	_, err := svc.Create(t.Context(), "owner-1", "Closet", nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -561,7 +561,7 @@ func TestLocationServiceCreateShouldReturnErrorWhenStoreSaveFails(t *testing.T) 
 
 func TestLocationServiceCreateShouldCreateRootLocationWhenParentIDIsNil(t *testing.T) {
 	repo := &mockLocationRepo{}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	loc, err := svc.Create(t.Context(), "owner-1", "Closet", nil)
 	require.NoError(t, err)
@@ -581,7 +581,7 @@ func TestLocationServiceCreateShouldCreateChildLocationWhenParentExists(t *testi
 
 	parentID := "parent-1"
 	repo := &mockLocationRepo{locations: []domain.Location{parent}}
-	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 
 	loc, err := svc.Create(t.Context(), "owner-1", "Shelf", &parentID)
 	require.NoError(t, err)
@@ -598,7 +598,7 @@ func TestLocationServiceCreateShouldCreateChildLocationWhenParentExists(t *testi
 
 func TestLocationServiceShouldSucceedWhenRunningFullCreateUpdateListMoveDeleteCycle(t *testing.T) {
 	locRepo := &mockLocationRepo{}
-	svc := NewLocationService(locRepo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewLocationService(locRepo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockShareDeleter{})
 	ctx := t.Context()
 
 	// Create root location.
