@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,11 +16,12 @@ type OutfitLogService struct {
 	outfits    ports.OutfitRepository
 	outfitLogs ports.OutfitLogRepository
 	transactor ports.OutfitLogTransactor
+	shares     shareAccessChecker
 }
 
 // NewOutfitLogService constructs an OutfitLogService backed by the given dependencies.
-func NewOutfitLogService(outfits ports.OutfitRepository, outfitLogs ports.OutfitLogRepository, transactor ports.OutfitLogTransactor) *OutfitLogService {
-	return &OutfitLogService{outfits: outfits, outfitLogs: outfitLogs, transactor: transactor}
+func NewOutfitLogService(outfits ports.OutfitRepository, outfitLogs ports.OutfitLogRepository, transactor ports.OutfitLogTransactor, shares shareAccessChecker) *OutfitLogService {
+	return &OutfitLogService{outfits: outfits, outfitLogs: outfitLogs, transactor: transactor, shares: shares}
 }
 
 // LogWear validates outfit ownership and date, then atomically creates the outfit log and wear logs.
@@ -73,15 +75,32 @@ func (s *OutfitLogService) getOwnedOutfit(ctx context.Context, callerID, outfitI
 	return outfit, nil
 }
 
-// ListByOutfit returns all outfit logs for outfitID, verifying caller owns the outfit.
+// ListByOutfit returns all outfit logs for outfitID, verifying caller owns or has shared access to the outfit.
 func (s *OutfitLogService) ListByOutfit(ctx context.Context, callerID, outfitID string) ([]domain.OutfitLog, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if _, err := s.getOwnedOutfit(ctx, callerID, outfitID); err != nil {
-		return nil, err
+	_, err := s.getOwnedOutfit(ctx, callerID, outfitID)
+	if err != nil {
+		if !errors.Is(err, domain.ErrForbidden) {
+			return nil, err
+		}
+		if err := s.checkSharedOutfitAccess(ctx, callerID, outfitID); err != nil {
+			return nil, err
+		}
 	}
 	return s.outfitLogs.ListByOutfit(ctx, outfitID)
+}
+
+func (s *OutfitLogService) checkSharedOutfitAccess(ctx context.Context, callerID, outfitID string) error {
+	ok, err := s.shares.HasReadAccess(ctx, callerID, domain.ShareTargetOutfit, outfitID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
 // ListByDateRange returns all outfit logs for callerID within [from, to].

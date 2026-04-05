@@ -51,7 +51,7 @@ type categoryGetter interface {
 	GetByID(ctx context.Context, id string) (domain.Category, error)
 }
 
-// shareAccessChecker is a narrow interface used by ItemService to check whether
+// shareAccessChecker is a narrow interface used by service types to check whether
 // a caller has shared read access to an entity they do not own.
 type shareAccessChecker interface {
 	HasReadAccess(ctx context.Context, callerID string, targetType domain.ShareTargetType, targetID string) (bool, error)
