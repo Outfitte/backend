@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/outfitte/backend/internal/domain"
@@ -79,12 +78,10 @@ func TestUserListHandlerShouldReturn200WithUsersWhenUsersExist(t *testing.T) {
 	u1.ID = "user-1"
 	u1.Email = "alice@example.com"
 	u1.Role = domain.RoleAdmin
-	u1.CreatedAt = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	u2.ID = "user-2"
 	u2.Email = "bob@example.com"
 	u2.Role = domain.RoleMember
-	u2.CreatedAt = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
 
 	lister := &fakeUserLister{
 		listFn: func(_ context.Context) ([]domain.User, error) {
@@ -104,11 +101,11 @@ func TestUserListHandlerShouldReturn200WithUsersWhenUsersExist(t *testing.T) {
 
 	require.Equal(t, "user-1", body[0]["id"])
 	require.Equal(t, "alice@example.com", body[0]["email"])
-	require.Equal(t, "admin", body[0]["role"])
-	require.Equal(t, "2024-01-01T00:00:00Z", body[0]["created_at"])
+	require.Nil(t, body[0]["role"])
+	require.Nil(t, body[0]["created_at"])
 
 	require.Equal(t, "user-2", body[1]["id"])
 	require.Equal(t, "bob@example.com", body[1]["email"])
-	require.Equal(t, "member", body[1]["role"])
-	require.Equal(t, "2024-02-01T00:00:00Z", body[1]["created_at"])
+	require.Nil(t, body[1]["role"])
+	require.Nil(t, body[1]["created_at"])
 }

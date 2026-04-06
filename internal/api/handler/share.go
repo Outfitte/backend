@@ -114,11 +114,6 @@ func (h *ShareHandler) Create(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type userSummaryResponse struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
-}
-
 type shareViewResponse struct {
 	ID         string                 `json:"id"`
 	Recipient  userSummaryResponse    `json:"recipient"`

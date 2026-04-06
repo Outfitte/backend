@@ -12,6 +12,12 @@ type userLister interface {
 	List(ctx context.Context) ([]domain.User, error)
 }
 
+// userSummaryResponse is the minimal user representation used for share recipient selection.
+type userSummaryResponse struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
 // UserHandler handles user-related endpoints.
 type UserHandler struct {
 	users userLister
@@ -29,6 +35,11 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	log := h.log.With("call", "List")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	users, err := h.users.List(ctx)
 	if err != nil {
 		log.ErrorContext(ctx, "list failed", "error", err)
@@ -36,13 +47,11 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]userResponse, len(users))
+	resp := make([]userSummaryResponse, len(users))
 	for i, u := range users {
-		resp[i] = userResponse{
-			ID:        u.GetID(),
-			Email:     u.Email,
-			Role:      string(u.Role),
-			CreatedAt: u.CreatedAt,
+		resp[i] = userSummaryResponse{
+			ID:    u.GetID(),
+			Email: u.Email,
 		}
 	}
 
