@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: Outfitte API
-  version: "4"
+  version: "5"
   description: |
     REST API for Outfitte — a self-hosted wardrobe management application.
-    Current milestone: M4 (Seller URL & Price Tracking).
+    Current milestone: M5 (Granular Sharing).
 
 servers:
   - url: http://localhost:8080
@@ -259,6 +259,105 @@ components:
       properties:
         registration_enabled:
           type: boolean
+
+    UserSummary:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+
+    Share:
+      type: object
+      required: [id, recipient_id, target_type, target_id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+          format: uuid
+        target_type:
+          type: string
+          enum: [item, outfit, location]
+        target_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    ShareView:
+      type: object
+      required: [id, recipient, target_type, target_id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipient:
+          $ref: '#/components/schemas/UserSummary'
+        target_type:
+          type: string
+          enum: [item, outfit, location]
+        target_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    SharedItem:
+      allOf:
+        - $ref: '#/components/schemas/Item'
+        - type: object
+          required: [shared_by]
+          properties:
+            shared_by:
+              $ref: '#/components/schemas/UserSummary'
+
+    SharedOutfit:
+      allOf:
+        - $ref: '#/components/schemas/Outfit'
+        - type: object
+          required: [shared_by]
+          properties:
+            shared_by:
+              $ref: '#/components/schemas/UserSummary'
+
+    SharedLocation:
+      type: object
+      required: [location, items, shared_by]
+      properties:
+        location:
+          $ref: '#/components/schemas/Location'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+          description: Items in the shared location (location inheritance — items inherit access from their location)
+        shared_by:
+          $ref: '#/components/schemas/UserSummary'
+
+    SharedWithMeResult:
+      type: object
+      required: [items, outfits, locations]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedItem'
+        outfits:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedOutfit'
+        locations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedLocation'
 
   responses:
     BadRequest:
@@ -1671,6 +1770,137 @@ paths:
         "401":
           $ref: '#/components/responses/Unauthorized'
 
+  /users:
+    get:
+      tags: [users]
+      summary: List all users
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /shares:
+    post:
+      tags: [shares]
+      summary: Create a share
+      operationId: createShare
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipient_id, target_type, target_id]
+              properties:
+                recipient_id:
+                  type: string
+                  format: uuid
+                target_type:
+                  type: string
+                  enum: [item, outfit, location]
+                target_id:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Share created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Share'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Share already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Cannot share with yourself
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags: [shares]
+      summary: List outgoing shares
+      operationId: listShares
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of shares created by the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShareView'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /shares/with-me:
+    get:
+      tags: [shares]
+      summary: List entities shared with me
+      operationId: listSharedWithMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All entities shared with the caller, grouped by type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedWithMeResult'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /shares/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      tags: [shares]
+      summary: Revoke a share
+      operationId: revokeShare
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Share revoked
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+
   /admin/settings:
     get:
       tags: [admin]
@@ -1741,3 +1971,7 @@ tags:
     description: Outfit wear events
   - name: media
     description: Media file download
+  - name: users
+    description: User listing (for share recipient selection)
+  - name: shares
+    description: Granular sharing of items, outfits, and locations
