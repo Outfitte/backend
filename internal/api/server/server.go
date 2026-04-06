@@ -45,6 +45,7 @@ func New(
 	outfitHandler := handler.NewOutfitHandler(outfitSvc, logger)
 	outfitLogHandler := handler.NewOutfitLogHandler(outfitLogSvc, logger)
 	userHandler := handler.NewUserHandler(userSvc, logger)
+	shareHandler := handler.NewShareHandler(shareSvc, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
@@ -102,6 +103,11 @@ func New(
 	mux.Handle("DELETE /outfits/{id}/photos/{key...}", auth(http.HandlerFunc(outfitHandler.DeletePhoto)))
 
 	mux.Handle("GET /users", auth(http.HandlerFunc(userHandler.List)))
+
+	mux.Handle("POST /shares", auth(http.HandlerFunc(shareHandler.Create)))
+	mux.Handle("GET /shares", auth(http.HandlerFunc(shareHandler.ListOutgoing)))
+	mux.Handle("GET /shares/with-me", auth(http.HandlerFunc(shareHandler.ListSharedWithMe)))
+	mux.Handle("DELETE /shares/{id}", auth(http.HandlerFunc(shareHandler.Revoke)))
 
 	mux.Handle("GET /admin/settings", admin(http.HandlerFunc(settingsHandler.GetSettings)))
 	mux.Handle("PATCH /admin/settings", admin(http.HandlerFunc(settingsHandler.UpdateSettings)))
