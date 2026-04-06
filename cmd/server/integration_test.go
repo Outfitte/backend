@@ -1158,6 +1158,78 @@ func TestIntegrationOutfitPatchClearsNotes(t *testing.T) {
 	assert.Nil(t, outfit.Notes)
 }
 
+// registerUserFull registers a user and returns (accessToken, refreshToken, userID).
+func registerUserFull(t *testing.T, srv *httptest.Server, username, password string) (accessToken, refreshToken, userID string) {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodPost, "/auth/register", map[string]string{
+		"username": username,
+		"password": password,
+	}, "")
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var result struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		User         struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	decodeJSON(t, resp, &result)
+	require.NotEmpty(t, result.AccessToken)
+	require.NotEmpty(t, result.User.ID)
+	return result.AccessToken, result.RefreshToken, result.User.ID
+}
+
+func createOutfit(t *testing.T, srv *httptest.Server, token, name string) string {
+	t.Helper()
+	body := map[string]any{}
+	if name != "" {
+		body["name"] = name
+	}
+	resp := doJSON(t, srv, http.MethodPost, "/outfits", body, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var result struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &result)
+	require.NotEmpty(t, result.ID)
+	return result.ID
+}
+
+func createLocationWithParent(t *testing.T, srv *httptest.Server, token, label, parentID string) string {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodPost, "/locations", map[string]any{
+		"label":     label,
+		"parent_id": parentID,
+	}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var result struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &result)
+	require.NotEmpty(t, result.ID)
+	return result.ID
+}
+
+func createShare(t *testing.T, srv *httptest.Server, token, recipientID, targetType, targetID string) string {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+		"recipient_id": recipientID,
+		"target_type":  targetType,
+		"target_id":    targetID,
+	}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var result struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &result)
+	require.NotEmpty(t, result.ID)
+	return result.ID
+}
+
+func TestIntegrationSharingLifecycleShouldGrantRevokeAndEnforceAccess(t *testing.T) {
+	t.Fatal("not implemented")
+}
+
 func TestIntegrationCrossUserOutfitAccessForbidden(t *testing.T) {
 	srv := startIntegrationServer(t)
 	tokenA, _ := registerUser(t, srv, "outfit-forbid-alice", "password-alice-secure")
