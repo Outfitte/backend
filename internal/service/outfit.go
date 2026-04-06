@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,17 +32,11 @@ type OutfitService struct {
 	media      ports.MediaProvider
 	outfitLogs ports.OutfitLogRepository
 	shares     shareAccessChecker
-	log        *slog.Logger
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
-// An optional logger may be provided; if omitted, slog.Default() is used.
-func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker, log ...*slog.Logger) *OutfitService {
-	l := slog.Default()
-	if len(log) > 0 && log[0] != nil {
-		l = log[0]
-	}
-	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares, log: l}
+func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker) *OutfitService {
+	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares}
 }
 
 func (s *OutfitService) Create(ctx context.Context, callerID string, input CreateOutfitInput) (domain.Outfit, error) {
@@ -128,12 +121,7 @@ func (s *OutfitService) Delete(ctx context.Context, callerID, outfitID string) e
 	if err := s.outfits.Delete(ctx, outfitID); err != nil {
 		return err
 	}
-	s.cleanUpShares(ctx, domain.ShareTargetOutfit, outfitID)
-	return nil
-}
-
-func (s *OutfitService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
-	cleanUpShares(ctx, s.log, s.shares, targetType, targetID)
+	return cleanUpShares(ctx, s.shares, domain.ShareTargetOutfit, outfitID)
 }
 
 func (s *OutfitService) AddItem(ctx context.Context, callerID, outfitID, itemID string) error {

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"io"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -253,13 +252,6 @@ func (m *mockShareAccessChecker) DeleteByTarget(_ context.Context, targetType do
 
 // ── NewItemService ────────────────────────────────────────────────────────────
 
-func TestNewItemServiceShouldUseProvidedLoggerWhenGiven(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, log)
-	items, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
-	require.NoError(t, err)
-	require.Empty(t, items)
-}
 
 // ── AssignLocation ────────────────────────────────────────────────────────────
 
@@ -1488,7 +1480,7 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 	require.Empty(t, repo.items)
 }
 
-func TestItemServiceDeleteShouldNotFailWhenShareCleanupFails(t *testing.T) {
+func TestItemServiceDeleteShouldReturnErrorWhenShareCleanupFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
@@ -1498,7 +1490,7 @@ func TestItemServiceDeleteShouldNotFailWhenShareCleanupFails(t *testing.T) {
 	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shares)
 
 	err := svc.Delete(t.Context(), "owner-1", "item-1")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestItemServiceDeleteShouldCleanUpSharesAfterDeletingItemWhenSuccessful(t *testing.T) {

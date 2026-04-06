@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -67,17 +66,11 @@ type ItemService struct {
 	media      ports.MediaProvider
 	categories categoryGetter
 	shares     shareAccessChecker
-	log        *slog.Logger
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-// An optional logger may be provided; if omitted, slog.Default() is used.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker, log ...*slog.Logger) *ItemService {
-	l := slog.Default()
-	if len(log) > 0 && log[0] != nil {
-		l = log[0]
-	}
-	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares, log: l}
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -404,12 +397,7 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 	if err := s.items.Delete(ctx, itemID); err != nil {
 		return err
 	}
-	s.cleanUpShares(ctx, domain.ShareTargetItem, itemID)
-	return nil
-}
-
-func (s *ItemService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
-	cleanUpShares(ctx, s.log, s.shares, targetType, targetID)
+	return cleanUpShares(ctx, s.shares, domain.ShareTargetItem, itemID)
 }
 
 func (s *ItemService) Archive(ctx context.Context, callerID, itemID string) error {

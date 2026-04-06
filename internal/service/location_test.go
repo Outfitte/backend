@@ -2,23 +2,11 @@ package service
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 )
-
-// ── NewLocationService ────────────────────────────────────────────────────────
-
-func TestNewLocationServiceShouldUseProvidedLoggerWhenGiven(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, log)
-	locs, err := svc.ListByOwner(t.Context(), "owner-1")
-	require.NoError(t, err)
-	require.Empty(t, locs)
-}
 
 // ── Move ──────────────────────────────────────────────────────────────────────
 
@@ -315,7 +303,7 @@ func TestLocationServiceDeleteShouldDeleteLocationWhenCallerIsOwnerAndNoConflict
 	require.Empty(t, repo.locations)
 }
 
-func TestLocationServiceDeleteShouldNotFailWhenShareCleanupFails(t *testing.T) {
+func TestLocationServiceDeleteShouldReturnErrorWhenShareCleanupFails(t *testing.T) {
 	var loc domain.Location
 	loc.ID = "loc-1"
 	loc.OwnerID = "owner-1"
@@ -325,7 +313,7 @@ func TestLocationServiceDeleteShouldNotFailWhenShareCleanupFails(t *testing.T) {
 	svc := NewLocationService(repo, &mockItemRepo{}, shares)
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestLocationServiceDeleteShouldCleanUpSharesAfterDeletingLocationWhenSuccessful(t *testing.T) {

@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -149,14 +147,6 @@ func newOutfitSvc(outfits *mockOutfitRepo, items *mockItemRepo, media *mockMedia
 }
 
 // ── NewOutfitService ──────────────────────────────────────────────────────────
-
-func TestNewOutfitServiceShouldUseProvidedLoggerWhenGiven(t *testing.T) {
-	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := NewOutfitService(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, log)
-	outfits, err := svc.ListByOwner(t.Context(), "owner-1")
-	require.NoError(t, err)
-	require.Empty(t, outfits)
-}
 
 func outfitWithOwner(id, ownerID string) domain.Outfit {
 	var o domain.Outfit
@@ -420,14 +410,14 @@ func TestDeleteShouldDeleteMediaAndOutfitWhenSuccessful(t *testing.T) {
 	require.Empty(t, repo.outfits)
 }
 
-func TestOutfitServiceDeleteShouldNotFailWhenShareCleanupFails(t *testing.T) {
+func TestOutfitServiceDeleteShouldReturnErrorWhenShareCleanupFails(t *testing.T) {
 	outfit := outfitWithOwner("o1", "user1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	shares := &mockShareAccessChecker{deleteByTargetErr: domain.ErrIO}
 	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares)
 
 	err := svc.Delete(t.Context(), "user1", "o1")
-	require.NoError(t, err)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestOutfitServiceDeleteShouldCleanUpSharesAfterDeletingOutfitWhenSuccessful(t *testing.T) {

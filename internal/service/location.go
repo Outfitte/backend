@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,17 +16,11 @@ type LocationService struct {
 	locations ports.LocationRepository
 	items     ports.ItemRepository
 	shares    shareAccessChecker
-	log       *slog.Logger
 }
 
 // NewLocationService constructs a LocationService backed by the given repositories.
-// An optional logger may be provided; if omitted, slog.Default() is used.
-func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker, log ...*slog.Logger) *LocationService {
-	l := slog.Default()
-	if len(log) > 0 && log[0] != nil {
-		l = log[0]
-	}
-	return &LocationService{locations: locations, items: items, shares: shares, log: l}
+func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker) *LocationService {
+	return &LocationService{locations: locations, items: items, shares: shares}
 }
 
 func (s *LocationService) getOwnedLocation(ctx context.Context, callerID, locationID string) (domain.Location, error) {
@@ -124,12 +117,7 @@ func (s *LocationService) Delete(ctx context.Context, callerID, locationID strin
 	if err := s.locations.Delete(ctx, locationID); err != nil {
 		return err
 	}
-	s.cleanUpShares(ctx, domain.ShareTargetLocation, locationID)
-	return nil
-}
-
-func (s *LocationService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
-	cleanUpShares(ctx, s.log, s.shares, targetType, targetID)
+	return cleanUpShares(ctx, s.shares, domain.ShareTargetLocation, locationID)
 }
 
 func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID string) error {
