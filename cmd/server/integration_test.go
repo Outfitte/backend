@@ -1158,6 +1158,322 @@ func TestIntegrationOutfitPatchClearsNotes(t *testing.T) {
 	assert.Nil(t, outfit.Notes)
 }
 
+// createOutfit creates an outfit and returns its ID.
+func createOutfit(t *testing.T, srv *httptest.Server, token string) string {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var result struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &result)
+	require.NotEmpty(t, result.ID)
+	return result.ID
+}
+
+// createShare creates a share and returns its ID.
+func createShare(t *testing.T, srv *httptest.Server, token, recipientID, targetType, targetID string) string {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+		"recipient_id": recipientID,
+		"target_type":  targetType,
+		"target_id":    targetID,
+	}, token)
+	require.Equal(t, http.StatusCreated, resp.StatusCode)
+	var result struct {
+		ID string `json:"id"`
+	}
+	decodeJSON(t, resp, &result)
+	require.NotEmpty(t, result.ID)
+	return result.ID
+}
+
+// getUserID registers a user and returns their ID by decoding the register response.
+func getUserID(t *testing.T, srv *httptest.Server, token string) string {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodGet, "/users", nil, token)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var users []struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	}
+	decodeJSON(t, resp, &users)
+	require.NotEmpty(t, users)
+	return users[len(users)-1].ID
+}
+
+func TestIntegrationSharingLifecycle(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	// Step 1: Register two users. User A is admin (first registrant), User B is member.
+	tokenA, _ := registerUser(t, srv, "share-alice", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "share-bob", "password-bob-secure")
+
+	// Resolve User IDs via GET /users (as User B to verify the endpoint works).
+	listUsersResp := doJSON(t, srv, http.MethodGet, "/users", nil, tokenB)
+	require.Equal(t, http.StatusOK, listUsersResp.StatusCode)
+	var allUsers []struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	}
+	decodeJSON(t, listUsersResp, &allUsers)
+
+	// Step 3: User B calls GET /users — both users are listed.
+	require.Len(t, allUsers, 2)
+	var userAID, userBID string
+	for _, u := range allUsers {
+		if u.Email == "share-alice" {
+			userAID = u.ID
+		} else if u.Email == "share-bob" {
+			userBID = u.ID
+		}
+	}
+	require.NotEmpty(t, userAID, "User A ID not found in users list")
+	require.NotEmpty(t, userBID, "User B ID not found in users list")
+
+	// Step 2: User A creates an item, an outfit, and a location with items assigned.
+	parentLocID := createLocation(t, srv, tokenA, "Wardrobe")
+	childLocID := createLocation(t, srv, tokenA, "Wardrobe Shelf")
+	// Assign child to parent.
+	assignResp := doJSON(t, srv, http.MethodPatch, "/locations/"+childLocID+"/move",
+		map[string]any{"parent_id": parentLocID}, tokenA)
+	require.Equal(t, http.StatusOK, assignResp.StatusCode)
+
+	// Items: one in the parent location, one in the child location.
+	itemID := createItem(t, srv, tokenA, "Blue Jacket", &parentLocID)
+	childItemID := createItem(t, srv, tokenA, "Scarf", &childLocID)
+	outfitID := createOutfit(t, srv, tokenA)
+
+	// User A logs a wear entry for the item.
+	wearLogResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
+		map[string]any{"worn_on": "2026-03-01"}, tokenA)
+	require.Equal(t, http.StatusCreated, wearLogResp.StatusCode)
+
+	// User A logs a wear entry for the outfit.
+	outfitLogResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
+		map[string]any{"worn_on": "2026-03-05"}, tokenA)
+	require.Equal(t, http.StatusCreated, outfitLogResp.StatusCode)
+
+	// Step 4: User B cannot access User A's item — 403.
+	forbidItemResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenB)
+	require.Equal(t, http.StatusForbidden, forbidItemResp.StatusCode)
+
+	// Step 5: User A shares the item with User B.
+	itemShareID := createShare(t, srv, tokenA, userBID, "item", itemID)
+
+	// Step 6: User B can now access User A's item — 200.
+	getItemResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenB)
+	require.Equal(t, http.StatusOK, getItemResp.StatusCode)
+
+	// Step 7: User B can view wear logs for the shared item.
+	wearLogs := getItemWearLogs(t, srv, tokenB, itemID)
+	require.Len(t, wearLogs, 1)
+	assert.Equal(t, "2026-03-01", wearLogs[0].WornOn)
+
+	// Step 8: User B cannot update the shared item — 403.
+	updateItemResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
+		map[string]any{"name": "Red Jacket"}, tokenB)
+	assert.Equal(t, http.StatusForbidden, updateItemResp.StatusCode)
+
+	// Step 9: User B cannot delete the shared item — 403.
+	deleteItemResp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID, nil, tokenB)
+	assert.Equal(t, http.StatusForbidden, deleteItemResp.StatusCode)
+
+	// Step 10: User B calls GET /shares/with-me — the item appears with shared_by populated.
+	sharedWithMeResp := doJSON(t, srv, http.MethodGet, "/shares/with-me", nil, tokenB)
+	require.Equal(t, http.StatusOK, sharedWithMeResp.StatusCode)
+	var sharedWithMe struct {
+		Items []struct {
+			ID       string `json:"id"`
+			SharedBy struct {
+				ID string `json:"id"`
+			} `json:"shared_by"`
+		} `json:"items"`
+		Outfits   []any `json:"outfits"`
+		Locations []any `json:"locations"`
+	}
+	decodeJSON(t, sharedWithMeResp, &sharedWithMe)
+	require.Len(t, sharedWithMe.Items, 1)
+	assert.Equal(t, itemID, sharedWithMe.Items[0].ID)
+	assert.Equal(t, userAID, sharedWithMe.Items[0].SharedBy.ID)
+
+	// Step 11: User A shares the outfit with User B.
+	createShare(t, srv, tokenA, userBID, "outfit", outfitID)
+
+	// Step 12: User B can access the outfit and its logs.
+	getOutfitResp := doJSON(t, srv, http.MethodGet, "/outfits/"+outfitID, nil, tokenB)
+	require.Equal(t, http.StatusOK, getOutfitResp.StatusCode)
+
+	outfitLogsResp := doJSON(t, srv, http.MethodGet, "/outfits/"+outfitID+"/logs", nil, tokenB)
+	require.Equal(t, http.StatusOK, outfitLogsResp.StatusCode)
+	var outfitLogs []struct {
+		ID     string `json:"id"`
+		WornOn string `json:"worn_on"`
+	}
+	decodeJSON(t, outfitLogsResp, &outfitLogs)
+	require.Len(t, outfitLogs, 1)
+	assert.Equal(t, "2026-03-05", outfitLogs[0].WornOn)
+
+	// Step 13: User A shares the parent location with User B.
+	createShare(t, srv, tokenA, userBID, "location", parentLocID)
+
+	// Step 14: User B can access the location and all items assigned to it.
+	getLocResp := doJSON(t, srv, http.MethodGet, "/locations/"+parentLocID, nil, tokenB)
+	require.Equal(t, http.StatusOK, getLocResp.StatusCode)
+
+	// The item in the parent location is accessible via the location share.
+	// (Already accessible via item share, but verifying location path works.)
+	getItemViaLocResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenB)
+	assert.Equal(t, http.StatusOK, getItemViaLocResp.StatusCode)
+
+	// Step 15: User B can access a child location (inherited access) and its items.
+	getChildLocResp := doJSON(t, srv, http.MethodGet, "/locations/"+childLocID, nil, tokenB)
+	assert.Equal(t, http.StatusOK, getChildLocResp.StatusCode)
+
+	getChildItemResp := doJSON(t, srv, http.MethodGet, "/items/"+childItemID, nil, tokenB)
+	assert.Equal(t, http.StatusOK, getChildItemResp.StatusCode)
+
+	// Step 16: User A revokes the item share — User B can no longer access it directly.
+	// (User B still has access via location share, so revoke location share first to test item-only access.)
+	// Revoke only the item share to verify that access falls through to location share.
+	revokeItemShareResp := doJSON(t, srv, http.MethodDelete, "/shares/"+itemShareID, nil, tokenA)
+	require.Equal(t, http.StatusNoContent, revokeItemShareResp.StatusCode)
+
+	// Item is still accessible via location share.
+	getItemAfterRevokeResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenB)
+	assert.Equal(t, http.StatusOK, getItemAfterRevokeResp.StatusCode)
+
+	// Now revoke the location share — item should no longer be accessible.
+	locShares := listOutgoingShares(t, srv, tokenA)
+	var locShareID string
+	for _, s := range locShares {
+		if s.TargetID == parentLocID {
+			locShareID = s.ID
+			break
+		}
+	}
+	require.NotEmpty(t, locShareID)
+
+	revokeLocShareResp := doJSON(t, srv, http.MethodDelete, "/shares/"+locShareID, nil, tokenA)
+	require.Equal(t, http.StatusNoContent, revokeLocShareResp.StatusCode)
+
+	// Now User B cannot access the item.
+	getItemGoneResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenB)
+	assert.Equal(t, http.StatusForbidden, getItemGoneResp.StatusCode)
+
+	// Step 17: User A deletes the shared outfit — shares are cleaned up (no orphaned shares).
+	deleteOutfitResp := doJSON(t, srv, http.MethodDelete, "/outfits/"+outfitID, nil, tokenA)
+	require.Equal(t, http.StatusNoContent, deleteOutfitResp.StatusCode)
+
+	// Outfit no longer appears in shared-with-me.
+	sharedAfterDeleteResp := doJSON(t, srv, http.MethodGet, "/shares/with-me", nil, tokenB)
+	require.Equal(t, http.StatusOK, sharedAfterDeleteResp.StatusCode)
+	var sharedAfterDelete struct {
+		Outfits []any `json:"outfits"`
+	}
+	decodeJSON(t, sharedAfterDeleteResp, &sharedAfterDelete)
+	assert.Empty(t, sharedAfterDelete.Outfits)
+
+	// Step 18: User A lists outgoing shares — sees remaining shares (none, all revoked/deleted).
+	remainingShares := listOutgoingShares(t, srv, tokenA)
+	assert.Empty(t, remainingShares)
+}
+
+// outgoingShareEntry is used to decode entries from GET /shares.
+type outgoingShareEntry struct {
+	ID         string `json:"id"`
+	TargetType string `json:"target_type"`
+	TargetID   string `json:"target_id"`
+}
+
+// listOutgoingShares calls GET /shares and returns the decoded list.
+func listOutgoingShares(t *testing.T, srv *httptest.Server, token string) []outgoingShareEntry {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodGet, "/shares", nil, token)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var shares []outgoingShareEntry
+	decodeJSON(t, resp, &shares)
+	return shares
+}
+
+func TestIntegrationShareEdgeCases(t *testing.T) {
+	srv := startIntegrationServer(t)
+
+	tokenA, _ := registerUser(t, srv, "share-edge-alice", "password-alice-secure")
+	enableRegistration(t, srv, tokenA)
+	tokenB, _ := registerUser(t, srv, "share-edge-bob", "password-bob-secure")
+
+	// Resolve User B's ID.
+	users := listUsersAs(t, srv, tokenA)
+	var userAID, userBID string
+	for _, u := range users {
+		if u.Email == "share-edge-alice" {
+			userAID = u.ID
+		} else if u.Email == "share-edge-bob" {
+			userBID = u.ID
+		}
+	}
+	require.NotEmpty(t, userAID)
+	require.NotEmpty(t, userBID)
+
+	itemID := createItem(t, srv, tokenA, "Vintage Hat", nil)
+
+	// Step 19: Duplicate share creation returns 409.
+	createShare(t, srv, tokenA, userBID, "item", itemID)
+	dupResp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+		"recipient_id": userBID,
+		"target_type":  "item",
+		"target_id":    itemID,
+	}, tokenA)
+	assert.Equal(t, http.StatusConflict, dupResp.StatusCode)
+
+	// Step 20: Self-share returns 422.
+	selfResp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+		"recipient_id": userAID,
+		"target_type":  "item",
+		"target_id":    itemID,
+	}, tokenA)
+	assert.Equal(t, http.StatusUnprocessableEntity, selfResp.StatusCode)
+
+	// Step 21: Share with non-existent recipient returns 404.
+	nonExistentUserResp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+		"recipient_id": "00000000-0000-0000-0000-000000000000",
+		"target_type":  "item",
+		"target_id":    itemID,
+	}, tokenA)
+	assert.Equal(t, http.StatusNotFound, nonExistentUserResp.StatusCode)
+
+	// Step 22: Share with non-existent target returns 404.
+	nonExistentTargetResp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+		"recipient_id": userBID,
+		"target_type":  "item",
+		"target_id":    "00000000-0000-0000-0000-000000000000",
+	}, tokenA)
+	assert.Equal(t, http.StatusNotFound, nonExistentTargetResp.StatusCode)
+
+	// Step 23: Non-owner cannot revoke a share — returns 403.
+	shares := listOutgoingShares(t, srv, tokenA)
+	require.NotEmpty(t, shares)
+	shareID := shares[0].ID
+	revokeResp := doJSON(t, srv, http.MethodDelete, "/shares/"+shareID, nil, tokenB)
+	assert.Equal(t, http.StatusForbidden, revokeResp.StatusCode)
+}
+
+type userEntry struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+func listUsersAs(t *testing.T, srv *httptest.Server, token string) []userEntry {
+	t.Helper()
+	resp := doJSON(t, srv, http.MethodGet, "/users", nil, token)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var users []userEntry
+	decodeJSON(t, resp, &users)
+	return users
+}
+
 func TestIntegrationCrossUserOutfitAccessForbidden(t *testing.T) {
 	srv := startIntegrationServer(t)
 	tokenA, _ := registerUser(t, srv, "outfit-forbid-alice", "password-alice-secure")
