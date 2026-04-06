@@ -39,6 +39,26 @@ func getUsers(t *testing.T, h *handler.UserHandler) *httptest.ResponseRecorder {
 
 // --- tests ---
 
+func TestUserListHandlerShouldReturn503WhenContextCancelled(t *testing.T) {
+	lister := &fakeUserLister{
+		listFn: func(_ context.Context) ([]domain.User, error) {
+			return nil, nil
+		},
+	}
+	h := newUserHandler(lister)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/users", nil)
+	w := httptest.NewRecorder()
+	h.List(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "request cancelled", body["error"])
+}
+
 func TestUserListHandlerShouldReturn500WhenRepositoryFails(t *testing.T) {
 	lister := &fakeUserLister{
 		listFn: func(_ context.Context) ([]domain.User, error) {
