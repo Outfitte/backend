@@ -1477,6 +1477,35 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 	require.Empty(t, repo.items)
 }
 
+func TestItemServiceDeleteShouldNotFailWhenShareCleanupFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	shares := &mockShareAccessChecker{deleteByTargetErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shares)
+
+	err := svc.Delete(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+}
+
+func TestItemServiceDeleteShouldCleanUpSharesAfterDeletingItemWhenSuccessful(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	shares := &mockShareAccessChecker{}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shares)
+
+	err := svc.Delete(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Equal(t, 1, shares.deleteByTargetCalls)
+	require.Equal(t, domain.ShareTargetItem, shares.deletedTargetType)
+	require.Equal(t, "item-1", shares.deletedTargetID)
+}
+
 // ── makeItemPhotos ────────────────────────────────────────────────────────────
 
 func TestMakeItemPhotosShouldReturnEmptySliceWhenNoKeysGiven(t *testing.T) {

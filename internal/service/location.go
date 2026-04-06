@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,7 +115,17 @@ func (s *LocationService) Delete(ctx context.Context, callerID, locationID strin
 	if err := s.checkNoAssignedItems(ctx, locationID); err != nil {
 		return err
 	}
-	return s.locations.Delete(ctx, locationID)
+	if err := s.locations.Delete(ctx, locationID); err != nil {
+		return err
+	}
+	s.cleanUpShares(ctx, domain.ShareTargetLocation, locationID)
+	return nil
+}
+
+func (s *LocationService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
+	if err := s.shares.DeleteByTarget(ctx, targetType, targetID); err != nil {
+		slog.Default().ErrorContext(ctx, "failed to clean up shares after delete", "error", err, "target_type", targetType, "target_id", targetID)
+	}
 }
 
 func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID string) error {
