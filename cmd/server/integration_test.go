@@ -1188,20 +1188,6 @@ func createShare(t *testing.T, srv *httptest.Server, token, recipientID, targetT
 	return result.ID
 }
 
-// getUserID registers a user and returns their ID by decoding the register response.
-func getUserID(t *testing.T, srv *httptest.Server, token string) string {
-	t.Helper()
-	resp := doJSON(t, srv, http.MethodGet, "/users", nil, token)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-	var users []struct {
-		ID    string `json:"id"`
-		Email string `json:"email"`
-	}
-	decodeJSON(t, resp, &users)
-	require.NotEmpty(t, users)
-	return users[len(users)-1].ID
-}
-
 func TestIntegrationSharingLifecycle(t *testing.T) {
 	srv := startIntegrationServer(t)
 
@@ -1209,28 +1195,6 @@ func TestIntegrationSharingLifecycle(t *testing.T) {
 	tokenA, _ := registerUser(t, srv, "share-alice", "password-alice-secure")
 	enableRegistration(t, srv, tokenA)
 	tokenB, _ := registerUser(t, srv, "share-bob", "password-bob-secure")
-
-	// Resolve User IDs via GET /users (as User B to verify the endpoint works).
-	listUsersResp := doJSON(t, srv, http.MethodGet, "/users", nil, tokenB)
-	require.Equal(t, http.StatusOK, listUsersResp.StatusCode)
-	var allUsers []struct {
-		ID    string `json:"id"`
-		Email string `json:"email"`
-	}
-	decodeJSON(t, listUsersResp, &allUsers)
-
-	// Step 3: User B calls GET /users — both users are listed.
-	require.Len(t, allUsers, 2)
-	var userAID, userBID string
-	for _, u := range allUsers {
-		if u.Email == "share-alice" {
-			userAID = u.ID
-		} else if u.Email == "share-bob" {
-			userBID = u.ID
-		}
-	}
-	require.NotEmpty(t, userAID, "User A ID not found in users list")
-	require.NotEmpty(t, userBID, "User B ID not found in users list")
 
 	// Step 2: User A creates an item, an outfit, and a location with items assigned.
 	parentLocID := createLocation(t, srv, tokenA, "Wardrobe")
@@ -1254,6 +1218,20 @@ func TestIntegrationSharingLifecycle(t *testing.T) {
 	outfitLogResp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
 		map[string]any{"worn_on": "2026-03-05"}, tokenA)
 	require.Equal(t, http.StatusCreated, outfitLogResp.StatusCode)
+
+	// Step 3: User B calls GET /users — both users are listed; resolve IDs for later steps.
+	allUsers := listUsersAs(t, srv, tokenB)
+	require.Len(t, allUsers, 2)
+	var userAID, userBID string
+	for _, u := range allUsers {
+		if u.Email == "share-alice" {
+			userAID = u.ID
+		} else if u.Email == "share-bob" {
+			userBID = u.ID
+		}
+	}
+	require.NotEmpty(t, userAID, "User A ID not found in users list")
+	require.NotEmpty(t, userBID, "User B ID not found in users list")
 
 	// Step 4: User B cannot access User A's item — 403.
 	forbidItemResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, tokenB)
