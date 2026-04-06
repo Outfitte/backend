@@ -232,10 +232,22 @@ func (m *mockMediaProvider) GetURL(_ context.Context, _ string) (string, error) 
 type mockShareAccessChecker struct {
 	hasAccess bool
 	err       error
+
+	deleteByTargetErr   error
+	deleteByTargetCalls int
+	deletedTargetType   domain.ShareTargetType
+	deletedTargetID     string
 }
 
 func (m *mockShareAccessChecker) HasReadAccess(_ context.Context, _ string, _ domain.ShareTargetType, _ string) (bool, error) {
 	return m.hasAccess, m.err
+}
+
+func (m *mockShareAccessChecker) DeleteByTarget(_ context.Context, targetType domain.ShareTargetType, targetID string) error {
+	m.deleteByTargetCalls++
+	m.deletedTargetType = targetType
+	m.deletedTargetID = targetID
+	return m.deleteByTargetErr
 }
 
 // ── AssignLocation ────────────────────────────────────────────────────────────

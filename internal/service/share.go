@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -303,6 +304,12 @@ func collectDescendantIDs(rootID string, allLocs []domain.Location) map[string]b
 		}
 	}
 	return ids
+}
+
+// DeleteByTarget removes all shares for the given target type and target ID.
+// Called when the target entity is deleted so orphaned shares are cleaned up.
+func (s *ShareService) DeleteByTarget(ctx context.Context, targetType domain.ShareTargetType, targetID string) error {
+	return errors.New("not implemented")
 }
 
 // Revoke deletes the share identified by shareID if callerID is the share owner.
