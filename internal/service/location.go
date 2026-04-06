@@ -114,7 +114,10 @@ func (s *LocationService) Delete(ctx context.Context, callerID, locationID strin
 	if err := s.checkNoAssignedItems(ctx, locationID); err != nil {
 		return err
 	}
-	return s.locations.Delete(ctx, locationID)
+	if err := s.locations.Delete(ctx, locationID); err != nil {
+		return err
+	}
+	return cleanUpShares(ctx, s.shares, domain.ShareTargetLocation, locationID)
 }
 
 func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID string) error {

@@ -146,6 +146,8 @@ func newOutfitSvc(outfits *mockOutfitRepo, items *mockItemRepo, media *mockMedia
 	return NewOutfitService(outfits, items, media, &mockOutfitLogRepo{}, &mockShareAccessChecker{})
 }
 
+// ── NewOutfitService ──────────────────────────────────────────────────────────
+
 func outfitWithOwner(id, ownerID string) domain.Outfit {
 	var o domain.Outfit
 	o.ID = id
@@ -406,6 +408,29 @@ func TestDeleteShouldDeleteMediaAndOutfitWhenSuccessful(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "outfits/o1/uuid/img.jpg", media.deletedKeys[0])
 	require.Empty(t, repo.outfits)
+}
+
+func TestOutfitServiceDeleteShouldReturnErrorWhenShareCleanupFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	shares := &mockShareAccessChecker{deleteByTargetErr: domain.ErrIO}
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares)
+
+	err := svc.Delete(t.Context(), "user1", "o1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestOutfitServiceDeleteShouldCleanUpSharesAfterDeletingOutfitWhenSuccessful(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	shares := &mockShareAccessChecker{}
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, shares)
+
+	err := svc.Delete(t.Context(), "user1", "o1")
+	require.NoError(t, err)
+	require.Equal(t, 1, shares.deleteByTargetCalls)
+	require.Equal(t, domain.ShareTargetOutfit, shares.deletedTargetType)
+	require.Equal(t, "o1", shares.deletedTargetID)
 }
 
 // ---- AddItem ----

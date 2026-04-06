@@ -118,7 +118,10 @@ func (s *OutfitService) Delete(ctx context.Context, callerID, outfitID string) e
 	if err := s.deleteOutfitPhotos(ctx, outfit); err != nil {
 		return err
 	}
-	return s.outfits.Delete(ctx, outfitID)
+	if err := s.outfits.Delete(ctx, outfitID); err != nil {
+		return err
+	}
+	return cleanUpShares(ctx, s.shares, domain.ShareTargetOutfit, outfitID)
 }
 
 func (s *OutfitService) AddItem(ctx context.Context, callerID, outfitID, itemID string) error {

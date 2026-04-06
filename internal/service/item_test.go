@@ -232,11 +232,26 @@ func (m *mockMediaProvider) GetURL(_ context.Context, _ string) (string, error) 
 type mockShareAccessChecker struct {
 	hasAccess bool
 	err       error
+
+	deleteByTargetErr   error
+	deleteByTargetCalls int
+	deletedTargetType   domain.ShareTargetType
+	deletedTargetID     string
 }
 
 func (m *mockShareAccessChecker) HasReadAccess(_ context.Context, _ string, _ domain.ShareTargetType, _ string) (bool, error) {
 	return m.hasAccess, m.err
 }
+
+func (m *mockShareAccessChecker) DeleteByTarget(_ context.Context, targetType domain.ShareTargetType, targetID string) error {
+	m.deleteByTargetCalls++
+	m.deletedTargetType = targetType
+	m.deletedTargetID = targetID
+	return m.deleteByTargetErr
+}
+
+// ── NewItemService ────────────────────────────────────────────────────────────
+
 
 // ── AssignLocation ────────────────────────────────────────────────────────────
 
@@ -1463,6 +1478,35 @@ func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testi
 	require.NoError(t, err)
 	require.Equal(t, []string{"photo-1.jpg", "photo-2.jpg"}, media.deletedKeys)
 	require.Empty(t, repo.items)
+}
+
+func TestItemServiceDeleteShouldReturnErrorWhenShareCleanupFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	shares := &mockShareAccessChecker{deleteByTargetErr: domain.ErrIO}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shares)
+
+	err := svc.Delete(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDeleteShouldCleanUpSharesAfterDeletingItemWhenSuccessful(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	shares := &mockShareAccessChecker{}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), shares)
+
+	err := svc.Delete(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Equal(t, 1, shares.deleteByTargetCalls)
+	require.Equal(t, domain.ShareTargetItem, shares.deletedTargetType)
+	require.Equal(t, "item-1", shares.deletedTargetID)
 }
 
 // ── makeItemPhotos ────────────────────────────────────────────────────────────

@@ -21,6 +21,10 @@ func (n *noopShareChecker) HasReadAccess(_ context.Context, _ string, _ domain.S
 	return false, nil
 }
 
+func (n *noopShareChecker) DeleteByTarget(_ context.Context, _ domain.ShareTargetType, _ string) error {
+	return nil
+}
+
 func TestItemServiceShouldCompleteFullCycleWhenUploadGetThenDelete(t *testing.T) {
 	itemRepo := jsonstore.NewItemRepository(t.TempDir())
 	media := local.NewProvider(t.TempDir())

@@ -303,6 +303,35 @@ func TestLocationServiceDeleteShouldDeleteLocationWhenCallerIsOwnerAndNoConflict
 	require.Empty(t, repo.locations)
 }
 
+func TestLocationServiceDeleteShouldReturnErrorWhenShareCleanupFails(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	repo := &mockLocationRepo{locations: []domain.Location{loc}}
+	shares := &mockShareAccessChecker{deleteByTargetErr: domain.ErrIO}
+	svc := NewLocationService(repo, &mockItemRepo{}, shares)
+
+	err := svc.Delete(t.Context(), "owner-1", "loc-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLocationServiceDeleteShouldCleanUpSharesAfterDeletingLocationWhenSuccessful(t *testing.T) {
+	var loc domain.Location
+	loc.ID = "loc-1"
+	loc.OwnerID = "owner-1"
+
+	repo := &mockLocationRepo{locations: []domain.Location{loc}}
+	shares := &mockShareAccessChecker{}
+	svc := NewLocationService(repo, &mockItemRepo{}, shares)
+
+	err := svc.Delete(t.Context(), "owner-1", "loc-1")
+	require.NoError(t, err)
+	require.Equal(t, 1, shares.deleteByTargetCalls)
+	require.Equal(t, domain.ShareTargetLocation, shares.deletedTargetType)
+	require.Equal(t, "loc-1", shares.deletedTargetID)
+}
+
 // ── GetByID ───────────────────────────────────────────────────────────────────
 
 func TestLocationServiceGetByIDShouldReturnErrorWhenContextIsCancelled(t *testing.T) {

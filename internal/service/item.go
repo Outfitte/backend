@@ -52,9 +52,11 @@ type categoryGetter interface {
 }
 
 // shareAccessChecker is a narrow interface used by service types to check whether
-// a caller has shared read access to an entity they do not own.
+// a caller has shared read access to an entity they do not own, and to remove
+// all shares for a target entity when it is deleted.
 type shareAccessChecker interface {
 	HasReadAccess(ctx context.Context, callerID string, targetType domain.ShareTargetType, targetID string) (bool, error)
+	DeleteByTarget(ctx context.Context, targetType domain.ShareTargetType, targetID string) error
 }
 
 // ItemService manages wardrobe items.
@@ -392,7 +394,10 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 			return err
 		}
 	}
-	return s.items.Delete(ctx, itemID)
+	if err := s.items.Delete(ctx, itemID); err != nil {
+		return err
+	}
+	return cleanUpShares(ctx, s.shares, domain.ShareTargetItem, itemID)
 }
 
 func (s *ItemService) Archive(ctx context.Context, callerID, itemID string) error {

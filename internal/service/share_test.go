@@ -21,8 +21,11 @@ type mockShareRepo struct {
 	listByRecipientErr  error
 	findByTargetErr     error
 	findByTargetResult  *domain.Share
-	deleteByTargetErr   error
-	hasDirectAccessErr  error
+	deleteByTargetErr        error
+	deleteByTargetCallCount  int
+	deleteByTargetTargetType domain.ShareTargetType
+	deleteByTargetTargetID   string
+	hasDirectAccessErr       error
 	hasDirectAccessResult bool
 	listByRecipientAndTypeErr    error
 	listByRecipientAndTypeResult []domain.Share
@@ -108,7 +111,10 @@ func (m *mockShareRepo) FindByTarget(_ context.Context, ownerID, recipientID str
 	return nil, nil
 }
 
-func (m *mockShareRepo) DeleteByTarget(_ context.Context, _ domain.ShareTargetType, _ string) error {
+func (m *mockShareRepo) DeleteByTarget(_ context.Context, targetType domain.ShareTargetType, targetID string) error {
+	m.deleteByTargetCallCount++
+	m.deleteByTargetTargetType = targetType
+	m.deleteByTargetTargetID = targetID
 	return m.deleteByTargetErr
 }
 
@@ -1120,5 +1126,35 @@ func TestShareServiceCreateShouldReturnErrValidationWhenTargetTypeIsUnknown(t *t
 		TargetID:    "item-1",
 	})
 	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+// ── DeleteByTarget ────────────────────────────────────────────────────────────
+
+func TestShareServiceDeleteByTargetShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.DeleteByTarget(ctx, domain.ShareTargetItem, "item-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestShareServiceDeleteByTargetShouldReturnErrorWhenRepoFails(t *testing.T) {
+	shareRepo := &mockShareRepo{deleteByTargetErr: domain.ErrIO}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	err := svc.DeleteByTarget(t.Context(), domain.ShareTargetItem, "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestShareServiceDeleteByTargetShouldDelegateToRepoWhenSuccessful(t *testing.T) {
+	shareRepo := &mockShareRepo{}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+
+	err := svc.DeleteByTarget(t.Context(), domain.ShareTargetItem, "item-1")
+	require.NoError(t, err)
+	require.Equal(t, 1, shareRepo.deleteByTargetCallCount)
+	require.Equal(t, domain.ShareTargetItem, shareRepo.deleteByTargetTargetType)
+	require.Equal(t, "item-1", shareRepo.deleteByTargetTargetID)
 }
 
