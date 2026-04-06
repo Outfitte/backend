@@ -308,6 +308,9 @@ func collectDescendantIDs(rootID string, allLocs []domain.Location) map[string]b
 // DeleteByTarget removes all shares for the given target type and target ID.
 // Called when the target entity is deleted so orphaned shares are cleaned up.
 func (s *ShareService) DeleteByTarget(ctx context.Context, targetType domain.ShareTargetType, targetID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return s.shares.DeleteByTarget(ctx, targetType, targetID)
 }
 

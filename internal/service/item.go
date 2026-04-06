@@ -67,11 +67,17 @@ type ItemService struct {
 	media      ports.MediaProvider
 	categories categoryGetter
 	shares     shareAccessChecker
+	log        *slog.Logger
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares}
+// An optional logger may be provided; if omitted, slog.Default() is used.
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker, log ...*slog.Logger) *ItemService {
+	l := slog.Default()
+	if len(log) > 0 && log[0] != nil {
+		l = log[0]
+	}
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares, log: l}
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -403,9 +409,7 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 }
 
 func (s *ItemService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
-	if err := s.shares.DeleteByTarget(ctx, targetType, targetID); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to clean up shares after delete", "error", err, "target_type", targetType, "target_id", targetID)
-	}
+	cleanUpShares(ctx, s.log, s.shares, targetType, targetID)
 }
 
 func (s *ItemService) Archive(ctx context.Context, callerID, itemID string) error {

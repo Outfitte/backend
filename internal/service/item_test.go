@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -248,6 +249,16 @@ func (m *mockShareAccessChecker) DeleteByTarget(_ context.Context, targetType do
 	m.deletedTargetType = targetType
 	m.deletedTargetID = targetID
 	return m.deleteByTargetErr
+}
+
+// ── NewItemService ────────────────────────────────────────────────────────────
+
+func TestNewItemServiceShouldUseProvidedLoggerWhenGiven(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, log)
+	items, err := svc.ListByOwner(t.Context(), "owner-1", ports.ItemListFilter{})
+	require.NoError(t, err)
+	require.Empty(t, items)
 }
 
 // ── AssignLocation ────────────────────────────────────────────────────────────

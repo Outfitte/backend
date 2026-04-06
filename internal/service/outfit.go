@@ -33,11 +33,17 @@ type OutfitService struct {
 	media      ports.MediaProvider
 	outfitLogs ports.OutfitLogRepository
 	shares     shareAccessChecker
+	log        *slog.Logger
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
-func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker) *OutfitService {
-	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares}
+// An optional logger may be provided; if omitted, slog.Default() is used.
+func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker, log ...*slog.Logger) *OutfitService {
+	l := slog.Default()
+	if len(log) > 0 && log[0] != nil {
+		l = log[0]
+	}
+	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares, log: l}
 }
 
 func (s *OutfitService) Create(ctx context.Context, callerID string, input CreateOutfitInput) (domain.Outfit, error) {
@@ -127,9 +133,7 @@ func (s *OutfitService) Delete(ctx context.Context, callerID, outfitID string) e
 }
 
 func (s *OutfitService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
-	if err := s.shares.DeleteByTarget(ctx, targetType, targetID); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to clean up shares after delete", "error", err, "target_type", targetType, "target_id", targetID)
-	}
+	cleanUpShares(ctx, s.log, s.shares, targetType, targetID)
 }
 
 func (s *OutfitService) AddItem(ctx context.Context, callerID, outfitID, itemID string) error {

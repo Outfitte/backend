@@ -17,11 +17,17 @@ type LocationService struct {
 	locations ports.LocationRepository
 	items     ports.ItemRepository
 	shares    shareAccessChecker
+	log       *slog.Logger
 }
 
 // NewLocationService constructs a LocationService backed by the given repositories.
-func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker) *LocationService {
-	return &LocationService{locations: locations, items: items, shares: shares}
+// An optional logger may be provided; if omitted, slog.Default() is used.
+func NewLocationService(locations ports.LocationRepository, items ports.ItemRepository, shares shareAccessChecker, log ...*slog.Logger) *LocationService {
+	l := slog.Default()
+	if len(log) > 0 && log[0] != nil {
+		l = log[0]
+	}
+	return &LocationService{locations: locations, items: items, shares: shares, log: l}
 }
 
 func (s *LocationService) getOwnedLocation(ctx context.Context, callerID, locationID string) (domain.Location, error) {
@@ -123,9 +129,7 @@ func (s *LocationService) Delete(ctx context.Context, callerID, locationID strin
 }
 
 func (s *LocationService) cleanUpShares(ctx context.Context, targetType domain.ShareTargetType, targetID string) {
-	if err := s.shares.DeleteByTarget(ctx, targetType, targetID); err != nil {
-		slog.Default().ErrorContext(ctx, "failed to clean up shares after delete", "error", err, "target_type", targetType, "target_id", targetID)
-	}
+	cleanUpShares(ctx, s.log, s.shares, targetType, targetID)
 }
 
 func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID string) error {

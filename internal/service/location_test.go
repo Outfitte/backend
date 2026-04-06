@@ -2,11 +2,23 @@ package service
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 )
+
+// ── NewLocationService ────────────────────────────────────────────────────────
+
+func TestNewLocationServiceShouldUseProvidedLoggerWhenGiven(t *testing.T) {
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewLocationService(&mockLocationRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, log)
+	locs, err := svc.ListByOwner(t.Context(), "owner-1")
+	require.NoError(t, err)
+	require.Empty(t, locs)
+}
 
 // ── Move ──────────────────────────────────────────────────────────────────────
 

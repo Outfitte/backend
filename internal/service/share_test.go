@@ -1124,6 +1124,15 @@ func TestShareServiceCreateShouldReturnErrValidationWhenTargetTypeIsUnknown(t *t
 
 // ── DeleteByTarget ────────────────────────────────────────────────────────────
 
+func TestShareServiceDeleteByTargetShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := svc.DeleteByTarget(ctx, domain.ShareTargetItem, "item-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestShareServiceDeleteByTargetShouldReturnErrorWhenRepoFails(t *testing.T) {
 	shareRepo := &mockShareRepo{deleteByTargetErr: domain.ErrIO}
 	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
