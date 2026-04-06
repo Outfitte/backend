@@ -425,3 +425,39 @@ func TestNewShouldReturn401WhenGetUsersCalledWithoutAuth(t *testing.T) {
 	resp := getURL(t, ts, "/users")
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
+
+func TestNewShouldReturn401WhenPostSharesCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := postJSON(t, ts, "/shares", `{"recipient_id":"u2","target_type":"item","target_id":"item-1"}`)
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetSharesCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/shares")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenGetSharesWithMeCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := getURL(t, ts, "/shares/with-me")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestNewShouldReturn401WhenDeleteShareCalledWithoutAuth(t *testing.T) {
+	cfg := &config.Config{ServerPort: "8080"}
+	ts := httptest.NewServer(New(cfg, discardLogger(), ports.Repositories{}, nil).Handler)
+	defer ts.Close()
+
+	resp := deleteURL(t, ts, "/shares/share-1")
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
