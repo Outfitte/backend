@@ -6,7 +6,7 @@
 
 Self-hosted wardrobe management application built in Go.
 
-> **Status:** Early development — M4 (Seller URL & Price Tracking) complete. Core REST API is functional.
+> **Status:** Early development — M5 (Granular Sharing) in progress. Core REST API is functional.
 
 ## Overview
 
@@ -69,5 +69,5 @@ golangci-lint run ./...
 | M2 | Wear & Archive Lifecycle | ✓ Done |
 | M3 | Outfits & Calendar | ✓ Done |
 | M4 | Seller URL & Price Tracking | ✓ Done |
-| M5 | Family Sharing | Planned |
+| M5 | Granular Sharing | In progress |
 | M6 | Polish & Public V1 Launch | Planned |
