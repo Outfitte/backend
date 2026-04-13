@@ -36,6 +36,34 @@ func NewUserHandler(users userLister, getter userGetter, log *slog.Logger) *User
 
 // Me handles GET /users/me.
 func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Me")
+	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
+	userID, ok := callerIDFromContext(ctx, w, log)
+	if !ok {
+		return
+	}
+
+	user, err := h.getter.GetByID(ctx, userID)
+	if err != nil {
+		log.ErrorContext(ctx, "get failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "user_id", userID)
+	writeJSON(w, http.StatusOK, userResponse{
+		ID:        user.GetID(),
+		Email:     user.Email,
+		Role:      string(user.Role),
+		CreatedAt: user.CreatedAt,
+	})
 }
 
 // List handles GET /users.

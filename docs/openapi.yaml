@@ -1789,6 +1789,23 @@ paths:
         "401":
           $ref: '#/components/responses/Unauthorized'
 
+  /users/me:
+    get:
+      tags: [users]
+      summary: Get the authenticated user's profile
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
   /shares:
     post:
       tags: [shares]
