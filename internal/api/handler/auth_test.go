@@ -175,6 +175,24 @@ func postLogin(t *testing.T, h *handler.AuthHandler, body string) *httptest.Resp
 	return w
 }
 
+func TestLoginHandlerShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	h := newAuthHandler(users, auth)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/auth/login", strings.NewReader(`{"username":"alice","password":"secret"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.Login(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "request cancelled", body["error"])
+}
+
 func TestLoginHandlerShouldReturn401WhenCredentialsAreInvalid(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{
@@ -266,6 +284,22 @@ func TestLoginHandlerShouldReturn200WithUserWhenLoginSucceeds(t *testing.T) {
 	require.Equal(t, "user-42", userObj["id"])
 	require.Equal(t, "alice@example.com", userObj["email"])
 	require.Equal(t, "member", userObj["role"])
+}
+
+func TestRefreshHandlerShouldReturn503WhenContextIsCancelled(t *testing.T) {
+	h := handler.NewAuthHandler(&fakeUserRegistrar{}, &fakeTokenIssuer{}, &fakeTokenRefresher{}, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/auth/refresh", strings.NewReader(`{"refresh_token":"tok"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.Refresh(w, req)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "request cancelled", body["error"])
 }
 
 func TestRefreshHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {

@@ -4,12 +4,21 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/outfitte/backend/internal/domain"
 )
 
 type userLister interface {
 	List(ctx context.Context) ([]domain.User, error)
+}
+
+// userResponse is the full user representation returned by auth endpoints.
+type userResponse struct {
+	ID        string    `json:"id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // userSummaryResponse is the minimal user representation used for share recipient selection.

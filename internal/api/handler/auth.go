@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/outfitte/backend/internal/domain"
 )
@@ -44,13 +43,6 @@ func NewAuthHandler(users userRegistrar, auth tokenIssuer, refresh tokenRefreshe
 type registerRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type userResponse struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
 }
 
 type registerResponse struct {
@@ -119,6 +111,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	log := h.log.With("call", "Login")
 	log.InfoContext(ctx, "started")
 
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -164,6 +161,11 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := h.log.With("call", "Refresh")
 	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
 
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
