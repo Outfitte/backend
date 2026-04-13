@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/outfitte/backend/internal/api/handler"
+	"github.com/outfitte/backend/internal/api/middleware"
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 )
@@ -23,10 +24,18 @@ func (f *fakeUserLister) List(ctx context.Context) ([]domain.User, error) {
 	return f.listFn(ctx)
 }
 
+type fakeUserGetter struct {
+	getByIDFn func(ctx context.Context, id string) (domain.User, error)
+}
+
+func (f *fakeUserGetter) GetByID(ctx context.Context, id string) (domain.User, error) {
+	return f.getByIDFn(ctx, id)
+}
+
 // --- helpers ---
 
-func newUserHandler(lister *fakeUserLister) *handler.UserHandler {
-	return handler.NewUserHandler(lister, slog.New(slog.DiscardHandler))
+func newUserHandler(lister *fakeUserLister, getter *fakeUserGetter) *handler.UserHandler {
+	return handler.NewUserHandler(lister, getter, slog.New(slog.DiscardHandler))
 }
 
 func getUsers(t *testing.T, h *handler.UserHandler) *httptest.ResponseRecorder {
@@ -39,13 +48,115 @@ func getUsers(t *testing.T, h *handler.UserHandler) *httptest.ResponseRecorder {
 
 // --- tests ---
 
+// --- Me handler tests ---
+
+func meRequest(t *testing.T, h *handler.UserHandler, ctx context.Context) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/users/me", nil)
+	w := httptest.NewRecorder()
+	h.Me(w, req)
+	return w
+}
+
+func TestMeHandlerShouldReturn503WhenContextCancelled(t *testing.T) {
+	h := newUserHandler(&fakeUserLister{}, &fakeUserGetter{})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	w := meRequest(t, h, ctx)
+
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "request cancelled", body["error"])
+}
+
+func meRequestWithAuth(t *testing.T, h *handler.UserHandler, userID string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx := middleware.WithUserID(t.Context(), userID)
+	return meRequest(t, h, ctx)
+}
+
+func TestMeHandlerShouldReturn500WhenCallerIDMissingFromContext(t *testing.T) {
+	h := newUserHandler(&fakeUserLister{}, &fakeUserGetter{})
+
+	// No auth middleware → no user ID in context.
+	w := meRequest(t, h, t.Context())
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "internal server error", body["error"])
+}
+
+func TestMeHandlerShouldReturn404WhenUserNotFound(t *testing.T) {
+	getter := &fakeUserGetter{
+		getByIDFn: func(_ context.Context, _ string) (domain.User, error) {
+			return domain.User{}, domain.ErrNotFound
+		},
+	}
+	h := newUserHandler(&fakeUserLister{}, getter)
+
+	w := meRequestWithAuth(t, h, "user-42")
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "not found", body["error"])
+}
+
+func TestMeHandlerShouldReturn500WhenGetByIDFails(t *testing.T) {
+	getter := &fakeUserGetter{
+		getByIDFn: func(_ context.Context, _ string) (domain.User, error) {
+			return domain.User{}, domain.ErrIO
+		},
+	}
+	h := newUserHandler(&fakeUserLister{}, getter)
+
+	w := meRequestWithAuth(t, h, "user-42")
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "internal server error", body["error"])
+}
+
+func TestMeHandlerShouldReturn200WithProfileWhenAuthenticated(t *testing.T) {
+	var u domain.User
+	u.ID = "user-42"
+	u.Email = "alice@example.com"
+	u.Role = domain.RoleAdmin
+
+	getter := &fakeUserGetter{
+		getByIDFn: func(_ context.Context, id string) (domain.User, error) {
+			require.Equal(t, "user-42", id)
+			return u, nil
+		},
+	}
+	h := newUserHandler(&fakeUserLister{}, getter)
+
+	w := meRequestWithAuth(t, h, "user-42")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "user-42", body["id"])
+	require.Equal(t, "alice@example.com", body["email"])
+	require.Equal(t, "admin", body["role"])
+	require.NotEmpty(t, body["created_at"])
+}
+
+// --- List handler tests ---
+
 func TestUserListHandlerShouldReturn503WhenContextCancelled(t *testing.T) {
 	lister := &fakeUserLister{
 		listFn: func(_ context.Context) ([]domain.User, error) {
 			return nil, nil
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -65,7 +176,7 @@ func TestUserListHandlerShouldReturn500WhenRepositoryFails(t *testing.T) {
 			return nil, domain.ErrIO
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	w := getUsers(t, h)
 
@@ -81,7 +192,7 @@ func TestUserListHandlerShouldReturn200WithEmptyArrayWhenNoUsers(t *testing.T) {
 			return []domain.User{}, nil
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	w := getUsers(t, h)
 
@@ -108,7 +219,7 @@ func TestUserListHandlerShouldReturn200WithUsersWhenUsersExist(t *testing.T) {
 			return []domain.User{u1, u2}, nil
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	w := getUsers(t, h)
 

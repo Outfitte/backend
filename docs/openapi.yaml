@@ -38,7 +38,7 @@ components:
           format: email
         role:
           type: string
-          enum: [user, admin]
+          enum: [member, admin]
         created_at:
           type: string
           format: date-time
@@ -1786,6 +1786,23 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/UserSummary'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me:
+    get:
+      tags: [users]
+      summary: Get the authenticated user's profile
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Authenticated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
         "401":
           $ref: '#/components/responses/Unauthorized'
 

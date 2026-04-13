@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -12,6 +13,10 @@ type userLister interface {
 	List(ctx context.Context) ([]domain.User, error)
 }
 
+type userGetter interface {
+	GetByID(ctx context.Context, id string) (domain.User, error)
+}
+
 // userSummaryResponse is the minimal user representation used for share recipient selection.
 type userSummaryResponse struct {
 	ID    string `json:"id"`
@@ -20,13 +25,50 @@ type userSummaryResponse struct {
 
 // UserHandler handles user-related endpoints.
 type UserHandler struct {
-	users userLister
-	log   *slog.Logger
+	users  userLister
+	getter userGetter
+	log    *slog.Logger
 }
 
 // NewUserHandler creates a UserHandler with a logger pre-scoped to handler=user.
-func NewUserHandler(users userLister, log *slog.Logger) *UserHandler {
-	return &UserHandler{users: users, log: log.With("handler", "user")}
+func NewUserHandler(users userLister, getter userGetter, log *slog.Logger) *UserHandler {
+	return &UserHandler{users: users, getter: getter, log: log.With("handler", "user")}
+}
+
+// Me handles GET /users/me.
+func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := h.log.With("call", "Me")
+	log.InfoContext(ctx, "started")
+
+	if err := ctx.Err(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "request cancelled"})
+		return
+	}
+
+	userID, ok := callerIDFromContext(ctx, w, log)
+	if !ok {
+		return
+	}
+
+	user, err := h.getter.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		log.ErrorContext(ctx, "get failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	log.InfoContext(ctx, "succeeded", "user_id", userID)
+	writeJSON(w, http.StatusOK, userResponse{
+		ID:        user.GetID(),
+		Email:     user.Email,
+		Role:      string(user.Role),
+		CreatedAt: user.CreatedAt,
+	})
 }
 
 // List handles GET /users.
