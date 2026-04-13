@@ -101,6 +101,23 @@ func TestRegisterHandlerShouldReturn409WhenUsernameAlreadyTaken(t *testing.T) {
 	require.Equal(t, "username already taken", body["error"])
 }
 
+func TestRegisterHandlerShouldReturn403WhenRegistrationIsDisabled(t *testing.T) {
+	users := &fakeUserRegistrar{
+		registerFn: func(_ context.Context, _, _ string) (domain.User, error) {
+			return domain.User{}, domain.ErrRegistrationDisabled
+		},
+	}
+	auth := &fakeTokenIssuer{}
+	h := newAuthHandler(users, auth)
+
+	w := postRegister(t, h, `{"username":"alice@example.com","password":"secret"}`)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "registration is disabled", body["error"])
+}
+
 func TestRegisterHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	users := &fakeUserRegistrar{
 		registerFn: func(_ context.Context, _, _ string) (domain.User, error) {

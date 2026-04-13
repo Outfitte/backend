@@ -77,6 +77,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "username already taken"})
 			return
 		}
+		if errors.Is(err, domain.ErrRegistrationDisabled) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "registration is disabled"})
+			return
+		}
 		log.ErrorContext(ctx, "register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
