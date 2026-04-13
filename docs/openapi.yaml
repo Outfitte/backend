@@ -38,7 +38,7 @@ components:
           format: email
         role:
           type: string
-          enum: [user, admin]
+          enum: [member, admin]
         created_at:
           type: string
           format: date-time

@@ -89,6 +89,22 @@ func TestMeHandlerShouldReturn500WhenCallerIDMissingFromContext(t *testing.T) {
 	require.Equal(t, "internal server error", body["error"])
 }
 
+func TestMeHandlerShouldReturn404WhenUserNotFound(t *testing.T) {
+	getter := &fakeUserGetter{
+		getByIDFn: func(_ context.Context, _ string) (domain.User, error) {
+			return domain.User{}, domain.ErrNotFound
+		},
+	}
+	h := newUserHandler(&fakeUserLister{}, getter)
+
+	w := meRequestWithAuth(t, h, "user-42")
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "not found", body["error"])
+}
+
 func TestMeHandlerShouldReturn500WhenGetByIDFails(t *testing.T) {
 	getter := &fakeUserGetter{
 		getByIDFn: func(_ context.Context, _ string) (domain.User, error) {

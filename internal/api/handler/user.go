@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -52,6 +53,10 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.getter.GetByID(ctx, userID)
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
 		log.ErrorContext(ctx, "get failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
