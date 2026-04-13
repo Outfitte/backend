@@ -12,6 +12,10 @@ type userLister interface {
 	List(ctx context.Context) ([]domain.User, error)
 }
 
+type userGetter interface {
+	GetByID(ctx context.Context, id string) (domain.User, error)
+}
+
 // userSummaryResponse is the minimal user representation used for share recipient selection.
 type userSummaryResponse struct {
 	ID    string `json:"id"`
@@ -20,13 +24,18 @@ type userSummaryResponse struct {
 
 // UserHandler handles user-related endpoints.
 type UserHandler struct {
-	users userLister
-	log   *slog.Logger
+	users  userLister
+	getter userGetter
+	log    *slog.Logger
 }
 
 // NewUserHandler creates a UserHandler with a logger pre-scoped to handler=user.
-func NewUserHandler(users userLister, log *slog.Logger) *UserHandler {
-	return &UserHandler{users: users, log: log.With("handler", "user")}
+func NewUserHandler(users userLister, getter userGetter, log *slog.Logger) *UserHandler {
+	return &UserHandler{users: users, getter: getter, log: log.With("handler", "user")}
+}
+
+// Me handles GET /users/me.
+func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 // List handles GET /users.

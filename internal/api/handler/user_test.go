@@ -23,10 +23,18 @@ func (f *fakeUserLister) List(ctx context.Context) ([]domain.User, error) {
 	return f.listFn(ctx)
 }
 
+type fakeUserGetter struct {
+	getByIDFn func(ctx context.Context, id string) (domain.User, error)
+}
+
+func (f *fakeUserGetter) GetByID(ctx context.Context, id string) (domain.User, error) {
+	return f.getByIDFn(ctx, id)
+}
+
 // --- helpers ---
 
-func newUserHandler(lister *fakeUserLister) *handler.UserHandler {
-	return handler.NewUserHandler(lister, slog.New(slog.DiscardHandler))
+func newUserHandler(lister *fakeUserLister, getter *fakeUserGetter) *handler.UserHandler {
+	return handler.NewUserHandler(lister, getter, slog.New(slog.DiscardHandler))
 }
 
 func getUsers(t *testing.T, h *handler.UserHandler) *httptest.ResponseRecorder {
@@ -45,7 +53,7 @@ func TestUserListHandlerShouldReturn503WhenContextCancelled(t *testing.T) {
 			return nil, nil
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -65,7 +73,7 @@ func TestUserListHandlerShouldReturn500WhenRepositoryFails(t *testing.T) {
 			return nil, domain.ErrIO
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	w := getUsers(t, h)
 
@@ -81,7 +89,7 @@ func TestUserListHandlerShouldReturn200WithEmptyArrayWhenNoUsers(t *testing.T) {
 			return []domain.User{}, nil
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	w := getUsers(t, h)
 
@@ -108,7 +116,7 @@ func TestUserListHandlerShouldReturn200WithUsersWhenUsersExist(t *testing.T) {
 			return []domain.User{u1, u2}, nil
 		},
 	}
-	h := newUserHandler(lister)
+	h := newUserHandler(lister, &fakeUserGetter{})
 
 	w := getUsers(t, h)
 
