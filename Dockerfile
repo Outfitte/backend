@@ -5,7 +5,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /server ./cmd/server
 
-FROM cgr.dev/chainguard/static:latest
+FROM cgr.dev/chainguard/curl:latest
 COPY --from=builder /server /server
 USER nonroot
 EXPOSE 8080
