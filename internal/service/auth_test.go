@@ -165,7 +165,7 @@ func TestRefreshShouldReturnErrorWhenFindByTokenHashFails(t *testing.T) {
 	sessionRepo := &mockSessionRepo{findByTokenHashErr: domain.ErrIO}
 	svc := NewAuthService(&mockUserStore{}, sessionRepo, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "any-opaque-token")
+	_, _, _, err := svc.Refresh(t.Context(), "any-opaque-token")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -174,14 +174,14 @@ func TestRefreshShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, _, err := svc.Refresh(ctx, "session-1.token")
+	_, _, _, err := svc.Refresh(ctx, "session-1.token")
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRefreshShouldReturnErrNotFoundWhenTokenDoesNotMatchAnySession(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionRepo{}, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "unknownOpaqueToken")
+	_, _, _, err := svc.Refresh(t.Context(), "unknownOpaqueToken")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -190,7 +190,7 @@ func TestRefreshShouldReturnErrNotFoundWhenTokenHashDoesNotMatch(t *testing.T) {
 	sessionRepo := &mockSessionRepo{sessions: []domain.Session{session}}
 	svc := NewAuthService(&mockUserStore{}, sessionRepo, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "wrong-opaque-token")
+	_, _, _, err := svc.Refresh(t.Context(), "wrong-opaque-token")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -200,7 +200,7 @@ func TestRefreshShouldReturnErrSessionExpiredWhenSessionIsExpired(t *testing.T) 
 	sessionRepo := &mockSessionRepo{sessions: []domain.Session{session}}
 	svc := NewAuthService(&mockUserStore{}, sessionRepo, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), rawToken)
+	_, _, _, err := svc.Refresh(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrSessionExpired)
 }
 
@@ -210,7 +210,7 @@ func TestRefreshShouldReturnErrorWhenUserGetFails(t *testing.T) {
 	sessionRepo := &mockSessionRepo{sessions: []domain.Session{session}}
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), rawToken)
+	_, _, _, err := svc.Refresh(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -225,7 +225,7 @@ func TestRefreshShouldReturnErrorWhenDeleteFails(t *testing.T) {
 	}
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), rawToken)
+	_, _, _, err := svc.Refresh(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -240,7 +240,7 @@ func TestRefreshShouldReturnErrorWhenNewSessionSaveFails(t *testing.T) {
 	}
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), rawToken)
+	_, _, _, err := svc.Refresh(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -255,8 +255,27 @@ func TestRefreshShouldReturnErrIOWhenRandFails(t *testing.T) {
 		return 0, errors.New("entropy failure")
 	}
 
-	_, _, err := svc.Refresh(t.Context(), rawToken)
+	_, _, _, err := svc.Refresh(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRefreshShouldReturnUserWhenRefreshTokenIsValid(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	registered, err := userSvc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	sessionRepo := &mockSessionRepo{}
+	svc := NewAuthService(userStore, sessionRepo, []byte("jwt-secret"))
+
+	_, refreshToken, _, err := svc.Login(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	_, _, user, err := svc.Refresh(t.Context(), refreshToken)
+	require.NoError(t, err)
+	require.Equal(t, registered.GetID(), user.GetID())
+	require.Equal(t, "alice@example.com", user.Email)
 }
 
 func TestRefreshShouldReturnNewTokensWhenRefreshTokenIsValid(t *testing.T) {
@@ -269,11 +288,11 @@ func TestRefreshShouldReturnNewTokensWhenRefreshTokenIsValid(t *testing.T) {
 	sessionRepo := &mockSessionRepo{}
 	svc := NewAuthService(userStore, sessionRepo, []byte("jwt-secret"))
 
-	_, refreshToken, err := svc.Login(t.Context(), "alice@example.com", "password")
+	_, refreshToken, _, err := svc.Login(t.Context(), "alice@example.com", "password")
 	require.NoError(t, err)
 	require.Len(t, sessionRepo.sessions, 1)
 
-	accessToken2, refreshToken2, err := svc.Refresh(t.Context(), refreshToken)
+	accessToken2, refreshToken2, _, err := svc.Refresh(t.Context(), refreshToken)
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken2)
 	require.NotEmpty(t, refreshToken2)
@@ -286,7 +305,7 @@ func TestRefreshShouldReturnNewTokensWhenRefreshTokenIsValid(t *testing.T) {
 func TestRefreshShouldReturnErrNotFoundWhenSessionDoesNotExist(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionRepo{}, []byte("secret"))
 
-	_, _, err := svc.Refresh(t.Context(), "nonexistent-opaque-token")
+	_, _, _, err := svc.Refresh(t.Context(), "nonexistent-opaque-token")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -301,7 +320,7 @@ func TestRefreshShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
 		return "", errors.New("signing failure")
 	}
 
-	_, _, err := svc.Refresh(t.Context(), rawToken)
+	_, _, _, err := svc.Refresh(t.Context(), rawToken)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -344,14 +363,14 @@ func TestLoginShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, _, err := svc.Login(ctx, "alice@example.com", "password")
+	_, _, _, err := svc.Login(ctx, "alice@example.com", "password")
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestLoginShouldReturnErrUnauthorizedWhenEmailNotFound(t *testing.T) {
 	svc := NewAuthService(&mockUserStore{}, &mockSessionRepo{}, []byte("secret"))
 
-	_, _, err := svc.Login(t.Context(), "unknown@example.com", "password")
+	_, _, _, err := svc.Login(t.Context(), "unknown@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 
@@ -359,7 +378,7 @@ func TestLoginShouldReturnErrorWhenGetByEmailFails(t *testing.T) {
 	store := &mockUserStore{getByEmailErr: domain.ErrIO}
 	svc := NewAuthService(store, &mockSessionRepo{}, []byte("secret"))
 
-	_, _, err := svc.Login(t.Context(), "alice@example.com", "password")
+	_, _, _, err := svc.Login(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -372,7 +391,7 @@ func TestLoginShouldReturnErrUnauthorizedWhenPasswordIsWrong(t *testing.T) {
 
 	authSvc := NewAuthService(store, &mockSessionRepo{}, []byte("secret"))
 
-	_, _, err = authSvc.Login(t.Context(), registered.Email, "wrong-password")
+	_, _, _, err = authSvc.Login(t.Context(), registered.Email, "wrong-password")
 	require.ErrorIs(t, err, domain.ErrUnauthorized)
 }
 
@@ -386,7 +405,7 @@ func TestLoginShouldReturnErrorWhenSessionSaveFails(t *testing.T) {
 	sessionRepo := &mockSessionRepo{saveErr: domain.ErrIO}
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
+	_, _, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -402,7 +421,7 @@ func TestLoginShouldReturnErrIOWhenRandFails(t *testing.T) {
 		return 0, errors.New("entropy failure")
 	}
 
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
+	_, _, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -418,7 +437,7 @@ func TestLoginShouldReturnErrIOWhenIssueTokenFails(t *testing.T) {
 		return "", errors.New("signing failure")
 	}
 
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
+	_, _, _, err = svc.Login(t.Context(), "alice@example.com", "correct-password")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -433,14 +452,14 @@ func TestFullSessionCycleShouldSucceedWhenCredentialsAreValid(t *testing.T) {
 	svc := NewAuthService(userStore, sessionRepo, []byte("jwt-secret"))
 
 	// Login.
-	accessToken1, refreshToken1, err := svc.Login(t.Context(), "alice@example.com", "password")
+	accessToken1, refreshToken1, _, err := svc.Login(t.Context(), "alice@example.com", "password")
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken1)
 	require.NotEmpty(t, refreshToken1)
 	require.Len(t, sessionRepo.sessions, 1)
 
 	// Refresh: old session is replaced by a new one.
-	accessToken2, refreshToken2, err := svc.Refresh(t.Context(), refreshToken1)
+	accessToken2, refreshToken2, _, err := svc.Refresh(t.Context(), refreshToken1)
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken2)
 	require.NotEmpty(t, refreshToken2)
@@ -453,7 +472,7 @@ func TestFullSessionCycleShouldSucceedWhenCredentialsAreValid(t *testing.T) {
 	require.Empty(t, sessionRepo.sessions)
 
 	// Refreshing with the old token must now fail.
-	_, _, err = svc.Refresh(t.Context(), refreshToken1)
+	_, _, _, err = svc.Refresh(t.Context(), refreshToken1)
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -478,7 +497,7 @@ func TestCreateSessionShouldEvictOldestWhenUserExceeds10Sessions(t *testing.T) {
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
 	// Login creates the 11th session, triggering eviction of the oldest.
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "password")
+	_, _, _, err = svc.Login(t.Context(), "alice@example.com", "password")
 	require.NoError(t, err)
 	require.Len(t, sessionRepo.sessions, 10)
 	for _, s := range sessionRepo.sessions {
@@ -503,7 +522,7 @@ func TestCreateSessionShouldReturnErrorWhenEvictOldestDeleteFails(t *testing.T) 
 	sessionRepo := &mockSessionRepo{sessions: sessions, deleteOldestByUserErr: domain.ErrIO}
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "password")
+	_, _, _, err = svc.Login(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -517,8 +536,23 @@ func TestCreateSessionShouldReturnErrorWhenCountByUserFails(t *testing.T) {
 	sessionRepo := &mockSessionRepo{countByUserErr: domain.ErrIO}
 	svc := NewAuthService(userStore, sessionRepo, []byte("secret"))
 
-	_, _, err = svc.Login(t.Context(), "alice@example.com", "password")
+	_, _, _, err = svc.Login(t.Context(), "alice@example.com", "password")
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestLoginShouldReturnUserWhenCredentialsAreValid(t *testing.T) {
+	userStore := &mockUserStore{}
+	settings := &mockSettingsStore{settings: domain.AppSettings{RegistrationEnabled: true}}
+	userSvc := NewUserService(userStore, settings)
+	registered, err := userSvc.Register(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+
+	svc := NewAuthService(userStore, &mockSessionRepo{}, []byte("jwt-secret"))
+
+	_, _, user, err := svc.Login(t.Context(), "alice@example.com", "password")
+	require.NoError(t, err)
+	require.Equal(t, registered.GetID(), user.GetID())
+	require.Equal(t, "alice@example.com", user.Email)
 }
 
 func TestLoginShouldReturnTokensWhenCredentialsAreValid(t *testing.T) {
@@ -531,7 +565,7 @@ func TestLoginShouldReturnTokensWhenCredentialsAreValid(t *testing.T) {
 	sessionRepo := &mockSessionRepo{}
 	svc := NewAuthService(userStore, sessionRepo, []byte("jwt-secret"))
 
-	accessToken, refreshToken, err := svc.Login(t.Context(), "alice@example.com", "correct-password")
+	accessToken, refreshToken, _, err := svc.Login(t.Context(), "alice@example.com", "correct-password")
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken)
 	require.NotEmpty(t, refreshToken)

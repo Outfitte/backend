@@ -47,27 +47,27 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error) {
+func (s *AuthService) Login(ctx context.Context, email, password string) (accessToken, refreshToken string, user domain.User, err error) {
 	if err := ctx.Err(); err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
-	user, err := s.findAndVerifyUser(ctx, email, password)
+	user, err = s.findAndVerifyUser(ctx, email, password)
 	if err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	rawToken, err := s.createSession(ctx, user.GetID())
 	if err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	signed, err := s.issueToken(user, s.now(), s.secret)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return "", "", domain.User{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	return signed, rawToken, nil
+	return signed, rawToken, user, nil
 }
 
 func (s *AuthService) findAndVerifyUser(ctx context.Context, email, password string) (domain.User, error) {
@@ -122,14 +122,14 @@ func (s *AuthService) evictOldestIfOverLimit(ctx context.Context, userID string)
 	return s.sessions.DeleteOldestByUser(ctx, userID)
 }
 
-func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (accessToken, refreshToken string, err error) {
+func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (accessToken, refreshToken string, user domain.User, err error) {
 	if err := ctx.Err(); err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	session, err := s.retrieveSession(ctx, rawRefreshToken)
 	if err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	return s.refreshSession(ctx, session)
@@ -148,27 +148,27 @@ func (s *AuthService) retrieveSession(ctx context.Context, rawToken string) (dom
 	return session, nil
 }
 
-func (s *AuthService) refreshSession(ctx context.Context, session domain.Session) (accessToken, refreshToken string, err error) {
-	user, err := s.users.Get(ctx, session.UserID)
+func (s *AuthService) refreshSession(ctx context.Context, session domain.Session) (accessToken, refreshToken string, user domain.User, err error) {
+	user, err = s.users.Get(ctx, session.UserID)
 	if err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	if err := s.sessions.Delete(ctx, session.GetID()); err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	newRawToken, err := s.createSession(ctx, user.GetID())
 	if err != nil {
-		return "", "", err
+		return "", "", domain.User{}, err
 	}
 
 	signed, err := s.issueToken(user, s.now(), s.secret)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", domain.ErrIO, err)
+		return "", "", domain.User{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
 
-	return signed, newRawToken, nil
+	return signed, newRawToken, user, nil
 }
 
 func (s *AuthService) findSessionByToken(ctx context.Context, rawToken string) (domain.Session, error) {
