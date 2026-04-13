@@ -20,11 +20,11 @@ type userRegistrar interface {
 }
 
 type tokenIssuer interface {
-	Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error)
+	Login(ctx context.Context, username, password string) (accessToken, refreshToken string, user domain.User, err error)
 }
 
 type tokenRefresher interface {
-	Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
+	Refresh(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, user domain.User, err error)
 }
 
 // AuthHandler handles POST /auth/register.
@@ -82,7 +82,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.auth.Login(ctx, req.Username, req.Password)
+	accessToken, refreshToken, _, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
 		log.ErrorContext(ctx, "login after register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -108,8 +108,9 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	User         userResponse `json:"user"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
 }
 
 // Login handles POST /auth/login.
@@ -124,7 +125,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.auth.Login(ctx, req.Username, req.Password)
+	accessToken, refreshToken, user, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrUnauthorized) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
@@ -135,8 +136,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.InfoContext(ctx, "succeeded")
+	log.InfoContext(ctx, "succeeded", "user_id", user.GetID())
 	writeJSON(w, http.StatusOK, loginResponse{
+		User: userResponse{
+			ID:        user.GetID(),
+			Email:     user.Email,
+			Role:      string(user.Role),
+			CreatedAt: user.CreatedAt,
+		},
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
@@ -147,8 +154,9 @@ type refreshRequest struct {
 }
 
 type refreshResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	User         userResponse `json:"user"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
 }
 
 // Refresh handles POST /auth/refresh.
@@ -163,7 +171,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, newRefreshToken, err := h.refresh.Refresh(ctx, req.RefreshToken)
+	accessToken, newRefreshToken, user, err := h.refresh.Refresh(ctx, req.RefreshToken)
 	if err != nil {
 		if errors.Is(err, domain.ErrUnauthorized) || errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrSessionExpired) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired refresh token"})
@@ -174,8 +182,14 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.InfoContext(ctx, "succeeded")
+	log.InfoContext(ctx, "succeeded", "user_id", user.GetID())
 	writeJSON(w, http.StatusOK, refreshResponse{
+		User: userResponse{
+			ID:        user.GetID(),
+			Email:     user.Email,
+			Role:      string(user.Role),
+			CreatedAt: user.CreatedAt,
+		},
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	})

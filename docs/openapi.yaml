@@ -489,7 +489,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenPair'
+                type: object
+                required: [user, access_token, refresh_token]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":
@@ -516,7 +524,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenPair'
+                type: object
+                required: [user, access_token, refresh_token]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
         "400":
           $ref: '#/components/responses/BadRequest'
         "401":

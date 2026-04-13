@@ -26,18 +26,18 @@ func (f *fakeUserRegistrar) Register(ctx context.Context, username, password str
 }
 
 type fakeTokenIssuer struct {
-	loginFn func(ctx context.Context, username, password string) (string, string, error)
+	loginFn func(ctx context.Context, username, password string) (string, string, domain.User, error)
 }
 
-func (f *fakeTokenIssuer) Login(ctx context.Context, username, password string) (string, string, error) {
+func (f *fakeTokenIssuer) Login(ctx context.Context, username, password string) (string, string, domain.User, error) {
 	return f.loginFn(ctx, username, password)
 }
 
 type fakeTokenRefresher struct {
-	refreshFn func(ctx context.Context, refreshToken string) (string, string, error)
+	refreshFn func(ctx context.Context, refreshToken string) (string, string, domain.User, error)
 }
 
-func (f *fakeTokenRefresher) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
+func (f *fakeTokenRefresher) Refresh(ctx context.Context, refreshToken string) (string, string, domain.User, error) {
 	return f.refreshFn(ctx, refreshToken)
 }
 
@@ -143,8 +143,8 @@ func TestRegisterHandlerShouldReturn201WhenRegistrationSucceeds(t *testing.T) {
 		},
 	}
 	auth := &fakeTokenIssuer{
-		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
-			return "access-tok", "refresh-tok", nil
+		loginFn: func(_ context.Context, _, _ string) (string, string, domain.User, error) {
+			return "access-tok", "refresh-tok", domain.User{}, nil
 		},
 	}
 	h := newAuthHandler(users, auth)
@@ -178,8 +178,8 @@ func postLogin(t *testing.T, h *handler.AuthHandler, body string) *httptest.Resp
 func TestLoginHandlerShouldReturn401WhenCredentialsAreInvalid(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{
-		loginFn: func(ctx context.Context, _, _ string) (string, string, error) {
-			return "", "", domain.ErrUnauthorized
+		loginFn: func(ctx context.Context, _, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrUnauthorized
 		},
 	}
 	h := newAuthHandler(users, auth)
@@ -208,8 +208,8 @@ func TestLoginHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
 func TestLoginHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{
-		loginFn: func(ctx context.Context, _, _ string) (string, string, error) {
-			return "", "", domain.ErrIO
+		loginFn: func(ctx context.Context, _, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrIO
 		},
 	}
 	h := newAuthHandler(users, auth)
@@ -225,8 +225,8 @@ func TestLoginHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 func TestLoginHandlerShouldReturn200WhenLoginSucceeds(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{
-		loginFn: func(ctx context.Context, _, _ string) (string, string, error) {
-			return "access-tok", "refresh-tok", nil
+		loginFn: func(ctx context.Context, _, _ string) (string, string, domain.User, error) {
+			return "access-tok", "refresh-tok", domain.User{}, nil
 		},
 	}
 	h := newAuthHandler(users, auth)
@@ -236,10 +236,36 @@ func TestLoginHandlerShouldReturn200WhenLoginSucceeds(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-	var body map[string]string
+	var body map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "access-tok", body["access_token"])
 	require.Equal(t, "refresh-tok", body["refresh_token"])
+}
+
+func TestLoginHandlerShouldReturn200WithUserWhenLoginSucceeds(t *testing.T) {
+	var u domain.User
+	u.ID = "user-42"
+	u.Email = "alice@example.com"
+	u.Role = domain.RoleMember
+
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{
+		loginFn: func(ctx context.Context, _, _ string) (string, string, domain.User, error) {
+			return "access-tok", "refresh-tok", u, nil
+		},
+	}
+	h := newAuthHandler(users, auth)
+
+	w := postLogin(t, h, `{"username":"alice@example.com","password":"secret"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	userObj, ok := body["user"].(map[string]any)
+	require.True(t, ok, "response must contain a user object")
+	require.Equal(t, "user-42", userObj["id"])
+	require.Equal(t, "alice@example.com", userObj["email"])
+	require.Equal(t, "member", userObj["role"])
 }
 
 func TestRefreshHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
@@ -260,8 +286,8 @@ func TestRefreshHandlerShouldReturn401WhenTokenIsInvalidOrExpired(t *testing.T) 
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
 	refresher := &fakeTokenRefresher{
-		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
-			return "", "", domain.ErrUnauthorized
+		refreshFn: func(ctx context.Context, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrUnauthorized
 		},
 	}
 	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
@@ -278,8 +304,8 @@ func TestRefreshHandlerShouldReturn401WhenTokenNotFound(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
 	refresher := &fakeTokenRefresher{
-		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
-			return "", "", domain.ErrNotFound
+		refreshFn: func(ctx context.Context, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrNotFound
 		},
 	}
 	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
@@ -296,8 +322,8 @@ func TestRefreshHandlerShouldReturn401WhenSessionExpired(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
 	refresher := &fakeTokenRefresher{
-		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
-			return "", "", domain.ErrSessionExpired
+		refreshFn: func(ctx context.Context, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrSessionExpired
 		},
 	}
 	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
@@ -314,8 +340,8 @@ func TestRefreshHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
 	refresher := &fakeTokenRefresher{
-		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
-			return "", "", domain.ErrIO
+		refreshFn: func(ctx context.Context, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrIO
 		},
 	}
 	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
@@ -332,8 +358,8 @@ func TestRefreshHandlerShouldReturn200WhenRefreshSucceeds(t *testing.T) {
 	users := &fakeUserRegistrar{}
 	auth := &fakeTokenIssuer{}
 	refresher := &fakeTokenRefresher{
-		refreshFn: func(ctx context.Context, _ string) (string, string, error) {
-			return "new-access-tok", "new-refresh-tok", nil
+		refreshFn: func(ctx context.Context, _ string) (string, string, domain.User, error) {
+			return "new-access-tok", "new-refresh-tok", domain.User{}, nil
 		},
 	}
 	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
@@ -343,10 +369,37 @@ func TestRefreshHandlerShouldReturn200WhenRefreshSucceeds(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "application/json", w.Header().Get("Content-Type"))
 
-	var body map[string]string
+	var body map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
 	require.Equal(t, "new-access-tok", body["access_token"])
 	require.Equal(t, "new-refresh-tok", body["refresh_token"])
+}
+
+func TestRefreshHandlerShouldReturn200WithUserWhenRefreshSucceeds(t *testing.T) {
+	var u domain.User
+	u.ID = "user-42"
+	u.Email = "alice@example.com"
+	u.Role = domain.RoleMember
+
+	users := &fakeUserRegistrar{}
+	auth := &fakeTokenIssuer{}
+	refresher := &fakeTokenRefresher{
+		refreshFn: func(ctx context.Context, _ string) (string, string, domain.User, error) {
+			return "new-access-tok", "new-refresh-tok", u, nil
+		},
+	}
+	h := handler.NewAuthHandler(users, auth, refresher, &fakeTokenLogout{}, slog.New(slog.DiscardHandler))
+
+	w := postRefresh(t, h, `{"refresh_token":"old-tok"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	userObj, ok := body["user"].(map[string]any)
+	require.True(t, ok, "response must contain a user object")
+	require.Equal(t, "user-42", userObj["id"])
+	require.Equal(t, "alice@example.com", userObj["email"])
+	require.Equal(t, "member", userObj["role"])
 }
 
 func TestLogoutHandlerShouldReturn400WhenBodyIsInvalid(t *testing.T) {
@@ -426,14 +479,14 @@ func TestAuthCycleShouldSucceedWhenLoginRefreshAndLogout(t *testing.T) {
 	var logoutReceivedToken string
 
 	auth := &fakeTokenIssuer{
-		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
-			return "access-tok-1", "refresh-tok-1", nil
+		loginFn: func(_ context.Context, _, _ string) (string, string, domain.User, error) {
+			return "access-tok-1", "refresh-tok-1", domain.User{}, nil
 		},
 	}
 	refresher := &fakeTokenRefresher{
-		refreshFn: func(_ context.Context, refreshToken string) (string, string, error) {
+		refreshFn: func(_ context.Context, refreshToken string) (string, string, domain.User, error) {
 			require.Equal(t, "refresh-tok-1", refreshToken)
-			return "access-tok-2", "refresh-tok-2", nil
+			return "access-tok-2", "refresh-tok-2", domain.User{}, nil
 		},
 	}
 	logout := &fakeTokenLogout{
@@ -447,7 +500,7 @@ func TestAuthCycleShouldSucceedWhenLoginRefreshAndLogout(t *testing.T) {
 	// Step 1: Login
 	w := postLogin(t, h, `{"username":"alice","password":"secret"}`)
 	require.Equal(t, http.StatusOK, w.Code)
-	var loginBody map[string]string
+	var loginBody map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&loginBody))
 	require.Equal(t, "access-tok-1", loginBody["access_token"])
 	require.Equal(t, "refresh-tok-1", loginBody["refresh_token"])
@@ -455,7 +508,7 @@ func TestAuthCycleShouldSucceedWhenLoginRefreshAndLogout(t *testing.T) {
 	// Step 2: Refresh using the token from login
 	w = postRefresh(t, h, fmt.Sprintf(`{"refresh_token":%q}`, loginBody["refresh_token"]))
 	require.Equal(t, http.StatusOK, w.Code)
-	var refreshBody map[string]string
+	var refreshBody map[string]any
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&refreshBody))
 	require.Equal(t, "access-tok-2", refreshBody["access_token"])
 	require.Equal(t, "refresh-tok-2", refreshBody["refresh_token"])
@@ -478,8 +531,8 @@ func TestRegisterHandlerShouldReturn500WhenTokenIssuanceFails(t *testing.T) {
 		},
 	}
 	auth := &fakeTokenIssuer{
-		loginFn: func(_ context.Context, _, _ string) (string, string, error) {
-			return "", "", domain.ErrIO
+		loginFn: func(_ context.Context, _, _ string) (string, string, domain.User, error) {
+			return "", "", domain.User{}, domain.ErrIO
 		},
 	}
 	h := newAuthHandler(users, auth)
