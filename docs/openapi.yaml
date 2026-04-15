@@ -1203,6 +1203,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: Location has child locations or assigned items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /locations/{id}/move:
     parameters:
