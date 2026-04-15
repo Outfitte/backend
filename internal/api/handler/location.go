@@ -209,6 +209,10 @@ func (h *LocationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
+		if errors.Is(err, domain.ErrConflict) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "conflict"})
+			return
+		}
 		log.ErrorContext(ctx, "delete location failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return

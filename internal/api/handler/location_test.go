@@ -476,6 +476,23 @@ func TestDeleteLocationHandlerShouldReturn404WhenLocationNotFound(t *testing.T) 
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestDeleteLocationHandlerShouldReturn409WhenConflict(t *testing.T) {
+	svc := &fakeLocationService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrConflict
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-with-children", nil)
+	req.SetPathValue("id", "loc-with-children")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestDeleteLocationHandlerShouldReturn403WhenCallerDoesNotOwnLocation(t *testing.T) {
 	svc := &fakeLocationService{
 		deleteFn: func(_ context.Context, _, _ string) error {
