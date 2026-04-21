@@ -465,6 +465,15 @@ func TestItemServiceCreateShouldReturnErrValidationWhenPurchaseCurrencyIsInvalid
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
+func TestItemServiceCreateShouldReturnErrValidationWhenPurchaseCurrencyIsTooLong(t *testing.T) {
+	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{})
+
+	price := "10.00"
+	currency := "USDX"
+	_, err := svc.Create(t.Context(), "owner-1", CreateItemInput{Name: "Jacket", PurchasePrice: &price, PurchaseCurrency: &currency})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
 func TestItemServiceCreateShouldReturnErrFutureDateNotAllowedWhenPurchaseDateIsInFuture(t *testing.T) {
 	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{})
 
@@ -1058,6 +1067,24 @@ func TestItemServiceUpdateShouldReturnErrValidationWhenPatchCurrencyIsInvalid(t 
 		Name:             &name,
 		PurchasePrice:    nullableVal("10.00"),
 		PurchaseCurrency: nullableVal("US"),
+	})
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
+func TestItemServiceUpdateShouldReturnErrValidationWhenPatchCurrencyIsTooLong(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{})
+
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{
+		Name:             &name,
+		PurchasePrice:    nullableVal("10.00"),
+		PurchaseCurrency: nullableVal("USDX"),
 	})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
