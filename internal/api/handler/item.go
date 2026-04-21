@@ -360,6 +360,15 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if v, ok := raw["metadata"]; ok {
+		var m map[string]string
+		if err := json.Unmarshal(v, &m); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid metadata"})
+			return
+		}
+		input.Metadata = &domain.ItemMetadata{Fields: m}
+	}
+
 	itemID := r.PathValue("id")
 	item, err := h.items.Update(ctx, callerID, itemID, input)
 	if err != nil {
