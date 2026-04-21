@@ -800,6 +800,43 @@ func TestUpdateHandlerShouldReturn200WithPurchaseFieldsInResponse(t *testing.T) 
 	require.Equal(t, &seller, got.SellerURL)
 }
 
+func TestUpdateHandlerShouldReturn400WhenMetadataIsInvalid(t *testing.T) {
+	h := newItemHandler(&fakeItemService{})
+
+	w := patchItem(t, h, "item-1", "user-1", `{"metadata":123}`)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateHandlerShouldPassMetadataToServiceWhenPresentInBody(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.NotNil(t, input.Metadata)
+			require.Equal(t, map[string]string{"size": "L"}, input.Metadata.Fields)
+			return domain.Item{}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"metadata":{"size":"L"}}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestUpdateHandlerShouldPreserveMetadataWhenAbsentFromBody(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, input service.UpdateItemInput) (domain.Item, error) {
+			require.Nil(t, input.Metadata)
+			return domain.Item{}, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt"}`)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 
 func TestDeleteHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
