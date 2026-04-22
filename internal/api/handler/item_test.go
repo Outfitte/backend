@@ -452,6 +452,7 @@ func TestListHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 }
 
 func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T) {
+	now := time.Now()
 	var item1, item2 domain.Item
 	item1.ID = "item-1"
 	item1.OwnerID = "user-1"
@@ -459,6 +460,7 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	item2.ID = "item-2"
 	item2.OwnerID = "user-1"
 	item2.Name = "Black Jeans"
+	item2.ArchivedAt = &now
 
 	svc := &fakeItemService{
 		listByOwnerFn: func(_ context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
@@ -475,7 +477,9 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Len(t, got, 2)
 	require.Equal(t, "item-1", got[0].ID)
+	require.Equal(t, "active", got[0].Status)
 	require.Equal(t, "item-2", got[1].ID)
+	require.Equal(t, "archived", got[1].Status)
 }
 
 // ── GetByID ───────────────────────────────────────────────────────────────────
@@ -552,6 +556,75 @@ func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Equal(t, "item-42", got.ID)
 	require.Equal(t, "Blue Shirt", got.Name)
+}
+
+func TestGetByIDHandlerShouldReturnArchivedStatusWhenItemIsArchived(t *testing.T) {
+	now := time.Now()
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.ArchivedAt = &now
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "archived", got.Status)
+}
+
+func TestGetByIDHandlerShouldReturnDisposedStatusWhenItemIsDisposed(t *testing.T) {
+	now := time.Now()
+	reason := domain.DisposalDonated
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.ArchivedAt = &now
+	item.DisposalReason = &reason
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "disposed", got.Status)
+}
+
+func TestGetByIDHandlerShouldReturnActiveStatusWhenItemIsNotArchivedOrDisposed(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "active", got.Status)
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -1085,6 +1158,7 @@ type testItemResp struct {
 	PurchaseCurrency *string           `json:"purchase_currency"`
 	PurchaseDate     *string           `json:"purchase_date"`
 	SellerURL        *string           `json:"seller_url"`
+	Status           string            `json:"status"`
 }
 
 func ptr(s string) *string { return &s }
