@@ -606,6 +606,53 @@ func TestGetByIDHandlerShouldReturnDisposedStatusWhenItemIsDisposed(t *testing.T
 	require.Equal(t, "disposed", got.Status)
 }
 
+func TestGetByIDHandlerShouldReturnDisposeReasonWhenItemIsDisposed(t *testing.T) {
+	now := time.Now()
+	reason := domain.DisposalDonated
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.ArchivedAt = &now
+	item.DisposalReason = &reason
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.NotNil(t, got.DisposeReason)
+	require.Equal(t, "donated", *got.DisposeReason)
+}
+
+func TestGetByIDHandlerShouldReturnNullDisposeReasonWhenItemIsNotDisposed(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Nil(t, got.DisposeReason)
+}
+
 func TestGetByIDHandlerShouldReturnActiveStatusWhenItemIsNotArchivedOrDisposed(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-42"
@@ -1159,6 +1206,7 @@ type testItemResp struct {
 	PurchaseDate     *string           `json:"purchase_date"`
 	SellerURL        *string           `json:"seller_url"`
 	Status           string            `json:"status"`
+	DisposeReason    *string           `json:"dispose_reason"`
 }
 
 func ptr(s string) *string { return &s }
