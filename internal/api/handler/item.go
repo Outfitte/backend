@@ -37,6 +37,7 @@ type itemResponse struct {
 	PurchaseDate     *string           `json:"purchase_date"`
 	SellerURL        *string           `json:"seller_url"`
 	Status           string            `json:"status"`
+	DisposeReason    *string           `json:"dispose_reason"`
 	CreatedAt        time.Time         `json:"created_at"`
 }
 
@@ -69,6 +70,11 @@ func toItemResponse(item domain.Item) itemResponse {
 		s := item.PurchaseDate.Format("2006-01-02")
 		purchaseDate = &s
 	}
+	var disposeReason *string
+	if item.DisposalReason != nil {
+		s := string(*item.DisposalReason)
+		disposeReason = &s
+	}
 	return itemResponse{
 		ID:               item.ID,
 		OwnerID:          item.OwnerID,
@@ -84,6 +90,7 @@ func toItemResponse(item domain.Item) itemResponse {
 		PurchaseDate:     purchaseDate,
 		SellerURL:        item.SellerURL,
 		Status:           itemStatus(item),
+		DisposeReason:    disposeReason,
 		CreatedAt:        item.CreatedAt,
 	}
 }
