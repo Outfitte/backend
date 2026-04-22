@@ -13,6 +13,9 @@ jobs:
 
   build:
     runs-on: self-hosted
+    env:
+      GOROOT: ""
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
     - uses: actions/checkout@v4
 
