@@ -554,6 +554,75 @@ func TestGetByIDHandlerShouldReturn200WithItemWhenFoundSuccessfully(t *testing.T
 	require.Equal(t, "Blue Shirt", got.Name)
 }
 
+func TestGetByIDHandlerShouldReturnArchivedStatusWhenItemIsArchived(t *testing.T) {
+	now := time.Now()
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.ArchivedAt = &now
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "archived", got.Status)
+}
+
+func TestGetByIDHandlerShouldReturnDisposedStatusWhenItemIsDisposed(t *testing.T) {
+	now := time.Now()
+	reason := domain.DisposalDonated
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+	item.ArchivedAt = &now
+	item.DisposalReason = &reason
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "disposed", got.Status)
+}
+
+func TestGetByIDHandlerShouldReturnActiveStatusWhenItemIsNotArchivedOrDisposed(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-42"
+	item.OwnerID = "user-1"
+	item.Name = "Blue Shirt"
+
+	svc := &fakeItemService{
+		getByIDFn: func(_ context.Context, _, _ string) (domain.Item, error) {
+			return item, nil
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := getItem(t, h, "item-42", "user-1")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var got testItemResp
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "active", got.Status)
+}
+
 // ── Update ────────────────────────────────────────────────────────────────────
 
 func TestUpdateHandlerShouldReturn500WhenCallerIDIsMissingFromContext(t *testing.T) {
@@ -1085,6 +1154,7 @@ type testItemResp struct {
 	PurchaseCurrency *string           `json:"purchase_currency"`
 	PurchaseDate     *string           `json:"purchase_date"`
 	SellerURL        *string           `json:"seller_url"`
+	Status           string            `json:"status"`
 }
 
 func ptr(s string) *string { return &s }

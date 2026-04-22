@@ -36,7 +36,18 @@ type itemResponse struct {
 	PurchaseCurrency *string           `json:"purchase_currency"`
 	PurchaseDate     *string           `json:"purchase_date"`
 	SellerURL        *string           `json:"seller_url"`
+	Status           string            `json:"status"`
 	CreatedAt        time.Time         `json:"created_at"`
+}
+
+func itemStatus(item domain.Item) string {
+	if item.DisposalReason != nil {
+		return "disposed"
+	}
+	if item.ArchivedAt != nil {
+		return "archived"
+	}
+	return "active"
 }
 
 func toItemResponse(item domain.Item) itemResponse {
@@ -72,6 +83,7 @@ func toItemResponse(item domain.Item) itemResponse {
 		PurchaseCurrency: item.PurchaseCurrency,
 		PurchaseDate:     purchaseDate,
 		SellerURL:        item.SellerURL,
+		Status:           itemStatus(item),
 		CreatedAt:        item.CreatedAt,
 	}
 }
