@@ -452,6 +452,7 @@ func TestListHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 }
 
 func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T) {
+	now := time.Now()
 	var item1, item2 domain.Item
 	item1.ID = "item-1"
 	item1.OwnerID = "user-1"
@@ -459,6 +460,7 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	item2.ID = "item-2"
 	item2.OwnerID = "user-1"
 	item2.Name = "Black Jeans"
+	item2.ArchivedAt = &now
 
 	svc := &fakeItemService{
 		listByOwnerFn: func(_ context.Context, callerID string, _ ports.ItemListFilter) ([]domain.Item, error) {
@@ -475,7 +477,9 @@ func TestListHandlerShouldReturn200WithItemsWhenListedSuccessfully(t *testing.T)
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	require.Len(t, got, 2)
 	require.Equal(t, "item-1", got[0].ID)
+	require.Equal(t, "active", got[0].Status)
 	require.Equal(t, "item-2", got[1].ID)
+	require.Equal(t, "archived", got[1].Status)
 }
 
 // ── GetByID ───────────────────────────────────────────────────────────────────
