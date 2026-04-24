@@ -476,6 +476,46 @@ func TestDeleteLocationHandlerShouldReturn404WhenLocationNotFound(t *testing.T) 
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestDeleteLocationHandlerShouldReturn409WithChildrenMessageWhenLocationHasChildren(t *testing.T) {
+	svc := &fakeLocationService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrLocationHasChildren
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-with-children", nil)
+	req.SetPathValue("id", "loc-with-children")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var got map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "location has child locations", got["error"])
+}
+
+func TestDeleteLocationHandlerShouldReturn409WithItemsMessageWhenLocationHasAssignedItems(t *testing.T) {
+	svc := &fakeLocationService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrLocationHasItems
+		},
+	}
+	h := newLocationHandler(svc)
+
+	ctx := ctxWithUser(t, "user-1")
+	req := httptest.NewRequestWithContext(ctx, http.MethodDelete, "/locations/loc-with-items", nil)
+	req.SetPathValue("id", "loc-with-items")
+	w := httptest.NewRecorder()
+	h.Delete(w, req)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var got map[string]any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+	require.Equal(t, "location has assigned items", got["error"])
+}
+
 func TestDeleteLocationHandlerShouldReturn409WhenConflict(t *testing.T) {
 	svc := &fakeLocationService{
 		deleteFn: func(_ context.Context, _, _ string) error {

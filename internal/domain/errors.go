@@ -22,4 +22,6 @@ var (
 	ErrNotArchived          = errors.New("not archived")
 	ErrSelfShare            = errors.New("cannot share with yourself")
 	ErrDuplicateShare       = errors.New("share already exists")
+	ErrLocationHasChildren  = errors.New("location has child locations")
+	ErrLocationHasItems     = errors.New("location has assigned items")
 )
