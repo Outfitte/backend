@@ -240,7 +240,7 @@ func TestLocationServiceDeleteShouldReturnErrorWhenHasChildrenFails(t *testing.T
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestLocationServiceDeleteShouldReturnErrConflictWhenLocationHasChildren(t *testing.T) {
+func TestLocationServiceDeleteShouldReturnErrLocationHasChildrenWhenLocationHasChildren(t *testing.T) {
 	var loc domain.Location
 	loc.ID = "loc-1"
 	loc.OwnerID = "owner-1"
@@ -249,7 +249,7 @@ func TestLocationServiceDeleteShouldReturnErrConflictWhenLocationHasChildren(t *
 	svc := NewLocationService(repo, &mockItemRepo{}, &mockShareAccessChecker{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
-	require.ErrorIs(t, err, domain.ErrConflict)
+	require.ErrorIs(t, err, domain.ErrLocationHasChildren)
 }
 
 func TestLocationServiceDeleteShouldReturnErrorWhenCountByLocationFails(t *testing.T) {
@@ -265,7 +265,7 @@ func TestLocationServiceDeleteShouldReturnErrorWhenCountByLocationFails(t *testi
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestLocationServiceDeleteShouldReturnErrConflictWhenLocationHasItemsAssigned(t *testing.T) {
+func TestLocationServiceDeleteShouldReturnErrLocationHasItemsWhenLocationHasItemsAssigned(t *testing.T) {
 	var loc domain.Location
 	loc.ID = "loc-1"
 	loc.OwnerID = "owner-1"
@@ -275,7 +275,7 @@ func TestLocationServiceDeleteShouldReturnErrConflictWhenLocationHasItemsAssigne
 	svc := NewLocationService(locRepo, itemRepo, &mockShareAccessChecker{})
 
 	err := svc.Delete(t.Context(), "owner-1", "loc-1")
-	require.ErrorIs(t, err, domain.ErrConflict)
+	require.ErrorIs(t, err, domain.ErrLocationHasItems)
 }
 
 func TestLocationServiceDeleteShouldReturnErrorWhenStoreDeleteFails(t *testing.T) {

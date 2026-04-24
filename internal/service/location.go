@@ -126,7 +126,7 @@ func (s *LocationService) checkNoChildLocations(ctx context.Context, locationID 
 		return err
 	}
 	if hasChildren {
-		return domain.ErrConflict
+		return domain.ErrLocationHasChildren
 	}
 	return nil
 }
@@ -137,7 +137,7 @@ func (s *LocationService) checkNoAssignedItems(ctx context.Context, locationID s
 		return err
 	}
 	if count > 0 {
-		return domain.ErrConflict
+		return domain.ErrLocationHasItems
 	}
 	return nil
 }
