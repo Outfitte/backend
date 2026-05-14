@@ -22,7 +22,7 @@ type outfitService interface {
 	Delete(ctx context.Context, callerID, outfitID string) error
 	AddItem(ctx context.Context, callerID, outfitID, itemID string) error
 	RemoveItem(ctx context.Context, callerID, outfitID, itemID string) error
-	UploadPhoto(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) error
+	UploadPhoto(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) (domain.OutfitPhoto, error)
 	DeletePhoto(ctx context.Context, callerID, outfitID, mediaKey string) error
 }
 
@@ -404,7 +404,8 @@ func (h *OutfitHandler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	if err := h.outfits.UploadPhoto(ctx, callerID, outfitID, file, header.Filename); err != nil {
+	photo, err := h.outfits.UploadPhoto(ctx, callerID, outfitID, file, header.Filename)
+	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
@@ -419,7 +420,12 @@ func (h *OutfitHandler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.InfoContext(ctx, "succeeded", "outfit_id", outfitID)
-	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, http.StatusCreated, outfitPhotoResponse{
+		ID:        photo.ID,
+		MediaKey:  photo.MediaKey,
+		Position:  photo.Position,
+		CreatedAt: photo.CreatedAt,
+	})
 }
 
 // DeletePhoto handles DELETE /outfits/{id}/photos/{key...}.
