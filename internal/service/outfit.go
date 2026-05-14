@@ -151,21 +151,29 @@ func (s *OutfitService) RemoveItem(ctx context.Context, callerID, outfitID, item
 	return s.outfits.DeleteItem(ctx, outfitID, itemID)
 }
 
-func (s *OutfitService) UploadPhoto(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) error {
+func (s *OutfitService) UploadPhoto(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) (domain.OutfitPhoto, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return domain.OutfitPhoto{}, err
 	}
 	outfit, err := s.getOwnedOutfit(ctx, callerID, outfitID)
 	if err != nil {
-		return err
+		return domain.OutfitPhoto{}, err
 	}
 	key := "outfits/" + outfitID + "/" + uuid.NewString() + "/" + filename
 	if err := s.media.Upload(ctx, key, r); err != nil {
-		return err
+		return domain.OutfitPhoto{}, err
 	}
 	photoID := uuid.NewString()
 	position := len(outfit.Photos)
-	return s.outfits.SavePhoto(ctx, outfitID, photoID, key, position)
+	if err := s.outfits.SavePhoto(ctx, outfitID, photoID, key, position); err != nil {
+		return domain.OutfitPhoto{}, err
+	}
+	return domain.OutfitPhoto{
+		ID:        photoID,
+		MediaKey:  key,
+		Position:  position,
+		CreatedAt: time.Now(),
+	}, nil
 }
 
 func (s *OutfitService) DeletePhoto(ctx context.Context, callerID, outfitID, mediaKey string) error {

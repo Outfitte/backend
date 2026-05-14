@@ -32,7 +32,7 @@ type fakeOutfitService struct {
 	deleteFn          func(ctx context.Context, callerID, outfitID string) error
 	addItemFn         func(ctx context.Context, callerID, outfitID, itemID string) error
 	removeItemFn      func(ctx context.Context, callerID, outfitID, itemID string) error
-	uploadPhotoFn     func(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) error
+	uploadPhotoFn     func(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) (domain.OutfitPhoto, error)
 	deletePhotoFn     func(ctx context.Context, callerID, outfitID, mediaKey string) error
 }
 
@@ -92,11 +92,11 @@ func (f *fakeOutfitService) RemoveItem(ctx context.Context, callerID, outfitID, 
 	return nil
 }
 
-func (f *fakeOutfitService) UploadPhoto(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) error {
+func (f *fakeOutfitService) UploadPhoto(ctx context.Context, callerID, outfitID string, r io.Reader, filename string) (domain.OutfitPhoto, error) {
 	if f.uploadPhotoFn != nil {
 		return f.uploadPhotoFn(ctx, callerID, outfitID, r, filename)
 	}
-	return nil
+	return domain.OutfitPhoto{}, nil
 }
 
 func (f *fakeOutfitService) DeletePhoto(ctx context.Context, callerID, outfitID, mediaKey string) error {
@@ -726,8 +726,8 @@ func TestOutfitUploadPhotoShouldReturn400WhenNoFile(t *testing.T) {
 
 func TestOutfitUploadPhotoShouldReturn404WhenNotFound(t *testing.T) {
 	svc := &fakeOutfitService{
-		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
-			return domain.ErrNotFound
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) (domain.OutfitPhoto, error) {
+			return domain.OutfitPhoto{}, domain.ErrNotFound
 		},
 	}
 	w := uploadOutfitPhoto(t, newOutfitHandler(svc), "o1", "user1", "photo.jpg", "data")
@@ -736,8 +736,8 @@ func TestOutfitUploadPhotoShouldReturn404WhenNotFound(t *testing.T) {
 
 func TestOutfitUploadPhotoShouldReturn403WhenForbidden(t *testing.T) {
 	svc := &fakeOutfitService{
-		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
-			return domain.ErrForbidden
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) (domain.OutfitPhoto, error) {
+			return domain.OutfitPhoto{}, domain.ErrForbidden
 		},
 	}
 	w := uploadOutfitPhoto(t, newOutfitHandler(svc), "o1", "user1", "photo.jpg", "data")
@@ -746,28 +746,36 @@ func TestOutfitUploadPhotoShouldReturn403WhenForbidden(t *testing.T) {
 
 func TestOutfitUploadPhotoShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeOutfitService{
-		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
-			return errors.New("boom")
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) (domain.OutfitPhoto, error) {
+			return domain.OutfitPhoto{}, errors.New("boom")
 		},
 	}
 	w := uploadOutfitPhoto(t, newOutfitHandler(svc), "o1", "user1", "photo.jpg", "data")
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestOutfitUploadPhotoShouldReturn201WhenSuccessful(t *testing.T) {
-	var called bool
+func TestOutfitUploadPhotoShouldReturn201WithPhotoJSONWhenSuccessful(t *testing.T) {
+	fixedTime := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
 	svc := &fakeOutfitService{
-		uploadPhotoFn: func(_ context.Context, callerID, outfitID string, _ io.Reader, filename string) error {
+		uploadPhotoFn: func(_ context.Context, callerID, outfitID string, _ io.Reader, filename string) (domain.OutfitPhoto, error) {
 			require.Equal(t, "user1", callerID)
 			require.Equal(t, "o1", outfitID)
 			require.Equal(t, "photo.jpg", filename)
-			called = true
-			return nil
+			return domain.OutfitPhoto{
+				ID:        "photo-abc",
+				MediaKey:  "outfits/o1/uuid/photo.jpg",
+				Position:  0,
+				CreatedAt: fixedTime,
+			}, nil
 		},
 	}
 	w := uploadOutfitPhoto(t, newOutfitHandler(svc), "o1", "user1", "photo.jpg", "data")
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, called)
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
+	require.Equal(t, "photo-abc", got["id"])
+	require.Equal(t, "outfits/o1/uuid/photo.jpg", got["media_key"])
+	require.Equal(t, float64(0), got["position"])
 }
 
 // ---- DeletePhoto ----

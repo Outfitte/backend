@@ -557,13 +557,13 @@ func TestUploadPhotoShouldReturnContextErrorWhenContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	svc := newOutfitSvc(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{})
-	err := svc.UploadPhoto(ctx, "user1", "o1", strings.NewReader(""), "img.jpg")
+	_, err := svc.UploadPhoto(ctx, "user1", "o1", strings.NewReader(""), "img.jpg")
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestUploadPhotoShouldReturnNotFoundWhenOutfitMissing(t *testing.T) {
 	svc := newOutfitSvc(&mockOutfitRepo{}, &mockItemRepo{}, &mockMediaProvider{})
-	err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader(""), "img.jpg")
+	_, err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader(""), "img.jpg")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
@@ -571,7 +571,7 @@ func TestUploadPhotoShouldReturnForbiddenWhenCallerIsNotOwner(t *testing.T) {
 	outfit := outfitWithOwner("o1", "owner")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
-	err := svc.UploadPhoto(t.Context(), "other", "o1", strings.NewReader(""), "img.jpg")
+	_, err := svc.UploadPhoto(t.Context(), "other", "o1", strings.NewReader(""), "img.jpg")
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
@@ -580,7 +580,7 @@ func TestUploadPhotoShouldReturnMediaErrorWhenUploadFails(t *testing.T) {
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	media := &mockMediaProvider{uploadErr: domain.ErrIO}
 	svc := newOutfitSvc(repo, &mockItemRepo{}, media)
-	err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader(""), "img.jpg")
+	_, err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader(""), "img.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -588,7 +588,7 @@ func TestUploadPhotoShouldReturnRepoErrorWhenSavePhotoFails(t *testing.T) {
 	outfit := outfitWithOwner("o1", "user1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, savePhotoErr: domain.ErrIO}
 	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
-	err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader(""), "img.jpg")
+	_, err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader(""), "img.jpg")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
@@ -598,13 +598,27 @@ func TestUploadPhotoShouldStorePhotoWithCorrectKeyWhenSuccessful(t *testing.T) {
 	outfit.Photos = []domain.OutfitPhoto{photo}
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
-	err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader("data"), "img.jpg")
+	_, err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader("data"), "img.jpg")
 	require.NoError(t, err)
 	require.Equal(t, "o1", repo.savedPhotoOutfitID)
 	require.NotEmpty(t, repo.savedPhotoPhotoID)
 	require.Contains(t, repo.savedPhotoKey, "outfits/o1/")
 	require.Contains(t, repo.savedPhotoKey, "/img.jpg")
 	require.Equal(t, 1, repo.savedPhotoPosition)
+}
+
+func TestUploadPhotoShouldReturnPhotoWithCorrectFieldsWhenSuccessful(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
+	before := time.Now()
+	p, err := svc.UploadPhoto(t.Context(), "user1", "o1", strings.NewReader("data"), "img.jpg")
+	require.NoError(t, err)
+	require.NotEmpty(t, p.ID)
+	require.Contains(t, p.MediaKey, "outfits/o1/")
+	require.Contains(t, p.MediaKey, "/img.jpg")
+	require.Equal(t, 0, p.Position)
+	require.False(t, p.CreatedAt.Before(before))
 }
 
 // ---- DeletePhoto ----
