@@ -164,7 +164,7 @@ func (r *ItemRepository) batchLoadPhotos(ctx context.Context, items []domain.Ite
 		if err := rows.Scan(&itemID, &id, &mediaKey, &position, &createdAt); err != nil {
 			return fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
-		parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+		parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAt)
 		if err != nil {
 			return fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
@@ -210,7 +210,7 @@ func (r *ItemRepository) SavePhoto(ctx context.Context, itemID, photoID, mediaKe
 	const q = `
 		INSERT INTO item_photos (id, item_id, media_key, position, created_at)
 		VALUES (?, ?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, q, photoID, itemID, mediaKey, position, time.Now().UTC().Format(time.RFC3339))
+	_, err := r.db.ExecContext(ctx, q, photoID, itemID, mediaKey, position, time.Now().UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}

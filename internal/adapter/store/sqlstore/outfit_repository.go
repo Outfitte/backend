@@ -69,7 +69,7 @@ func (r *OutfitRepository) Save(ctx context.Context, outfit domain.Outfit) error
 		outfit.ID, outfit.OwnerID,
 		nullableString(outfit.Name),
 		nullableString(outfit.Notes),
-		outfit.CreatedAt.UTC().Format(time.RFC3339),
+		outfit.CreatedAt.UTC().Format(time.RFC3339Nano),
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
@@ -183,7 +183,7 @@ func (r *OutfitRepository) SavePhoto(ctx context.Context, outfitID, photoID, med
 		ON CONFLICT(id) DO UPDATE SET position = excluded.position`
 	_, err := r.db.ExecContext(ctx, q,
 		photoID, outfitID, mediaKey, position,
-		time.Now().UTC().Format(time.RFC3339),
+		time.Now().UTC().Format(time.RFC3339Nano),
 	)
 	if err != nil {
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
@@ -227,7 +227,7 @@ func scanOutfitRow(row *sql.Row) (domain.Outfit, error) {
 		}
 		return domain.Outfit{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
-	parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+	parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAt)
 	if err != nil {
 		return domain.Outfit{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
@@ -345,7 +345,7 @@ func (r *OutfitRepository) batchLoadOutfitPhotos(ctx context.Context, outfits []
 		if err := rows.Scan(&outfitID, &id, &mediaKey, &position, &createdAtStr); err != nil {
 			return fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
-		parsedCreatedAt, err := time.Parse(time.RFC3339, createdAtStr)
+		parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAtStr)
 		if err != nil {
 			return fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
@@ -396,7 +396,7 @@ func (r *OutfitRepository) queryOutfitsByOwner(ctx context.Context, ownerID stri
 		if err := rows.Scan(&id, &ownerID, &name, &notes, &createdAt); err != nil {
 			return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
-		parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+		parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAt)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}

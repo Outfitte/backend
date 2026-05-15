@@ -100,7 +100,7 @@ func buildItem(
 	createdAt, metadataRaw string,
 	archivedAt, disposalReason, sellerURL, purchaseCurrency sql.NullString,
 ) (domain.Item, error) {
-	parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+	parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAt)
 	if err != nil {
 		return domain.Item{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
 	}
@@ -188,7 +188,7 @@ func loadPhotos(ctx context.Context, db itemDB, itemID string) ([]domain.ItemPho
 		if err := rows.Scan(&id, &mediaKey, &position, &createdAt); err != nil {
 			return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
-		parsedCreatedAt, err := time.Parse(time.RFC3339, createdAt)
+		parsedCreatedAt, err := time.Parse(time.RFC3339Nano, createdAt)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %w", domain.ErrIO, err)
 		}
@@ -290,7 +290,7 @@ func upsertItemRow(ctx context.Context, tx *sql.Tx, item domain.Item) error {
 		item.LocationID,
 		item.PurchasePrice,
 		purchaseDate,
-		item.CreatedAt.UTC().Format(time.RFC3339),
+		item.CreatedAt.UTC().Format(time.RFC3339Nano),
 		string(metadataRaw),
 		archivedAt,
 		disposalReason,
