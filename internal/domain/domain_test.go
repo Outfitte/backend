@@ -63,6 +63,7 @@ func TestEntitiesImplementPortsEntity(t *testing.T) {
 	assert.Implements(t, iface, domain.WearLog{})
 	assert.Implements(t, iface, domain.Outfit{})
 	assert.Implements(t, iface, domain.OutfitLog{})
+	assert.Implements(t, iface, domain.ItemTransfer{})
 }
 
 func TestOutfitShouldHaveNameAndNotesAsOptionalPointersWhenAbsent(t *testing.T) {
