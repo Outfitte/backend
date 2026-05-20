@@ -12,30 +12,30 @@ var _ ports.ItemTransferRepository = (*itemTransferRepositoryStub)(nil)
 
 type itemTransferRepositoryStub struct{}
 
-func (s *itemTransferRepositoryStub) Get(_ context.Context, _ string) (domain.ItemTransfer, error) {
+func (s *itemTransferRepositoryStub) Get(ctx context.Context, _ string) (domain.ItemTransfer, error) {
 	return domain.ItemTransfer{}, nil
 }
 
-func (s *itemTransferRepositoryStub) Save(_ context.Context, _ domain.ItemTransfer) error {
+func (s *itemTransferRepositoryStub) Save(ctx context.Context, _ domain.ItemTransfer) error {
 	return nil
 }
 
-func (s *itemTransferRepositoryStub) Delete(_ context.Context, _ string) error {
+func (s *itemTransferRepositoryStub) Delete(ctx context.Context, _ string) error {
 	return nil
 }
 
-func (s *itemTransferRepositoryStub) ListBySender(_ context.Context, _ string, _ *domain.TransferStatus) ([]domain.ItemTransfer, error) {
+func (s *itemTransferRepositoryStub) ListBySender(ctx context.Context, _ string, _ *domain.TransferStatus) ([]domain.ItemTransfer, error) {
 	return nil, nil
 }
 
-func (s *itemTransferRepositoryStub) ListByRecipient(_ context.Context, _ string, _ *domain.TransferStatus) ([]domain.ItemTransfer, error) {
+func (s *itemTransferRepositoryStub) ListByRecipient(ctx context.Context, _ string, _ *domain.TransferStatus) ([]domain.ItemTransfer, error) {
 	return nil, nil
 }
 
-func (s *itemTransferRepositoryStub) FindPendingByItem(_ context.Context, _ string) (*domain.ItemTransfer, error) {
+func (s *itemTransferRepositoryStub) FindPendingByItem(ctx context.Context, _ string) (*domain.ItemTransfer, error) {
 	return nil, nil
 }
 
-func (s *itemTransferRepositoryStub) HasPending(_ context.Context, _ string) (bool, error) {
+func (s *itemTransferRepositoryStub) HasPending(ctx context.Context, _ string) (bool, error) {
 	return false, nil
 }

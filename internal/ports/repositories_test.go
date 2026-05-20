@@ -23,13 +23,12 @@ var _ = ports.Repositories{
 	ItemTransferTransactor: (*itemTransferTransactorStub)(nil),
 }
 
-var _ ports.ItemTransferRepository = (*itemTransferRepositoryStub)(nil)
-var _ ports.ItemTransferTransactor = (*itemTransferTransactorStub)(nil)
-
 // Compile-time assertions: stubs must satisfy their interfaces.
 var _ ports.ItemRepository = (*itemRepositoryStub)(nil)
 var _ ports.UserRepository = (*userRepositoryStub)(nil)
 var _ ports.SessionRepository = (*sessionRepositoryStub)(nil)
+var _ ports.ItemTransferRepository = (*itemTransferRepositoryStub)(nil)
+var _ ports.ItemTransferTransactor = (*itemTransferTransactorStub)(nil)
 
 type itemRepositoryStub struct{}
 
