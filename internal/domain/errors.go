@@ -24,4 +24,6 @@ var (
 	ErrDuplicateShare       = errors.New("share already exists")
 	ErrLocationHasChildren  = errors.New("location has child locations")
 	ErrLocationHasItems     = errors.New("location has assigned items")
+	ErrItemTransferPending  = errors.New("item has a pending transfer")
+	ErrSelfTransfer         = errors.New("cannot transfer to yourself")
 )
