@@ -114,6 +114,7 @@ func (r *ItemTransferRepository) ListByRecipient(ctx context.Context, recipientI
 }
 
 // listByField queries item_transfers filtering by a single column value and optional status.
+// column must be a trusted internal field name (not user input) as it is interpolated into the query.
 func (r *ItemTransferRepository) listByField(ctx context.Context, column, value string, statusFilter *domain.TransferStatus) ([]domain.ItemTransfer, error) {
 	const base = `SELECT id, item_id, sender_id, recipient_id, status, transfer_history, created_at, decided_at FROM item_transfers WHERE `
 	var (
