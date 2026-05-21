@@ -106,6 +106,57 @@ func (r *OutfitLogRepository) LinkedWearLogIDs(ctx context.Context, outfitLogID 
 	return ol.WearLogIDs, nil
 }
 
+func (r *OutfitLogRepository) RemoveWearLogLink(ctx context.Context, wearLogID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	all, err := r.provider.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range all {
+		if !sliceContains(candidate.WearLogIDs, wearLogID) {
+			continue
+		}
+		// Re-fetch the current state before mutating so a concurrent LinkWearLog
+		// that ran between the List and this Save is not overwritten.
+		current, err := r.provider.Get(ctx, candidate.GetID())
+		if err != nil {
+			return err
+		}
+		if removed := removeFromSlice(current.WearLogIDs, wearLogID); removed != nil {
+			current.WearLogIDs = removed
+			// Call r.provider.Save directly — r.Save would overwrite WearLogIDs with
+			// the stored value, undoing the removal.
+			if err := r.provider.Save(ctx, current); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func sliceContains(ids []string, target string) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
+}
+
+func removeFromSlice(ids []string, target string) []string {
+	for i, id := range ids {
+		if id == target {
+			result := make([]string, 0, len(ids)-1)
+			result = append(result, ids[:i]...)
+			result = append(result, ids[i+1:]...)
+			return result
+		}
+	}
+	return nil
+}
+
 func sortOutfitLogsByWornOnDesc(logs []domain.OutfitLog) {
 	sort.Slice(logs, func(i, j int) bool {
 		return logs[i].WornOn.After(logs[j].WornOn)

@@ -485,3 +485,57 @@ func TestOutfitLogRepositoryGetShouldReturnNotesWhenSet(t *testing.T) {
 	require.NotNil(t, got.Notes)
 	require.Equal(t, "great day", *got.Notes)
 }
+
+// ── RemoveWearLogLink ─────────────────────────────────────────────────────────
+
+func TestOutfitLogRepositoryRemoveWearLogLinkShouldReturnErrWhenContextCancelled(t *testing.T) {
+	repo, _ := newOutfitLogRepo(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := repo.RemoveWearLogLink(ctx, "wl-1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestOutfitLogRepositoryRemoveWearLogLinkShouldReturnErrIOWhenDBIsClosed(t *testing.T) {
+	repo, db := newOutfitLogRepo(t)
+	db.Close()
+
+	err := repo.RemoveWearLogLink(t.Context(), "wl-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestOutfitLogRepositoryRemoveWearLogLinkShouldRemoveLinkFromJoinTable(t *testing.T) {
+	repo, db := newOutfitLogRepo(t)
+	seedUserForOutfit(t, db, "user-rwl")
+	seedItemForOutfit(t, db, "item-rwl", "user-rwl")
+	seedOutfitForLog(t, db, "outfit-rwl", "user-rwl")
+	seedWearLogForOutfitLog(t, db, "wl-rwl-1", "item-rwl", "user-rwl")
+	seedWearLogForOutfitLog(t, db, "wl-rwl-2", "item-rwl", "user-rwl")
+	seedOutfitLog(t, db, "ol-rwl-1", "outfit-rwl", "user-rwl", "2025-06-01")
+
+	require.NoError(t, repo.LinkWearLog(t.Context(), "ol-rwl-1", "wl-rwl-1"))
+	require.NoError(t, repo.LinkWearLog(t.Context(), "ol-rwl-1", "wl-rwl-2"))
+
+	require.NoError(t, repo.RemoveWearLogLink(t.Context(), "wl-rwl-1"))
+
+	ids, err := repo.LinkedWearLogIDs(t.Context(), "ol-rwl-1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wl-rwl-2"}, ids)
+}
+
+func TestOutfitLogRepositoryRemoveWearLogLinkShouldBeNoOpWhenIDNotLinked(t *testing.T) {
+	repo, db := newOutfitLogRepo(t)
+	seedUserForOutfit(t, db, "user-rwl-noop")
+	seedItemForOutfit(t, db, "item-rwl-noop", "user-rwl-noop")
+	seedOutfitForLog(t, db, "outfit-rwl-noop", "user-rwl-noop")
+	seedWearLogForOutfitLog(t, db, "wl-rwl-noop-1", "item-rwl-noop", "user-rwl-noop")
+	seedOutfitLog(t, db, "ol-rwl-noop-1", "outfit-rwl-noop", "user-rwl-noop", "2025-06-01")
+	require.NoError(t, repo.LinkWearLog(t.Context(), "ol-rwl-noop-1", "wl-rwl-noop-1"))
+
+	require.NoError(t, repo.RemoveWearLogLink(t.Context(), "wl-does-not-exist"))
+
+	ids, err := repo.LinkedWearLogIDs(t.Context(), "ol-rwl-noop-1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wl-rwl-noop-1"}, ids)
+}

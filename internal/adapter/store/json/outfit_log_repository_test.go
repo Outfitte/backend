@@ -350,6 +350,93 @@ func TestOutfitLogSaveShouldPreserveWearLogIDsFromPreviousLinks(t *testing.T) {
 	require.Equal(t, []string{"wl1"}, ids)
 }
 
+func TestOutfitLogRemoveWearLogLinkShouldReturnErrorWhenContextCancelled(t *testing.T) {
+	r := json.NewOutfitLogRepository(t.TempDir())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := r.RemoveWearLogLink(ctx, "wl1")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestOutfitLogRemoveWearLogLinkShouldReturnIOErrorWhenStorageIsCorrupt(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "outfit_logs.json"), []byte("not json"), 0o644))
+	r := json.NewOutfitLogRepository(dir)
+
+	err := r.RemoveWearLogLink(t.Context(), "wl1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestOutfitLogRemoveWearLogLinkShouldReturnIOErrorWhenOutfitLogSaveFails(t *testing.T) {
+	dir := t.TempDir()
+	r := json.NewOutfitLogRepository(dir)
+
+	// Save an outfit log linked to wl1 so there is something to update
+	ol := domain.OutfitLog{}
+	ol.ID = "ol1"
+	require.NoError(t, r.Save(t.Context(), ol))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl1"))
+
+	// Make the file read-only so Save fails
+	require.NoError(t, os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o444))
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o644) })
+
+	err := r.RemoveWearLogLink(t.Context(), "wl1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestOutfitLogRemoveWearLogLinkShouldRemoveIDFromAllLinkedOutfitLogs(t *testing.T) {
+	r := json.NewOutfitLogRepository(t.TempDir())
+
+	// ol1 linked to wl1 and wl2
+	ol1 := domain.OutfitLog{}
+	ol1.ID = "ol1"
+	require.NoError(t, r.Save(t.Context(), ol1))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl1"))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl2"))
+
+	// ol2 linked to wl1 only
+	ol2 := domain.OutfitLog{}
+	ol2.ID = "ol2"
+	require.NoError(t, r.Save(t.Context(), ol2))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol2", "wl1"))
+
+	// ol3 linked to wl3 only — must be untouched
+	ol3 := domain.OutfitLog{}
+	ol3.ID = "ol3"
+	require.NoError(t, r.Save(t.Context(), ol3))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol3", "wl3"))
+
+	require.NoError(t, r.RemoveWearLogLink(t.Context(), "wl1"))
+
+	got1, err := r.Get(t.Context(), "ol1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wl2"}, got1.WearLogIDs)
+
+	got2, err := r.Get(t.Context(), "ol2")
+	require.NoError(t, err)
+	require.Empty(t, got2.WearLogIDs)
+
+	got3, err := r.Get(t.Context(), "ol3")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wl3"}, got3.WearLogIDs)
+}
+
+func TestOutfitLogRemoveWearLogLinkShouldBeNoOpWhenWearLogIDNotLinked(t *testing.T) {
+	r := json.NewOutfitLogRepository(t.TempDir())
+	ol := domain.OutfitLog{}
+	ol.ID = "ol1"
+	require.NoError(t, r.Save(t.Context(), ol))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl2"))
+
+	require.NoError(t, r.RemoveWearLogLink(t.Context(), "wl1"))
+
+	got, err := r.Get(t.Context(), "ol1")
+	require.NoError(t, err)
+	require.Equal(t, []string{"wl2"}, got.WearLogIDs)
+}
+
 func TestOutfitLogGetShouldReturnSavedLog(t *testing.T) {
 	r := json.NewOutfitLogRepository(t.TempDir())
 	var ol domain.OutfitLog

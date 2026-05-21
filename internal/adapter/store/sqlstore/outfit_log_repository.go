@@ -176,6 +176,22 @@ func (r *OutfitLogRepository) LinkedWearLogIDs(ctx context.Context, outfitLogID 
 	return ids, nil
 }
 
+// RemoveWearLogLink removes wearLogID from every outfit log that references it.
+// In the SQL adapter the outfit_log_wear_logs.wear_log_id foreign key already
+// cascades on wear_log deletion, so this method is a safety net for explicit
+// calls and is always a no-op if the row was already removed by cascade.
+func (r *OutfitLogRepository) RemoveWearLogLink(ctx context.Context, wearLogID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	const q = `DELETE FROM outfit_log_wear_logs WHERE wear_log_id = ?`
+	_, err := r.db.ExecContext(ctx, q, wearLogID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return nil
+}
+
 // ── private helpers ───────────────────────────────────────────────────────────
 
 func (r *OutfitLogRepository) queryOutfitLogs(ctx context.Context, query string, args ...any) ([]domain.OutfitLog, error) {
