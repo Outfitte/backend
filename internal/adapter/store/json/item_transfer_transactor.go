@@ -20,12 +20,13 @@ var _ ports.ItemTransferTransactor = (*ItemTransferTransactor)(nil)
 // prior steps are not rolled back. This is an accepted limitation for single-instance personal use.
 // The mutex guards only ItemTransferTransactor calls; it is not shared with OutfitLogTransactor.
 type ItemTransferTransactor struct {
-	transfers ports.ItemTransferRepository
-	items     ports.ItemRepository
-	wearLogs  ports.WearLogRepository
-	outfits   ports.OutfitRepository
-	shares    ports.ShareRepository
-	mu        *sync.Mutex
+	transfers  ports.ItemTransferRepository
+	items      ports.ItemRepository
+	wearLogs   ports.WearLogRepository
+	outfits    ports.OutfitRepository
+	shares     ports.ShareRepository
+	outfitLogs ports.OutfitLogRepository
+	mu         *sync.Mutex
 }
 
 // NewItemTransferTransactor creates an ItemTransferTransactor using the given repositories and
@@ -36,15 +37,17 @@ func NewItemTransferTransactor(
 	wearLogs ports.WearLogRepository,
 	outfits ports.OutfitRepository,
 	shares ports.ShareRepository,
+	outfitLogs ports.OutfitLogRepository,
 	mu *sync.Mutex,
 ) *ItemTransferTransactor {
 	return &ItemTransferTransactor{
-		transfers: transfers,
-		items:     items,
-		wearLogs:  wearLogs,
-		outfits:   outfits,
-		shares:    shares,
-		mu:        mu,
+		transfers:  transfers,
+		items:      items,
+		wearLogs:   wearLogs,
+		outfits:    outfits,
+		shares:     shares,
+		outfitLogs: outfitLogs,
+		mu:         mu,
 	}
 }
 
@@ -120,6 +123,9 @@ func (t *ItemTransferTransactor) applyWearLogs(ctx context.Context, transfer dom
 	} else {
 		for _, wl := range wls {
 			if err := t.wearLogs.Delete(ctx, wl.ID); err != nil {
+				return err
+			}
+			if err := t.outfitLogs.RemoveWearLogLink(ctx, wl.ID); err != nil {
 				return err
 			}
 		}
