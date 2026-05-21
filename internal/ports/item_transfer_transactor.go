@@ -20,7 +20,7 @@ type ItemTransferTransactor interface {
 	// All preconditions are re-checked inside the transaction:
 	//   - transfer must exist            -> domain.ErrNotFound if missing
 	//   - transfer must be pending       -> domain.ErrValidation if status != pending
-	//   - item must be active            -> domain.ErrNotFound if missing or inactive
+	//   - item must be active            -> domain.ErrNotFound if missing; domain.ErrValidation if inactive
 	//   - sender must still own the item -> domain.ErrForbidden
 	//
 	// Only the transfer ID is accepted; all other state is read fresh inside
