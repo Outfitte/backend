@@ -13,10 +13,12 @@ import (
 var _ ports.ItemTransferTransactor = (*ItemTransferTransactor)(nil)
 
 // ItemTransferTransactor is a JSON file-backed implementation of ports.ItemTransferTransactor.
-// Atomicity is achieved via a shared in-process mutex that serializes all transactional operations.
+// Atomicity is achieved via a shared in-process mutex that serializes concurrent Accept calls
+// against each other.
 //
 // NOTE: This implementation does not provide true atomicity — if a step fails partway through,
 // prior steps are not rolled back. This is an accepted limitation for single-instance personal use.
+// The mutex guards only ItemTransferTransactor calls; it is not shared with OutfitLogTransactor.
 type ItemTransferTransactor struct {
 	transfers ports.ItemTransferRepository
 	items     ports.ItemRepository
