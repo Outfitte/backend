@@ -103,6 +103,37 @@ func TestItemTransferRepositorySaveShouldPersistNewTransfer(t *testing.T) {
 	require.Nil(t, got.DecidedAt)
 }
 
+func TestItemTransferRepositorySaveShouldNotChangeImmutableFieldsOnUpdate(t *testing.T) {
+	repo, db := newItemTransferRepo(t)
+	seedUserForTransfer(t, db, "sender-imm")
+	seedUserForTransfer(t, db, "recip-imm")
+	seedUserForTransfer(t, db, "other-imm")
+	seedItemForTransfer(t, db, "item-imm", "sender-imm")
+	seedItemForTransfer(t, db, "item-imm-other", "other-imm")
+
+	tr := buildTransfer("tr-imm-1", "item-imm", "sender-imm", "recip-imm", domain.TransferStatusPending, true)
+	require.NoError(t, repo.Save(t.Context(), tr))
+
+	// Attempt to mutate immutable fields on the second Save.
+	decided := time.Date(2025, 7, 1, 12, 0, 0, 0, time.UTC)
+	tr.ItemID = "item-imm-other"
+	tr.SenderID = "other-imm"
+	tr.RecipientID = "other-imm"
+	tr.TransferHistory = false
+	tr.Status = domain.TransferStatusAccepted
+	tr.DecidedAt = &decided
+	require.NoError(t, repo.Save(t.Context(), tr))
+
+	got, err := repo.Get(t.Context(), "tr-imm-1")
+	require.NoError(t, err)
+	require.Equal(t, "item-imm", got.ItemID)
+	require.Equal(t, "sender-imm", got.SenderID)
+	require.Equal(t, "recip-imm", got.RecipientID)
+	require.True(t, got.TransferHistory)
+	require.Equal(t, domain.TransferStatusAccepted, got.Status)
+	require.NotNil(t, got.DecidedAt)
+}
+
 func TestItemTransferRepositorySaveShouldUpdateStatusAndDecidedAt(t *testing.T) {
 	repo, db := newItemTransferRepo(t)
 	seedUserForTransfer(t, db, "sender-upd")

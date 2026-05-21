@@ -45,6 +45,7 @@ func (r *ItemTransferRepository) Save(ctx context.Context, transfer domain.ItemT
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// Only status and decided_at are mutable after creation; all other columns are frozen.
 	const q = `
 		INSERT INTO item_transfers (id, item_id, sender_id, recipient_id, status, transfer_history, created_at, decided_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -61,7 +62,7 @@ func (r *ItemTransferRepository) Save(ctx context.Context, transfer domain.ItemT
 		transfer.CreatedAt.UTC().Format(time.RFC3339), decidedAt,
 	)
 	if err != nil {
-		if isUniqueItemTransferConflict(err) {
+		if isDuplicatePendingTransferError(err) {
 			return domain.ErrConflict
 		}
 		return fmt.Errorf("%w: %w", domain.ErrIO, err)
@@ -254,8 +255,8 @@ func buildItemTransferFromRow(id, itemID, senderID, recipientID string, status d
 	return tr
 }
 
-// isUniqueItemTransferConflict reports whether err is a SQLite partial-index violation
-// on the pending-transfer uniqueness constraint.
-func isUniqueItemTransferConflict(err error) bool {
+// isDuplicatePendingTransferError reports whether err is a SQLite violation of the
+// partial unique index that enforces at most one pending transfer per item.
+func isDuplicatePendingTransferError(err error) bool {
 	return strings.Contains(err.Error(), "UNIQUE constraint failed: item_transfers.item_id")
 }
