@@ -40,3 +40,7 @@ func (s *outfitLogRepositoryStub) LinkWearLog(ctx context.Context, _, _ string) 
 func (s *outfitLogRepositoryStub) LinkedWearLogIDs(ctx context.Context, _ string) ([]string, error) {
 	return nil, nil
 }
+
+func (s *outfitLogRepositoryStub) RemoveWearLogLink(ctx context.Context, _ string) error {
+	return nil
+}

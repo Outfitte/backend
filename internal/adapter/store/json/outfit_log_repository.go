@@ -106,6 +106,37 @@ func (r *OutfitLogRepository) LinkedWearLogIDs(ctx context.Context, outfitLogID 
 	return ol.WearLogIDs, nil
 }
 
+func (r *OutfitLogRepository) RemoveWearLogLink(ctx context.Context, wearLogID string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	all, err := r.provider.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, ol := range all {
+		if removed := removeFromSlice(ol.WearLogIDs, wearLogID); removed != nil {
+			ol.WearLogIDs = removed
+			if err := r.provider.Save(ctx, ol); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func removeFromSlice(ids []string, target string) []string {
+	for i, id := range ids {
+		if id == target {
+			result := make([]string, 0, len(ids)-1)
+			result = append(result, ids[:i]...)
+			result = append(result, ids[i+1:]...)
+			return result
+		}
+	}
+	return nil
+}
+
 func sortOutfitLogsByWornOnDesc(logs []domain.OutfitLog) {
 	sort.Slice(logs, func(i, j int) bool {
 		return logs[i].WornOn.After(logs[j].WornOn)

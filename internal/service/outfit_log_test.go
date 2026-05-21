@@ -84,6 +84,10 @@ func (m *mockOutfitLogRepo) LinkedWearLogIDs(_ context.Context, _ string) ([]str
 	return nil, nil
 }
 
+func (m *mockOutfitLogRepo) RemoveWearLogLink(_ context.Context, _ string) error {
+	return nil
+}
+
 // mockOutfitLogTransactor is an in-memory ports.OutfitLogTransactor for tests.
 type mockOutfitLogTransactor struct {
 	repo          *mockOutfitLogRepo // optional: when set, UpdateOutfitLogDate applies the change to repo.logs

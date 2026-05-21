@@ -41,4 +41,8 @@ type OutfitLogRepository interface {
 	// LinkedWearLogIDs returns the wear log IDs associated with the given outfit log.
 	// Use this when only the IDs are needed and the full log is not required.
 	LinkedWearLogIDs(ctx context.Context, outfitLogID string) ([]string, error)
+
+	// RemoveWearLogLink removes wearLogID from every outfit log that references it.
+	// It is a no-op for outfit logs that do not reference wearLogID.
+	RemoveWearLogLink(ctx context.Context, wearLogID string) error
 }

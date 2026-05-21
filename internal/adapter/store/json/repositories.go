@@ -28,6 +28,6 @@ func NewRepositories(dataPath string) ports.Repositories {
 		OutfitLogTransactor: NewOutfitLogTransactor(outfitLogs, wearLogs),
 		Shares:              shares,
 		ItemTransfers:       itemTransfers,
-		ItemTransferTransactor: NewItemTransferTransactor(itemTransfers, items, wearLogs, outfits, shares, mu),
+		ItemTransferTransactor: NewItemTransferTransactor(itemTransfers, items, wearLogs, outfits, shares, outfitLogs, mu),
 	}
 }
