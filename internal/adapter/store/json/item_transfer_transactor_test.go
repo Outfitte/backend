@@ -516,47 +516,6 @@ func TestAcceptShouldReturnIOErrorWhenOutfitDeleteItemFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestAcceptShouldRemoveWearLogIDFromOutfitLogWhenTransferHistoryIsFalse(t *testing.T) {
-	tr, transfers, items, wearLogs, _, _, outfitLogs := newTransferTransactor(t)
-
-	var transfer domain.ItemTransfer
-	transfer.ID = "transfer1"
-	transfer.ItemID = "item1"
-	transfer.SenderID = "sender1"
-	transfer.RecipientID = "recipient1"
-	transfer.TransferHistory = false
-	transfer.Status = domain.TransferStatusPending
-	require.NoError(t, transfers.Save(t.Context(), transfer))
-
-	var item domain.Item
-	item.ID = "item1"
-	item.OwnerID = "sender1"
-	require.NoError(t, items.Save(t.Context(), item))
-
-	// Create a wear log for item1 and link it to an outfit log
-	var wl domain.WearLog
-	wl.ID = "wl1"
-	wl.ItemID = "item1"
-	require.NoError(t, wearLogs.Save(t.Context(), wl))
-
-	var ol domain.OutfitLog
-	ol.ID = "ol1"
-	require.NoError(t, outfitLogs.Save(t.Context(), ol))
-	require.NoError(t, outfitLogs.LinkWearLog(t.Context(), "ol1", "wl1"))
-
-	_, err := tr.Accept(t.Context(), "transfer1")
-	require.NoError(t, err)
-
-	// Wear log deleted
-	_, err = wearLogs.Get(t.Context(), "wl1")
-	require.ErrorIs(t, err, domain.ErrNotFound)
-
-	// Outfit log still exists but wl1 link is removed
-	storedOL, err := outfitLogs.Get(t.Context(), "ol1")
-	require.NoError(t, err)
-	require.Empty(t, storedOL.WearLogIDs)
-}
-
 func TestAcceptShouldReturnIOErrorWhenOutfitLogStorageIsCorruptDuringWearLogLinkRemoval(t *testing.T) {
 	dir := t.TempDir()
 	transfers := json.NewItemTransferRepository(dir)
@@ -596,6 +555,47 @@ func TestAcceptShouldReturnIOErrorWhenOutfitLogStorageIsCorruptDuringWearLogLink
 
 	_, err := tr.Accept(t.Context(), "transfer1")
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestAcceptShouldRemoveWearLogIDFromOutfitLogWhenTransferHistoryIsFalse(t *testing.T) {
+	tr, transfers, items, wearLogs, _, _, outfitLogs := newTransferTransactor(t)
+
+	var transfer domain.ItemTransfer
+	transfer.ID = "transfer1"
+	transfer.ItemID = "item1"
+	transfer.SenderID = "sender1"
+	transfer.RecipientID = "recipient1"
+	transfer.TransferHistory = false
+	transfer.Status = domain.TransferStatusPending
+	require.NoError(t, transfers.Save(t.Context(), transfer))
+
+	var item domain.Item
+	item.ID = "item1"
+	item.OwnerID = "sender1"
+	require.NoError(t, items.Save(t.Context(), item))
+
+	// Create a wear log for item1 and link it to an outfit log
+	var wl domain.WearLog
+	wl.ID = "wl1"
+	wl.ItemID = "item1"
+	require.NoError(t, wearLogs.Save(t.Context(), wl))
+
+	var ol domain.OutfitLog
+	ol.ID = "ol1"
+	require.NoError(t, outfitLogs.Save(t.Context(), ol))
+	require.NoError(t, outfitLogs.LinkWearLog(t.Context(), "ol1", "wl1"))
+
+	_, err := tr.Accept(t.Context(), "transfer1")
+	require.NoError(t, err)
+
+	// Wear log deleted
+	_, err = wearLogs.Get(t.Context(), "wl1")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+
+	// Outfit log still exists but wl1 link is removed
+	storedOL, err := outfitLogs.Get(t.Context(), "ol1")
+	require.NoError(t, err)
+	require.Empty(t, storedOL.WearLogIDs)
 }
 
 func TestAcceptShouldReturnErrorWhenContextCancelled(t *testing.T) {

@@ -368,6 +368,24 @@ func TestOutfitLogRemoveWearLogLinkShouldReturnIOErrorWhenStorageIsCorrupt(t *te
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestOutfitLogRemoveWearLogLinkShouldReturnIOErrorWhenOutfitLogSaveFails(t *testing.T) {
+	dir := t.TempDir()
+	r := json.NewOutfitLogRepository(dir)
+
+	// Save an outfit log linked to wl1 so there is something to update
+	ol := domain.OutfitLog{}
+	ol.ID = "ol1"
+	require.NoError(t, r.Save(t.Context(), ol))
+	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl1"))
+
+	// Make the file read-only so Save fails
+	require.NoError(t, os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o444))
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o644) })
+
+	err := r.RemoveWearLogLink(t.Context(), "wl1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestOutfitLogRemoveWearLogLinkShouldRemoveIDFromAllLinkedOutfitLogs(t *testing.T) {
 	r := json.NewOutfitLogRepository(t.TempDir())
 
@@ -403,24 +421,6 @@ func TestOutfitLogRemoveWearLogLinkShouldRemoveIDFromAllLinkedOutfitLogs(t *test
 	got3, err := r.Get(t.Context(), "ol3")
 	require.NoError(t, err)
 	require.Equal(t, []string{"wl3"}, got3.WearLogIDs)
-}
-
-func TestOutfitLogRemoveWearLogLinkShouldReturnIOErrorWhenOutfitLogSaveFails(t *testing.T) {
-	dir := t.TempDir()
-	r := json.NewOutfitLogRepository(dir)
-
-	// Save an outfit log linked to wl1 so there is something to update
-	ol := domain.OutfitLog{}
-	ol.ID = "ol1"
-	require.NoError(t, r.Save(t.Context(), ol))
-	require.NoError(t, r.LinkWearLog(t.Context(), "ol1", "wl1"))
-
-	// Make the file read-only so Save fails
-	require.NoError(t, os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o444))
-	t.Cleanup(func() { _ = os.Chmod(filepath.Join(dir, "outfit_logs.json"), 0o644) })
-
-	err := r.RemoveWearLogLink(t.Context(), "wl1")
-	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestOutfitLogRemoveWearLogLinkShouldBeNoOpWhenWearLogIDNotLinked(t *testing.T) {
