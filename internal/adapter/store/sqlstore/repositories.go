@@ -19,5 +19,6 @@ func NewRepositories(db *sql.DB) ports.Repositories {
 		OutfitLogs:          NewOutfitLogRepository(db),
 		OutfitLogTransactor: NewOutfitLogTransactor(db),
 		Shares:              NewShareRepository(db),
+		ItemTransfers:       NewItemTransferRepository(db),
 	}
 }
