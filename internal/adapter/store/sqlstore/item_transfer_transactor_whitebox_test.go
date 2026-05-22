@@ -71,7 +71,7 @@ func TestItemTransferTransactorAcceptShouldReturnErrIOWhenCommitFails(t *testing
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-// ── readAndValidateTransfer: scan error ───────────────────────────────────────
+// ── readAndValidateTransfer: scan and parse errors ───────────────────────────
 
 func TestReadAndValidateTransferShouldReturnErrIOWhenScanFails(t *testing.T) {
 	db := openTestDB(t)
@@ -80,6 +80,30 @@ func TestReadAndValidateTransferShouldReturnErrIOWhenScanFails(t *testing.T) {
 	require.NoError(t, tx.Rollback())
 
 	_, err = readAndValidateTransfer(t.Context(), tx, "tr-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestReadAndValidateTransferShouldReturnErrIOWhenCreatedAtIsInvalidFormat(t *testing.T) {
+	db := openTestDB(t)
+	// Insert a transfer row with an unparseable created_at.
+	_, err := db.ExecContext(t.Context(), `
+		INSERT INTO users (id, email, password_hash, role, created_at)
+		VALUES ('u-parse', 'u-parse@example.com', 'hash', 'member', '2025-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO items (id, owner_id, name, created_at, metadata)
+		VALUES ('i-parse', 'u-parse', 'Item', '2025-01-01T00:00:00Z', '{}')`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `
+		INSERT INTO item_transfers (id, item_id, sender_id, recipient_id, status, transfer_history, created_at)
+		VALUES ('tr-parse', 'i-parse', 'u-parse', 'u-parse', 'pending', 0, 'not-a-timestamp')`)
+	require.NoError(t, err)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer tx.Rollback() //nolint:errcheck
+
+	_, err = readAndValidateTransfer(t.Context(), tx, "tr-parse")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 

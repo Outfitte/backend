@@ -162,7 +162,7 @@ func validateItemForTransfer(ctx context.Context, tx *sql.Tx, itemID, senderID s
 
 // readAndValidateTransfer reads the transfer row inside the transaction and validates its status.
 func readAndValidateTransfer(ctx context.Context, tx *sql.Tx, transferID string) (domain.ItemTransfer, error) {
-	const q = `SELECT id, item_id, sender_id, recipient_id, status, transfer_history FROM item_transfers WHERE id = ?`
+	const q = `SELECT id, item_id, sender_id, recipient_id, status, transfer_history, created_at FROM item_transfers WHERE id = ?`
 	var (
 		id              string
 		itemID          string
@@ -170,8 +170,9 @@ func readAndValidateTransfer(ctx context.Context, tx *sql.Tx, transferID string)
 		recipientID     string
 		status          string
 		transferHistory int
+		createdAtStr    string
 	)
-	if err := tx.QueryRowContext(ctx, q, transferID).Scan(&id, &itemID, &senderID, &recipientID, &status, &transferHistory); err != nil {
+	if err := tx.QueryRowContext(ctx, q, transferID).Scan(&id, &itemID, &senderID, &recipientID, &status, &transferHistory, &createdAtStr); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ItemTransfer{}, fmt.Errorf("%w: id %s", domain.ErrNotFound, transferID)
 		}
@@ -180,5 +181,9 @@ func readAndValidateTransfer(ctx context.Context, tx *sql.Tx, transferID string)
 	if domain.TransferStatus(status) != domain.TransferStatusPending {
 		return domain.ItemTransfer{}, fmt.Errorf("%w: transfer is not pending", domain.ErrValidation)
 	}
-	return buildItemTransferFromRow(id, itemID, senderID, recipientID, domain.TransferStatus(status), transferHistory != 0, domain.ItemTransfer{}.CreatedAt, nil), nil
+	createdAt, err := time.Parse(time.RFC3339, createdAtStr)
+	if err != nil {
+		return domain.ItemTransfer{}, fmt.Errorf("%w: %w", domain.ErrIO, err)
+	}
+	return buildItemTransferFromRow(id, itemID, senderID, recipientID, domain.TransferStatus(status), transferHistory != 0, createdAt, nil), nil
 }

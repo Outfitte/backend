@@ -482,11 +482,11 @@ func (s *fakeAcceptTxStmt) Query(_ []driver.Value) (driver.Rows, error) {
 	}
 }
 
-// fakeAcceptTransferRow returns one row: (id, item_id, sender_id, recipient_id, "pending", 0).
+// fakeAcceptTransferRow returns one row: (id, item_id, sender_id, recipient_id, "pending", 0, created_at).
 type fakeAcceptTransferRow struct{ done bool }
 
 func (r *fakeAcceptTransferRow) Columns() []string {
-	return []string{"id", "item_id", "sender_id", "recipient_id", "status", "transfer_history"}
+	return []string{"id", "item_id", "sender_id", "recipient_id", "status", "transfer_history", "created_at"}
 }
 func (r *fakeAcceptTransferRow) Close() error { return nil }
 func (r *fakeAcceptTransferRow) Next(dest []driver.Value) error {
@@ -500,6 +500,7 @@ func (r *fakeAcceptTransferRow) Next(dest []driver.Value) error {
 	dest[3] = "recip-fake"
 	dest[4] = "pending"
 	dest[5] = int64(0)
+	dest[6] = "2025-01-01T00:00:00Z"
 	return nil
 }
 
