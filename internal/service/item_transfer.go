@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +34,6 @@ type ItemTransferService struct {
 	users      ports.UserRepository
 	idGen      func() string
 	now        func() time.Time
-	log        *slog.Logger
 }
 
 // NewItemTransferService constructs an ItemTransferService backed by the given ports.
@@ -43,7 +42,6 @@ func NewItemTransferService(
 	transactor ports.ItemTransferTransactor,
 	items ports.ItemRepository,
 	users ports.UserRepository,
-	log *slog.Logger,
 ) *ItemTransferService {
 	return &ItemTransferService{
 		transfers:  transfers,
@@ -52,7 +50,6 @@ func NewItemTransferService(
 		users:      users,
 		idGen:      uuid.NewString,
 		now:        func() time.Time { return time.Now().UTC() },
-		log:        log,
 	}
 }
 
@@ -186,15 +183,8 @@ func (s *ItemTransferService) Accept(ctx context.Context, callerID, transferID s
 	if err := ctx.Err(); err != nil {
 		return TransferView{}, err
 	}
-	transfer, err := s.transfers.Get(ctx, transferID)
-	if err != nil {
+	if _, err := s.fetchAndAuthorize(ctx, transferID, callerID, recipientOnly); err != nil {
 		return TransferView{}, err
-	}
-	if transfer.RecipientID != callerID {
-		return TransferView{}, domain.ErrForbidden
-	}
-	if transfer.Status != domain.TransferStatusPending {
-		return TransferView{}, domain.ErrValidation
 	}
 	accepted, err := s.transactor.Accept(ctx, transferID)
 	if err != nil {
@@ -242,8 +232,8 @@ func (s *ItemTransferService) Cancel(ctx context.Context, callerID, transferID s
 type participantRole int
 
 const (
-	senderOnly    participantRole = iota
-	recipientOnly participantRole = iota
+	senderOnly participantRole = iota
+	recipientOnly
 )
 
 func (s *ItemTransferService) fetchAndAuthorize(ctx context.Context, transferID, callerID string, role participantRole) (domain.ItemTransfer, error) {
@@ -260,6 +250,8 @@ func (s *ItemTransferService) fetchAndAuthorize(ctx context.Context, transferID,
 		if transfer.SenderID != callerID {
 			return domain.ItemTransfer{}, domain.ErrForbidden
 		}
+	default:
+		panic(fmt.Sprintf("fetchAndAuthorize: unknown role %d", role))
 	}
 	if transfer.Status != domain.TransferStatusPending {
 		return domain.ItemTransfer{}, domain.ErrValidation

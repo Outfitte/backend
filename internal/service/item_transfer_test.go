@@ -2,18 +2,12 @@ package service
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 )
-
-func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
 
 // ── fakes ─────────────────────────────────────────────────────────────────────
 
@@ -107,7 +101,7 @@ func newTestTransferService(
 	itemRepo *mockItemRepo,
 	userRepo *mockUserStore,
 ) *ItemTransferService {
-	svc := NewItemTransferService(repo, transactor, itemRepo, userRepo, discardLogger())
+	svc := NewItemTransferService(repo, transactor, itemRepo, userRepo)
 	svc.idGen = func() string { return "transfer-1" }
 	svc.now = func() time.Time { return time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC) }
 	return svc
@@ -124,7 +118,7 @@ func makeItem(id, ownerID string) domain.Item {
 
 func makeArchivedItem(id, ownerID string) domain.Item {
 	item := makeItem(id, ownerID)
-	now := time.Now()
+	now := time.Now().UTC()
 	item.ArchivedAt = &now
 	return item
 }
@@ -322,7 +316,7 @@ func TestNewItemTransferServiceShouldUseUUIDAndTimeDefaultsWhenNoOverrideProvide
 	sender := makeUser("sender-1", "sender@example.com")
 	recipient := makeUser("recipient-1", "recipient@example.com")
 	repo := &mockTransferRepo{}
-	svc := NewItemTransferService(repo, &mockTransferTransactor{}, &mockItemRepo{items: []domain.Item{item}}, &mockUserStore{users: []domain.User{sender, recipient}}, discardLogger())
+	svc := NewItemTransferService(repo, &mockTransferTransactor{}, &mockItemRepo{items: []domain.Item{item}}, &mockUserStore{users: []domain.User{sender, recipient}})
 
 	got, err := svc.Create(t.Context(), "sender-1", CreateTransferInput{ItemID: "item-1", RecipientID: "recipient-1"})
 	require.NoError(t, err)
@@ -680,6 +674,22 @@ func TestItemTransferServiceRejectShouldReturnTransferViewWhenSuccessful(t *test
 	require.NotNil(t, got.Transfer.DecidedAt)
 	require.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), *got.Transfer.DecidedAt)
 	require.Equal(t, domain.TransferStatusRejected, repo.transfers[0].Status)
+}
+
+// ── fetchAndAuthorize ─────────────────────────────────────────────────────────
+
+func TestFetchAndAuthorizeShouldPanicWhenRoleIsUnknown(t *testing.T) {
+	tr := makePendingTransfer("transfer-1", "item-1", "sender-1", "recipient-1")
+	svc := newTestTransferService(
+		&mockTransferRepo{transfers: []domain.ItemTransfer{tr}},
+		&mockTransferTransactor{},
+		&mockItemRepo{},
+		&mockUserStore{},
+	)
+
+	require.Panics(t, func() {
+		_, _ = svc.fetchAndAuthorize(t.Context(), "transfer-1", "sender-1", participantRole(99))
+	})
 }
 
 // ── Cancel ────────────────────────────────────────────────────────────────────
