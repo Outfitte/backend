@@ -26,6 +26,14 @@ func init() {
 	sql.Register("fake-tx-with-row-exec-fail-after-1", &fakeTxWithRowExecFailAfter1Driver{})
 	// Transaction-level drivers: Begin succeeds, Query returns 0 rows, first 2 execs ok, 3rd fails.
 	sql.Register("fake-tx-exec-fail-after-2", &fakeTxExecFailAfter2Driver{})
+	// Accept-flow drivers: Begin succeeds; QueryRow 1 = pending transfer, QueryRow 2 = active item.
+	// Execs succeed up to failOnExec-1, then fail at failOnExec. commitFail=true fails commit instead.
+	sql.Register("fake-tx-accept-exec-fail-at-1", &fakeAcceptTxDriver{failOnExec: 1})
+	sql.Register("fake-tx-accept-exec-fail-at-2", &fakeAcceptTxDriver{failOnExec: 2})
+	sql.Register("fake-tx-accept-exec-fail-at-3", &fakeAcceptTxDriver{failOnExec: 3})
+	sql.Register("fake-tx-accept-exec-fail-at-4", &fakeAcceptTxDriver{failOnExec: 4})
+	sql.Register("fake-tx-accept-exec-fail-at-5", &fakeAcceptTxDriver{failOnExec: 5})
+	sql.Register("fake-tx-accept-commit-fail", &fakeAcceptTxDriver{commitFail: true})
 }
 
 // openFakeDB opens a *sql.DB backed by the named fake driver.
@@ -418,4 +426,97 @@ func (s *fakeTxExecFailAfter2Stmt) Exec(_ []driver.Value) (driver.Result, error)
 }
 func (s *fakeTxExecFailAfter2Stmt) Query(_ []driver.Value) (driver.Rows, error) {
 	return &fakeEmptyRows{}, nil
+}
+
+// ── fake-tx-accept-exec-fail-at-N / fake-tx-accept-commit-fail ───────────────
+// Begin succeeds; first QueryRow returns a valid pending-transfer row (6 cols);
+// second QueryRow returns a valid active-item row (3 cols, owner = "sender-fake");
+// ExecContext calls succeed until the Nth (failOnExec > 0), then fail.
+// If commitFail is true, all execs succeed but Commit returns errFakeDB.
+
+type fakeAcceptTxDriver struct {
+	failOnExec int
+	commitFail bool
+}
+type fakeAcceptTxConn struct {
+	queryCount int
+	execCount  int
+	d          *fakeAcceptTxDriver
+}
+type fakeAcceptTxTx struct{ conn *fakeAcceptTxConn }
+type fakeAcceptTxStmt struct{ conn *fakeAcceptTxConn }
+
+func (d *fakeAcceptTxDriver) Open(_ string) (driver.Conn, error) {
+	return &fakeAcceptTxConn{d: d}, nil
+}
+func (c *fakeAcceptTxConn) Prepare(_ string) (driver.Stmt, error) {
+	return &fakeAcceptTxStmt{conn: c}, nil
+}
+func (c *fakeAcceptTxConn) Close() error              { return nil }
+func (c *fakeAcceptTxConn) Begin() (driver.Tx, error) { return &fakeAcceptTxTx{conn: c}, nil }
+func (tx *fakeAcceptTxTx) Commit() error {
+	if tx.conn.d.commitFail {
+		return errFakeDB
+	}
+	return nil
+}
+func (tx *fakeAcceptTxTx) Rollback() error { return nil }
+func (s *fakeAcceptTxStmt) Close() error   { return nil }
+func (s *fakeAcceptTxStmt) NumInput() int  { return -1 }
+func (s *fakeAcceptTxStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	s.conn.execCount++
+	if s.conn.d.failOnExec > 0 && s.conn.execCount == s.conn.d.failOnExec {
+		return nil, errFakeDB
+	}
+	return &fakeOKResult{}, nil
+}
+func (s *fakeAcceptTxStmt) Query(_ []driver.Value) (driver.Rows, error) {
+	s.conn.queryCount++
+	switch s.conn.queryCount {
+	case 1:
+		return &fakeAcceptTransferRow{}, nil
+	case 2:
+		return &fakeAcceptItemRow{}, nil
+	default:
+		return &fakeEmptyRows{}, nil
+	}
+}
+
+// fakeAcceptTransferRow returns one row: (id, item_id, sender_id, recipient_id, "pending", 0).
+type fakeAcceptTransferRow struct{ done bool }
+
+func (r *fakeAcceptTransferRow) Columns() []string {
+	return []string{"id", "item_id", "sender_id", "recipient_id", "status", "transfer_history"}
+}
+func (r *fakeAcceptTransferRow) Close() error { return nil }
+func (r *fakeAcceptTransferRow) Next(dest []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	dest[0] = "tr-fake"
+	dest[1] = "item-fake"
+	dest[2] = "sender-fake"
+	dest[3] = "recip-fake"
+	dest[4] = "pending"
+	dest[5] = int64(0)
+	return nil
+}
+
+// fakeAcceptItemRow returns one row: (owner_id="sender-fake", archived_at=nil, disposal_reason=nil).
+type fakeAcceptItemRow struct{ done bool }
+
+func (r *fakeAcceptItemRow) Columns() []string {
+	return []string{"owner_id", "archived_at", "disposal_reason"}
+}
+func (r *fakeAcceptItemRow) Close() error { return nil }
+func (r *fakeAcceptItemRow) Next(dest []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	dest[0] = "sender-fake"
+	dest[1] = nil
+	dest[2] = nil
+	return nil
 }
