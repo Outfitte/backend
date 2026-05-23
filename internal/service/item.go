@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -76,8 +75,15 @@ func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locat
 }
 
 // checkPendingTransfer returns ErrItemTransferPending if itemID has a pending transfer.
-func (s *ItemService) checkPendingTransfer(_ context.Context, _ string) error {
-	return errors.New("not implemented")
+func (s *ItemService) checkPendingTransfer(ctx context.Context, itemID string) error {
+	pending, err := s.transfers.HasPending(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return domain.ErrItemTransferPending
+	}
+	return nil
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
@@ -220,6 +226,9 @@ func (s *ItemService) Update(ctx context.Context, callerID, itemID string, input
 	if item.OwnerID != callerID {
 		return domain.Item{}, domain.ErrForbidden
 	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
+		return domain.Item{}, err
+	}
 	if err := s.applyItemMerge(ctx, &item, input); err != nil {
 		return domain.Item{}, err
 	}
@@ -350,6 +359,9 @@ func (s *ItemService) UploadPhoto(ctx context.Context, callerID, itemID string, 
 	if err != nil {
 		return err
 	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
+		return err
+	}
 	key := "items/" + itemID + "/" + uuid.NewString() + "/" + filename
 	if err := s.media.Upload(ctx, key, r); err != nil {
 		return err
@@ -365,6 +377,9 @@ func (s *ItemService) DeletePhoto(ctx context.Context, callerID, itemID, photoKe
 	}
 	item, err := s.getOwnedItem(ctx, callerID, itemID)
 	if err != nil {
+		return err
+	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
 		return err
 	}
 	if !s.itemHasPhoto(item, photoKey) {
@@ -392,6 +407,9 @@ func (s *ItemService) Delete(ctx context.Context, callerID, itemID string) error
 	if _, err := s.getOwnedItem(ctx, callerID, itemID); err != nil {
 		return err
 	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
+		return err
+	}
 	keys, err := s.items.ListPhotoKeys(ctx, itemID)
 	if err != nil {
 		return err
@@ -415,6 +433,9 @@ func (s *ItemService) Archive(ctx context.Context, callerID, itemID string) erro
 	if err != nil {
 		return err
 	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
+		return err
+	}
 	if item.ArchivedAt != nil {
 		return domain.ErrAlreadyArchived
 	}
@@ -431,6 +452,9 @@ func (s *ItemService) Unarchive(ctx context.Context, callerID, itemID string) er
 	if err != nil {
 		return err
 	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
+		return err
+	}
 	if item.ArchivedAt == nil {
 		return domain.ErrNotArchived
 	}
@@ -445,6 +469,9 @@ func (s *ItemService) Dispose(ctx context.Context, callerID, itemID string, reas
 	}
 	item, err := s.getOwnedItem(ctx, callerID, itemID)
 	if err != nil {
+		return err
+	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
 		return err
 	}
 	if item.ArchivedAt == nil {
