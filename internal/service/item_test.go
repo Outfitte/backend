@@ -820,6 +820,34 @@ func TestItemServiceUpdateShouldReturnErrorWhenStoreSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemServiceUpdateShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
+
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceUpdateShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Name = "Jacket"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
+
+	name := "Jacket"
+	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
 func TestItemServiceUpdateShouldUpdateItemWhenCallerIsOwner(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
@@ -1233,34 +1261,6 @@ func TestItemServiceUpdateShouldClearSellerURLWhenNullableNilInInput(t *testing.
 	require.Nil(t, got.SellerURL)
 }
 
-func TestItemServiceUpdateShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.Name = "Jacket"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
-
-	name := "Jacket"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestItemServiceUpdateShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.Name = "Jacket"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
-
-	name := "Jacket"
-	_, err := svc.Update(t.Context(), "owner-1", "item-1", UpdateItemInput{Name: &name})
-	require.ErrorIs(t, err, domain.ErrItemTransferPending)
-}
-
 // ── UploadPhoto ───────────────────────────────────────────────────────────────
 
 func TestItemServiceUploadPhotoShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
@@ -1324,6 +1324,30 @@ func TestItemServiceUploadPhotoShouldReturnErrorWhenSavePhotoFails(t *testing.T)
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemServiceUploadPhotoShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceUploadPhotoShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
+
+	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
 func TestItemServiceUploadPhotoShouldCallSavePhotoWithCorrectArgsWhenSuccessful(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
@@ -1348,30 +1372,6 @@ func TestItemServiceUploadPhotoShouldCallSavePhotoWithCorrectArgsWhenSuccessful(
 	require.NotEmpty(t, repo.savedPhotoPhotoID)
 	require.Equal(t, media.uploadedKey, repo.savedPhotoKey)
 	require.Equal(t, 1, repo.savedPhotoPosition)
-}
-
-func TestItemServiceUploadPhotoShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
-
-	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestItemServiceUploadPhotoShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
-
-	err := svc.UploadPhoto(t.Context(), "owner-1", "item-1", nil, "photo.jpg")
-	require.ErrorIs(t, err, domain.ErrItemTransferPending)
 }
 
 // ── DeletePhoto ───────────────────────────────────────────────────────────────
@@ -1452,28 +1452,6 @@ func TestItemServiceDeletePhotoShouldReturnErrorWhenDeletePhotoFails(t *testing.
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestItemServiceDeletePhotoShouldDeleteMediaAndCallDeletePhotoWhenSuccessful(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.Photos = []domain.ItemPhoto{
-		{ID: "p1", MediaKey: "keep.jpg", Position: 0},
-		{ID: "p2", MediaKey: "remove.jpg", Position: 1},
-		{ID: "p3", MediaKey: "also-keep.jpg", Position: 2},
-	}
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	media := &mockMediaProvider{}
-	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
-
-	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "remove.jpg")
-	require.NoError(t, err)
-
-	require.Equal(t, []string{"remove.jpg"}, media.deletedKeys)
-	require.Equal(t, "item-1", repo.deletedPhotoItemID)
-	require.Equal(t, "remove.jpg", repo.deletedPhotoKey)
-}
-
 func TestItemServiceDeletePhotoShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
@@ -1498,6 +1476,28 @@ func TestItemServiceDeletePhotoShouldReturnErrItemTransferPendingWhenTransferPen
 
 	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "photo.jpg")
 	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestItemServiceDeletePhotoShouldDeleteMediaAndCallDeletePhotoWhenSuccessful(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.Photos = []domain.ItemPhoto{
+		{ID: "p1", MediaKey: "keep.jpg", Position: 0},
+		{ID: "p2", MediaKey: "remove.jpg", Position: 1},
+		{ID: "p3", MediaKey: "also-keep.jpg", Position: 2},
+	}
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	media := &mockMediaProvider{}
+	svc := NewItemService(repo, media, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
+
+	err := svc.DeletePhoto(t.Context(), "owner-1", "item-1", "remove.jpg")
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"remove.jpg"}, media.deletedKeys)
+	require.Equal(t, "item-1", repo.deletedPhotoItemID)
+	require.Equal(t, "remove.jpg", repo.deletedPhotoKey)
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -1567,6 +1567,30 @@ func TestItemServiceDeleteShouldReturnErrorWhenStoreDeleteFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemServiceDeleteShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
+
+	err := svc.Delete(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDeleteShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
+
+	err := svc.Delete(t.Context(), "owner-1", "item-1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
 func TestItemServiceDeleteShouldDeleteMediaKeysAndItemWhenCallerIsOwner(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
@@ -1612,30 +1636,6 @@ func TestItemServiceDeleteShouldCleanUpSharesAfterDeletingItemWhenSuccessful(t *
 	require.Equal(t, 1, shares.deleteByTargetCalls)
 	require.Equal(t, domain.ShareTargetItem, shares.deletedTargetType)
 	require.Equal(t, "item-1", shares.deletedTargetID)
-}
-
-func TestItemServiceDeleteShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
-
-	err := svc.Delete(t.Context(), "owner-1", "item-1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestItemServiceDeleteShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
-
-	err := svc.Delete(t.Context(), "owner-1", "item-1")
-	require.ErrorIs(t, err, domain.ErrItemTransferPending)
 }
 
 // ── makeItemPhotos ────────────────────────────────────────────────────────────
@@ -1730,18 +1730,6 @@ func TestItemServiceArchiveShouldReturnErrorWhenSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestItemServiceArchiveShouldSetArchivedAtWhenItemIsNotArchived(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
-
-	err := svc.Archive(t.Context(), "owner-1", "item-1")
-	require.NoError(t, err)
-	require.NotNil(t, repo.items[0].ArchivedAt)
-}
-
 func TestItemServiceArchiveShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
@@ -1762,6 +1750,18 @@ func TestItemServiceArchiveShouldReturnErrItemTransferPendingWhenTransferPending
 
 	err := svc.Archive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestItemServiceArchiveShouldSetArchivedAtWhenItemIsNotArchived(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
+
+	err := svc.Archive(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.NotNil(t, repo.items[0].ArchivedAt)
 }
 
 // ── Unarchive ─────────────────────────────────────────────────────────────────
@@ -1817,23 +1817,6 @@ func TestItemServiceUnarchiveShouldReturnErrorWhenSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-func TestItemServiceUnarchiveShouldClearArchivedAtAndDisposalReasonWhenArchived(t *testing.T) {
-	now := time.Now().UTC()
-	reason := domain.DisposalDonated
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	item.ArchivedAt = &now
-	item.DisposalReason = &reason
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
-
-	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
-	require.NoError(t, err)
-	require.Nil(t, repo.items[0].ArchivedAt)
-	require.Nil(t, repo.items[0].DisposalReason)
-}
-
 func TestItemServiceUnarchiveShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
 	now := time.Now().UTC()
 	var item domain.Item
@@ -1858,6 +1841,23 @@ func TestItemServiceUnarchiveShouldReturnErrItemTransferPendingWhenTransferPendi
 
 	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestItemServiceUnarchiveShouldClearArchivedAtAndDisposalReasonWhenArchived(t *testing.T) {
+	now := time.Now().UTC()
+	reason := domain.DisposalDonated
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	item.ArchivedAt = &now
+	item.DisposalReason = &reason
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
+
+	err := svc.Unarchive(t.Context(), "owner-1", "item-1")
+	require.NoError(t, err)
+	require.Nil(t, repo.items[0].ArchivedAt)
+	require.Nil(t, repo.items[0].DisposalReason)
 }
 
 // ── Dispose ───────────────────────────────────────────────────────────────────
@@ -1900,6 +1900,28 @@ func TestItemServiceDisposeShouldReturnErrorWhenSaveFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestItemServiceDisposeShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
+
+	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceDisposeShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
+
+	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
 func TestItemServiceDisposeShouldSetDisposalReasonAndArchivedAtWhenItemIsNotArchived(t *testing.T) {
 	var item domain.Item
 	item.ID = "item-1"
@@ -1926,26 +1948,4 @@ func TestItemServiceDisposeShouldSetDisposalReasonWithoutChangingArchivedAtWhenA
 	require.NoError(t, err)
 	require.Equal(t, archivedAt, *repo.items[0].ArchivedAt)
 	require.Equal(t, domain.DisposalSold, *repo.items[0].DisposalReason)
-}
-
-func TestItemServiceDisposeShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
-
-	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestItemServiceDisposeShouldReturnErrItemTransferPendingWhenTransferPending(t *testing.T) {
-	var item domain.Item
-	item.ID = "item-1"
-	item.OwnerID = "owner-1"
-	repo := &mockItemRepo{items: []domain.Item{item}}
-	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
-
-	err := svc.Dispose(t.Context(), "owner-1", "item-1", domain.DisposalDonated)
-	require.ErrorIs(t, err, domain.ErrItemTransferPending)
 }
