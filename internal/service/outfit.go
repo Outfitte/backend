@@ -135,6 +135,13 @@ func (s *OutfitService) AddItem(ctx context.Context, callerID, outfitID, itemID 
 	if err := s.validateItemOwnership(ctx, callerID, itemID); err != nil {
 		return err
 	}
+	pending, err := s.transfers.HasPending(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return domain.ErrItemTransferPending
+	}
 	position, err := s.nextItemPosition(ctx, outfitID)
 	if err != nil {
 		return err
@@ -148,6 +155,13 @@ func (s *OutfitService) RemoveItem(ctx context.Context, callerID, outfitID, item
 	}
 	if _, err := s.getOwnedOutfit(ctx, callerID, outfitID); err != nil {
 		return err
+	}
+	pending, err := s.transfers.HasPending(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return domain.ErrItemTransferPending
 	}
 	return s.outfits.DeleteItem(ctx, outfitID, itemID)
 }

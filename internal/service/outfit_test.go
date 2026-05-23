@@ -496,6 +496,28 @@ func TestAddItemShouldReturnRepoErrorWhenSaveItemFails(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestAddItemShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	item := itemWithOwner("i1", "user1")
+	itemRepo := &mockItemRepo{items: []domain.Item{item}}
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewOutfitService(outfitRepo, itemRepo, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, transferRepo)
+	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestAddItemShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	item := itemWithOwner("i1", "user1")
+	itemRepo := &mockItemRepo{items: []domain.Item{item}}
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewOutfitService(outfitRepo, itemRepo, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, transferRepo)
+	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestAddItemShouldAssignPositionBasedOnCurrentItemCountWhenSuccessful(t *testing.T) {
 	outfit := outfitWithOwner("o1", "user1")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, itemIDs: []string{"existing1", "existing2"}}
@@ -537,6 +559,24 @@ func TestRemoveItemShouldReturnRepoErrorWhenDeleteItemFails(t *testing.T) {
 	outfit := outfitWithOwner("o1", "user1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, deleteItemErr: domain.ErrIO}
 	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
+	err := svc.RemoveItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRemoveItemShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, transferRepo)
+	err := svc.RemoveItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestRemoveItemShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, transferRepo)
 	err := svc.RemoveItem(t.Context(), "user1", "o1", "i1")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
