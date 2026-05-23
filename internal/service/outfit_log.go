@@ -42,6 +42,10 @@ func (s *OutfitLogService) LogWear(ctx context.Context, callerID, outfitID strin
 }
 
 func (s *OutfitLogService) createOutfitLog(ctx context.Context, callerID string, outfit domain.Outfit, wornOn time.Time, notes *string, now time.Time) (domain.OutfitLog, error) {
+	if err := s.rejectIfAnyItemTransferPending(ctx, outfit.Items); err != nil {
+		return domain.OutfitLog{}, err
+	}
+
 	var outfitLog domain.OutfitLog
 	outfitLog.ID = uuid.NewString()
 	outfitLog.OutfitID = outfit.GetID()
@@ -63,6 +67,19 @@ func (s *OutfitLogService) createOutfitLog(ctx context.Context, callerID string,
 	}
 
 	return s.transactor.CreateOutfitLog(ctx, outfitLog, wearLogs)
+}
+
+func (s *OutfitLogService) rejectIfAnyItemTransferPending(ctx context.Context, items []domain.OutfitItem) error {
+	for _, item := range items {
+		pending, err := s.transfers.HasPending(ctx, item.ItemID)
+		if err != nil {
+			return err
+		}
+		if pending {
+			return domain.ErrItemTransferPending
+		}
+	}
+	return nil
 }
 
 func (s *OutfitLogService) getOwnedOutfit(ctx context.Context, callerID, outfitID string) (domain.Outfit, error) {

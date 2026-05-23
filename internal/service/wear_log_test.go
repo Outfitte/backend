@@ -120,6 +120,32 @@ func TestWearLogServiceDeleteWearLogShouldReturnErrForbiddenWhenCallerIsNotOwner
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
+func TestWearLogServiceDeleteWearLogShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	var log domain.WearLog
+	log.ID = "log-1"
+	log.ItemID = "item-1"
+	log.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewWearLogService(&mockWearLogRepo{logs: []domain.WearLog{log}}, &mockItemRepo{}, &mockShareAccessChecker{}, transferRepo)
+
+	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var log domain.WearLog
+	log.ID = "log-1"
+	log.ItemID = "item-1"
+	log.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewWearLogService(&mockWearLogRepo{logs: []domain.WearLog{log}}, &mockItemRepo{}, &mockShareAccessChecker{}, transferRepo)
+
+	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenDeleteFails(t *testing.T) {
 	var log domain.WearLog
 	log.ID = "log-1"
@@ -277,6 +303,30 @@ func TestWearLogServiceLogWearShouldReturnErrFutureDateNotAllowedWhenWornOnIsInF
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", future, nil)
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
+}
+
+func TestWearLogServiceLogWearShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, transferRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now().Add(-time.Hour), nil)
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestWearLogServiceLogWearShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, transferRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now().Add(-time.Hour), nil)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestWearLogServiceLogWearShouldReturnErrorWhenWearLogSaveFails(t *testing.T) {
