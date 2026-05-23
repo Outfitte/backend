@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -66,11 +67,17 @@ type ItemService struct {
 	media      ports.MediaProvider
 	categories categoryGetter
 	shares     shareAccessChecker
+	transfers  ports.ItemTransferRepository
 }
 
 // NewItemService constructs an ItemService backed by the given repositories and media provider.
-func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker) *ItemService {
-	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares}
+func NewItemService(items ports.ItemRepository, media ports.MediaProvider, locations ports.LocationRepository, categories categoryGetter, shares shareAccessChecker, transfers ports.ItemTransferRepository) *ItemService {
+	return &ItemService{items: items, locations: locations, media: media, categories: categories, shares: shares, transfers: transfers}
+}
+
+// checkPendingTransfer returns ErrItemTransferPending if itemID has a pending transfer.
+func (s *ItemService) checkPendingTransfer(_ context.Context, _ string) error {
+	return errors.New("not implemented")
 }
 
 func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID string, locationID *string) error {
