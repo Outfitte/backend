@@ -56,6 +56,7 @@ type ShareService struct {
 	items     ports.ItemRepository
 	outfits   ports.OutfitRepository
 	locations ports.LocationRepository
+	transfers ports.ItemTransferRepository
 }
 
 // NewShareService constructs a ShareService backed by the given repositories.
@@ -65,6 +66,7 @@ func NewShareService(
 	items ports.ItemRepository,
 	outfits ports.OutfitRepository,
 	locations ports.LocationRepository,
+	transfers ports.ItemTransferRepository,
 ) *ShareService {
 	return &ShareService{
 		shares:    shares,
@@ -72,6 +74,7 @@ func NewShareService(
 		items:     items,
 		outfits:   outfits,
 		locations: locations,
+		transfers: transfers,
 	}
 }
 
