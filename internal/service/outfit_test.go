@@ -476,26 +476,6 @@ func TestAddItemShouldReturnForbiddenWhenItemBelongsToDifferentUser(t *testing.T
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
-func TestAddItemShouldReturnRepoErrorWhenListItemIDsFails(t *testing.T) {
-	outfit := outfitWithOwner("o1", "user1")
-	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, listItemIDErr: domain.ErrIO}
-	item := itemWithOwner("i1", "user1")
-	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := newOutfitSvc(outfitRepo, itemRepo, &mockMediaProvider{})
-	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
-func TestAddItemShouldReturnRepoErrorWhenSaveItemFails(t *testing.T) {
-	outfit := outfitWithOwner("o1", "user1")
-	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, saveItemErr: domain.ErrIO}
-	item := itemWithOwner("i1", "user1")
-	itemRepo := &mockItemRepo{items: []domain.Item{item}}
-	svc := newOutfitSvc(outfitRepo, itemRepo, &mockMediaProvider{})
-	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
 func TestAddItemShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
 	outfit := outfitWithOwner("o1", "user1")
 	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
@@ -514,6 +494,26 @@ func TestAddItemShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
 	itemRepo := &mockItemRepo{items: []domain.Item{item}}
 	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
 	svc := NewOutfitService(outfitRepo, itemRepo, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, transferRepo)
+	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestAddItemShouldReturnRepoErrorWhenListItemIDsFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, listItemIDErr: domain.ErrIO}
+	item := itemWithOwner("i1", "user1")
+	itemRepo := &mockItemRepo{items: []domain.Item{item}}
+	svc := newOutfitSvc(outfitRepo, itemRepo, &mockMediaProvider{})
+	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestAddItemShouldReturnRepoErrorWhenSaveItemFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, saveItemErr: domain.ErrIO}
+	item := itemWithOwner("i1", "user1")
+	itemRepo := &mockItemRepo{items: []domain.Item{item}}
+	svc := newOutfitSvc(outfitRepo, itemRepo, &mockMediaProvider{})
 	err := svc.AddItem(t.Context(), "user1", "o1", "i1")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
@@ -555,14 +555,6 @@ func TestRemoveItemShouldReturnForbiddenWhenCallerIsNotOwner(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
-func TestRemoveItemShouldReturnRepoErrorWhenDeleteItemFails(t *testing.T) {
-	outfit := outfitWithOwner("o1", "user1")
-	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, deleteItemErr: domain.ErrIO}
-	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
-	err := svc.RemoveItem(t.Context(), "user1", "o1", "i1")
-	require.ErrorIs(t, err, domain.ErrIO)
-}
-
 func TestRemoveItemShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
 	outfit := outfitWithOwner("o1", "user1")
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
@@ -577,6 +569,14 @@ func TestRemoveItemShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
 	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
 	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
 	svc := NewOutfitService(repo, &mockItemRepo{}, &mockMediaProvider{}, &mockOutfitLogRepo{}, &mockShareAccessChecker{}, transferRepo)
+	err := svc.RemoveItem(t.Context(), "user1", "o1", "i1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestRemoveItemShouldReturnRepoErrorWhenDeleteItemFails(t *testing.T) {
+	outfit := outfitWithOwner("o1", "user1")
+	repo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}, deleteItemErr: domain.ErrIO}
+	svc := newOutfitSvc(repo, &mockItemRepo{}, &mockMediaProvider{})
 	err := svc.RemoveItem(t.Context(), "user1", "o1", "i1")
 	require.ErrorIs(t, err, domain.ErrIO)
 }
