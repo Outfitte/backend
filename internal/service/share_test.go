@@ -354,6 +354,46 @@ func TestShareServiceCreateShouldReturnErrorWhenFindByTargetFails(t *testing.T) 
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestShareServiceCreateShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestShareServiceCreateShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
 func TestShareServiceCreateShouldReturnShareWhenInputIsValid(t *testing.T) {
 	var recipient domain.User
 	recipient.ID = "user-2"
@@ -826,6 +866,36 @@ func TestShareServiceRevokeShouldReturnErrorWhenRepoDeleteFails(t *testing.T) {
 
 	shareRepo := &mockShareRepo{shares: []domain.Share{share}, deleteErr: domain.ErrIO}
 	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
+
+	err := svc.Revoke(t.Context(), "owner-1", "share-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestShareServiceRevokeShouldReturnErrItemTransferPendingWhenItemShareHasPendingTransfer(t *testing.T) {
+	var share domain.Share
+	share.ID = "share-1"
+	share.OwnerID = "owner-1"
+	share.TargetType = domain.ShareTargetItem
+	share.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
+
+	err := svc.Revoke(t.Context(), "owner-1", "share-1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestShareServiceRevokeShouldReturnErrorWhenHasPendingCheckFailsForItemShare(t *testing.T) {
+	var share domain.Share
+	share.ID = "share-1"
+	share.OwnerID = "owner-1"
+	share.TargetType = domain.ShareTargetItem
+	share.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
 
 	err := svc.Revoke(t.Context(), "owner-1", "share-1")
 	require.ErrorIs(t, err, domain.ErrIO)
