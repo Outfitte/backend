@@ -91,6 +91,10 @@ func (h *WearLogHandler) LogWear(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		log.ErrorContext(ctx, "log wear failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -154,6 +158,10 @@ func (h *WearLogHandler) DeleteWearLog(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrForbidden) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "delete wear log failed", "error", err)
