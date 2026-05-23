@@ -221,6 +221,22 @@ func TestShareCreateShouldReturn500WhenServiceReturnsUnexpectedError(t *testing.
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+func TestShareCreateShouldReturn409WhenServiceReturnsItemTransferPendingError(t *testing.T) {
+	svc := &fakeShareService{
+		createFn: func(_ context.Context, _ string, _ service.CreateShareInput) (domain.Share, error) {
+			return domain.Share{}, domain.ErrItemTransferPending
+		},
+	}
+	h := newShareHandler(svc)
+
+	w := postShare(t, h, "user-1", `{"recipient_id":"user-2","target_type":"item","target_id":"item-1"}`)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
+}
+
 func TestShareCreateShouldReturn201WithShareWhenSuccessful(t *testing.T) {
 	createdAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	var share domain.Share
@@ -522,6 +538,22 @@ func TestShareRevokeShouldReturn500WhenServiceReturnsUnexpectedError(t *testing.
 	w := deleteShare(t, h, "user-1", "share-1")
 
 	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestShareRevokeShouldReturn409WhenServiceReturnsItemTransferPendingError(t *testing.T) {
+	svc := &fakeShareService{
+		revokeFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	h := newShareHandler(svc)
+
+	w := deleteShare(t, h, "user-1", "share-1")
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestShareRevokeShouldReturn204WhenSuccessful(t *testing.T) {

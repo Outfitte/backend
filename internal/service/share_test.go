@@ -901,6 +901,21 @@ func TestShareServiceRevokeShouldReturnErrorWhenHasPendingCheckFailsForItemShare
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
+func TestShareServiceRevokeShouldDeleteItemShareWhenItemHasNoPendingTransfer(t *testing.T) {
+	var share domain.Share
+	share.ID = "share-1"
+	share.OwnerID = "owner-1"
+	share.TargetType = domain.ShareTargetItem
+	share.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{hasPending: false})
+
+	err := svc.Revoke(t.Context(), "owner-1", "share-1")
+	require.NoError(t, err)
+	require.Empty(t, shareRepo.shares)
+}
+
 func TestShareServiceRevokeShouldDeleteShareWhenCallerIsOwner(t *testing.T) {
 	var share domain.Share
 	share.ID = "share-1"

@@ -91,6 +91,10 @@ func (h *ShareHandler) Create(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "share already exists"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
@@ -268,6 +272,10 @@ func (h *ShareHandler) Revoke(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "revoke share failed", "error", err)
