@@ -32,11 +32,12 @@ type OutfitService struct {
 	media      ports.MediaProvider
 	outfitLogs ports.OutfitLogRepository
 	shares     shareAccessChecker
+	transfers  ports.ItemTransferRepository
 }
 
 // NewOutfitService constructs an OutfitService backed by the given repositories and media provider.
-func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker) *OutfitService {
-	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares}
+func NewOutfitService(outfits ports.OutfitRepository, items ports.ItemRepository, media ports.MediaProvider, outfitLogs ports.OutfitLogRepository, shares shareAccessChecker, transfers ports.ItemTransferRepository) *OutfitService {
+	return &OutfitService{outfits: outfits, items: items, media: media, outfitLogs: outfitLogs, shares: shares, transfers: transfers}
 }
 
 func (s *OutfitService) Create(ctx context.Context, callerID string, input CreateOutfitInput) (domain.Outfit, error) {

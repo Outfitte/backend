@@ -30,7 +30,7 @@ func New(
 	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc, shareSvc)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items, shareSvc)
 	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items, shareSvc)
-	outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs, shareSvc)
+	outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs, shareSvc, repos.ItemTransfers)
 	outfitLogSvc := service.NewOutfitLogService(repos.Outfits, repos.OutfitLogs, repos.OutfitLogTransactor, shareSvc)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
