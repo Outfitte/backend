@@ -146,7 +146,7 @@ func outfitLogWithOwner(id, outfitID, ownerID string, wornOn time.Time) domain.O
 }
 
 func newOutfitLogSvc(outfits *mockOutfitRepo, outfitLogs *mockOutfitLogRepo, transactor *mockOutfitLogTransactor, shares *mockShareAccessChecker) *OutfitLogService {
-	return NewOutfitLogService(outfits, outfitLogs, transactor, shares)
+	return NewOutfitLogService(outfits, outfitLogs, transactor, shares, &mockTransferRepo{})
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────

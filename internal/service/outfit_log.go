@@ -17,11 +17,12 @@ type OutfitLogService struct {
 	outfitLogs ports.OutfitLogRepository
 	transactor ports.OutfitLogTransactor
 	shares     shareAccessChecker
+	transfers  ports.ItemTransferRepository
 }
 
 // NewOutfitLogService constructs an OutfitLogService backed by the given dependencies.
-func NewOutfitLogService(outfits ports.OutfitRepository, outfitLogs ports.OutfitLogRepository, transactor ports.OutfitLogTransactor, shares shareAccessChecker) *OutfitLogService {
-	return &OutfitLogService{outfits: outfits, outfitLogs: outfitLogs, transactor: transactor, shares: shares}
+func NewOutfitLogService(outfits ports.OutfitRepository, outfitLogs ports.OutfitLogRepository, transactor ports.OutfitLogTransactor, shares shareAccessChecker, transfers ports.ItemTransferRepository) *OutfitLogService {
+	return &OutfitLogService{outfits: outfits, outfitLogs: outfitLogs, transactor: transactor, shares: shares, transfers: transfers}
 }
 
 // LogWear validates outfit ownership and date, then atomically creates the outfit log and wear logs.

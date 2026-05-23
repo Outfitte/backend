@@ -12,14 +12,15 @@ import (
 
 // WearLogService manages wear log entries for wardrobe items.
 type WearLogService struct {
-	wearLogs ports.WearLogRepository
-	items    ports.ItemRepository
-	shares   shareAccessChecker
+	wearLogs  ports.WearLogRepository
+	items     ports.ItemRepository
+	shares    shareAccessChecker
+	transfers ports.ItemTransferRepository
 }
 
 // NewWearLogService constructs a WearLogService backed by the given repositories and share checker.
-func NewWearLogService(wearLogs ports.WearLogRepository, items ports.ItemRepository, shares shareAccessChecker) *WearLogService {
-	return &WearLogService{wearLogs: wearLogs, items: items, shares: shares}
+func NewWearLogService(wearLogs ports.WearLogRepository, items ports.ItemRepository, shares shareAccessChecker, transfers ports.ItemTransferRepository) *WearLogService {
+	return &WearLogService{wearLogs: wearLogs, items: items, shares: shares, transfers: transfers}
 }
 
 // LogWear records a wear event for itemID on the given date.
