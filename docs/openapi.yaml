@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: Outfitte API
-  version: "5"
+  version: "6"
   description: |
     REST API for Outfitte — a self-hosted wardrobe management application.
-    Current milestone: M5 (Granular Sharing).
+    Current milestone: M6 (Item Transfer).
 
 servers:
   - url: http://localhost:8080
@@ -358,6 +358,50 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SharedLocation'
+
+    TransferStatus:
+      type: string
+      enum: [pending, accepted, rejected, cancelled]
+
+    CreateTransferRequest:
+      type: object
+      required: [item_id, recipient_id, transfer_history]
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+          format: uuid
+        transfer_history:
+          type: boolean
+          description: Whether to transfer the wear-log history along with the item
+
+    Transfer:
+      type: object
+      required: [id, status, transfer_history, item, sender, recipient, created_at, decided_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/TransferStatus'
+        transfer_history:
+          type: boolean
+          description: Whether the wear-log history is transferred along with the item
+        item:
+          $ref: '#/components/schemas/Item'
+        sender:
+          $ref: '#/components/schemas/UserSummary'
+        recipient:
+          $ref: '#/components/schemas/UserSummary'
+        created_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: [string, "null"]
+          format: date-time
+          description: Timestamp when the recipient accepted or rejected the transfer, or the sender cancelled it
 
   responses:
     BadRequest:
@@ -734,6 +778,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "422":
           $ref: '#/components/responses/UnprocessableEntity'
 
@@ -752,6 +802,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /items/{id}/photos:
     parameters:
@@ -882,7 +938,7 @@ paths:
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
-          description: Item is already archived
+          description: 'Item is already archived, or item has a pending transfer (`error: "item has a pending transfer"`)'
           content:
             application/json:
               schema:
@@ -913,7 +969,7 @@ paths:
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
-          description: Item is not archived
+          description: 'Item is not archived, or item has a pending transfer (`error: "item has a pending transfer"`)'
           content:
             application/json:
               schema:
@@ -960,6 +1016,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /items/{id}/wear-logs:
     parameters:
@@ -1009,6 +1071,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "422":
           description: Future date not allowed
           content:
@@ -1068,6 +1136,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /locations:
     get:
@@ -1487,6 +1561,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /outfits/{id}/items/{itemID}:
     parameters:
@@ -1518,6 +1598,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'Item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /outfits/{id}/photos:
     parameters:
@@ -1634,6 +1720,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'One or more items in the outfit has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         "422":
           description: Future date not allowed
           content:
@@ -1852,7 +1944,7 @@ paths:
         "404":
           $ref: '#/components/responses/NotFound'
         "409":
-          description: Share already exists
+          description: 'Share already exists, or (for item targets) the item has a pending transfer (`error: "item has a pending transfer"`)'
           content:
             application/json:
               schema:
@@ -1923,6 +2015,297 @@ paths:
           $ref: '#/components/responses/Forbidden'
         "404":
           $ref: '#/components/responses/NotFound'
+        "409":
+          description: 'For item-target shares, the item has a pending transfer (`error: "item has a pending transfer"`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers:
+    post:
+      tags: [transfers]
+      summary: Create a transfer
+      operationId: createTransfer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+      responses:
+        "201":
+          description: Transfer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        "400":
+          $ref: '#/components/responses/BadRequest'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          description: Item already has a pending transfer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Cannot transfer to yourself, or other validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/outgoing:
+    get:
+      tags: [transfers]
+      summary: List outgoing transfers
+      operationId: listOutgoingTransfers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by transfer status
+          schema:
+            $ref: '#/components/schemas/TransferStatus'
+      responses:
+        "200":
+          description: List of outgoing transfers initiated by the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transfer'
+        "400":
+          description: Invalid status filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/incoming:
+    get:
+      tags: [transfers]
+      summary: List incoming transfers
+      operationId: listIncomingTransfers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by transfer status
+          schema:
+            $ref: '#/components/schemas/TransferStatus'
+      responses:
+        "200":
+          description: List of incoming transfers addressed to the caller
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transfer'
+        "400":
+          description: Invalid status filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      tags: [transfers]
+      summary: Get a transfer
+      operationId: getTransfer
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transfer found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/{id}/accept:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [transfers]
+      summary: Accept a transfer
+      operationId: acceptTransfer
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transfer accepted; item ownership transferred to the caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "422":
+          description: Transfer is not in pending state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/{id}/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [transfers]
+      summary: Reject a transfer
+      operationId: rejectTransfer
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transfer rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "422":
+          description: Transfer is not in pending state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transfers/{id}/cancel:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      tags: [transfers]
+      summary: Cancel a transfer
+      operationId: cancelTransfer
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transfer cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+        "401":
+          $ref: '#/components/responses/Unauthorized'
+        "403":
+          $ref: '#/components/responses/Forbidden'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/Conflict'
+        "422":
+          description: Transfer is not in pending state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /admin/settings:
     get:
@@ -1996,5 +2379,7 @@ tags:
     description: Media file download
   - name: users
     description: User listing (for share recipient selection)
+  - name: transfers
+    description: Item ownership transfers between users
   - name: shares
     description: Granular sharing of items, outfits, and locations
