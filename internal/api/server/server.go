@@ -27,10 +27,11 @@ func New(
 	authSvc := service.NewAuthService(repos.Users, repos.Sessions, []byte(cfg.JWTSecret))
 	categorySvc := service.NewCategoryService()
 	shareSvc := service.NewShareService(repos.Shares, repos.Users, repos.Items, repos.Outfits, repos.Locations, repos.ItemTransfers)
+	itemTransferSvc := service.NewItemTransferService(repos.ItemTransfers, repos.ItemTransferTransactor, repos.Items, repos.Users)
 	itemSvc := service.NewItemService(repos.Items, media, repos.Locations, categorySvc, shareSvc, repos.ItemTransfers)
 	locationSvc := service.NewLocationService(repos.Locations, repos.Items, shareSvc)
 	wearLogSvc := service.NewWearLogService(repos.WearLogs, repos.Items, shareSvc, repos.ItemTransfers)
-  outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs, shareSvc, repos.ItemTransfers)
+	outfitSvc := service.NewOutfitService(repos.Outfits, repos.Items, media, repos.OutfitLogs, shareSvc, repos.ItemTransfers)
 	outfitLogSvc := service.NewOutfitLogService(repos.Outfits, repos.OutfitLogs, repos.OutfitLogTransactor, shareSvc, repos.ItemTransfers)
 
 	authMiddleware := middleware.NewAuthMiddleware([]byte(cfg.JWTSecret))
@@ -46,6 +47,7 @@ func New(
 	outfitLogHandler := handler.NewOutfitLogHandler(outfitLogSvc, logger)
 	userHandler := handler.NewUserHandler(userSvc, userSvc, logger)
 	shareHandler := handler.NewShareHandler(shareSvc, logger)
+	itemTransferHandler := handler.NewItemTransferHandler(itemTransferSvc, logger)
 
 	auth := authMiddleware.Authenticate
 	admin := func(h http.Handler) http.Handler {
@@ -109,6 +111,14 @@ func New(
 	mux.Handle("GET /shares", auth(http.HandlerFunc(shareHandler.ListOutgoing)))
 	mux.Handle("GET /shares/with-me", auth(http.HandlerFunc(shareHandler.ListSharedWithMe)))
 	mux.Handle("DELETE /shares/{id}", auth(http.HandlerFunc(shareHandler.Revoke)))
+
+	mux.Handle("POST /transfers", auth(http.HandlerFunc(itemTransferHandler.Create)))
+	mux.Handle("GET /transfers/outgoing", auth(http.HandlerFunc(itemTransferHandler.ListOutgoing)))
+	mux.Handle("GET /transfers/incoming", auth(http.HandlerFunc(itemTransferHandler.ListIncoming)))
+	mux.Handle("GET /transfers/{id}", auth(http.HandlerFunc(itemTransferHandler.Get)))
+	mux.Handle("POST /transfers/{id}/accept", auth(http.HandlerFunc(itemTransferHandler.Accept)))
+	mux.Handle("POST /transfers/{id}/reject", auth(http.HandlerFunc(itemTransferHandler.Reject)))
+	mux.Handle("POST /transfers/{id}/cancel", auth(http.HandlerFunc(itemTransferHandler.Cancel)))
 
 	mux.Handle("GET /admin/settings", admin(http.HandlerFunc(settingsHandler.GetSettings)))
 	mux.Handle("PATCH /admin/settings", admin(http.HandlerFunc(settingsHandler.UpdateSettings)))
