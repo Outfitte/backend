@@ -634,6 +634,9 @@ func TestOutfitAddItemShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
 	}
 	w := addOutfitItem(t, newOutfitHandler(svc), "o1", "user1", `{"item_id":"i1"}`)
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestOutfitAddItemShouldReturn500WhenServiceFails(t *testing.T) {
@@ -694,6 +697,9 @@ func TestOutfitRemoveItemShouldReturn409WhenItemHasPendingTransfer(t *testing.T)
 	}
 	w := removeOutfitItem(t, newOutfitHandler(svc), "o1", "i1", "user1")
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestOutfitRemoveItemShouldReturn500WhenServiceFails(t *testing.T) {
