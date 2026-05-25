@@ -94,6 +94,9 @@ func (s *ItemService) AssignLocation(ctx context.Context, callerID, itemID strin
 	if err != nil {
 		return err
 	}
+	if err := s.checkPendingTransfer(ctx, itemID); err != nil {
+		return err
+	}
 	if err := s.validateLocationOwnership(ctx, callerID, locationID); err != nil {
 		return err
 	}

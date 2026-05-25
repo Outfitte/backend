@@ -255,6 +255,30 @@ func (m *mockShareAccessChecker) DeleteByTarget(_ context.Context, targetType do
 
 // ── AssignLocation ────────────────────────────────────────────────────────────
 
+func TestItemServiceAssignLocationShouldReturnErrItemTransferPendingWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPendingErr: domain.ErrIO})
+
+	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", nil)
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestItemServiceAssignLocationShouldReturnErrItemTransferPendingWhenTransferIsPending(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	repo := &mockItemRepo{items: []domain.Item{item}}
+	svc := NewItemService(repo, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{hasPending: true})
+
+	err := svc.AssignLocation(t.Context(), "owner-1", "item-1", nil)
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
 func TestItemServiceAssignLocationShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
 	svc := NewItemService(&mockItemRepo{}, &mockMediaProvider{}, &mockLocationRepo{}, NewCategoryService(), &mockShareAccessChecker{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
