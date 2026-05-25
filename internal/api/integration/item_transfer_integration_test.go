@@ -308,7 +308,280 @@ func setupThreeUsers(t *testing.T, srv *httptest.Server) (tokenAlice, tokenBob, 
 	return
 }
 
-// ─── Tests ────────────────────────────────────────────────────────────────────
+// ─── Tests ─────────────────────────────────────────────────────────────────────
+//
+// Error / rejection cases come first (scenarios 4–10), happy paths last (1–3).
+
+// TestItemTransferShouldReturn422WhenSelfTransfer covers scenario 9:
+// Alice attempts to transfer an item to herself → 422.
+func TestItemTransferShouldReturn422WhenSelfTransfer(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, _, _, aliceID, _, _ := setupThreeUsers(t, srv)
+
+	itemID := createItem(t, srv, tokenAlice, "Self-Transfer Item")
+
+	resp := doJSON(t, srv, http.MethodPost, "/transfers", map[string]any{
+		"item_id":      itemID,
+		"recipient_id": aliceID,
+	}, tokenAlice)
+	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+	var body map[string]string
+	decodeJSON(t, resp, &body)
+	assert.Equal(t, "cannot transfer to yourself", body["error"])
+}
+
+// TestItemTransferShouldReturn422WhenItemIsArchived covers scenario 10:
+// Alice archives an item, then attempts to transfer it → 422.
+func TestItemTransferShouldReturn422WhenItemIsArchived(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, _, _, _, bobID, _ := setupThreeUsers(t, srv)
+
+	itemID := createItem(t, srv, tokenAlice, "Archived Item")
+
+	// Archive the item.
+	archiveResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, tokenAlice)
+	require.Equal(t, http.StatusNoContent, archiveResp.StatusCode)
+
+	// Attempt transfer → 422.
+	resp := doJSON(t, srv, http.MethodPost, "/transfers", map[string]any{
+		"item_id":      itemID,
+		"recipient_id": bobID,
+	}, tokenAlice)
+	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
+}
+
+// TestItemTransferShouldReturn409WhenSecondTransferInitiatedWhilePending covers scenario 7:
+// Alice initiates a transfer; while it is pending she attempts a second transfer to Dave → 409.
+func TestItemTransferShouldReturn409WhenSecondTransferInitiatedWhilePending(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, _, _, _, bobID, _ := setupThreeUsers(t, srv)
+
+	// Register Dave (4th user) and resolve his ID.
+	registerUser(t, srv, "dave", "password-dave-secure")
+	daveID := findUserID(t, listUsers(t, srv, tokenAlice), "dave")
+
+	itemID := createItem(t, srv, tokenAlice, "Contested Item")
+
+	// First transfer to Bob.
+	createTransfer(t, srv, tokenAlice, itemID, bobID, false)
+
+	// Second transfer attempt to Dave — must return 409.
+	resp := doJSON(t, srv, http.MethodPost, "/transfers", map[string]any{
+		"item_id":      itemID,
+		"recipient_id": daveID,
+	}, tokenAlice)
+	require.Equal(t, http.StatusConflict, resp.StatusCode)
+	var body map[string]string
+	decodeJSON(t, resp, &body)
+	assert.Equal(t, "item has a pending transfer", body["error"])
+}
+
+// TestItemTransferShouldReturn403WhenUninvolvedPartyOrWrongRole covers scenario 8:
+// - Carol (uninvolved) attempts GET /transfers/{id} → 403
+// - Bob (recipient) attempts cancel (sender-only) → 403
+// - Alice (sender) attempts accept (recipient-only) → 403
+func TestItemTransferShouldReturn403WhenUninvolvedPartyOrWrongRole(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, tokenBob, tokenCarol, _, bobID, _ := setupThreeUsers(t, srv)
+
+	itemID := createItem(t, srv, tokenAlice, "Role-Tested Item")
+	transferID := createTransfer(t, srv, tokenAlice, itemID, bobID, false)
+
+	t.Run("carol cannot get transfer", func(t *testing.T) {
+		resp := getTransfer(t, srv, tokenCarol, transferID)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("bob cannot cancel (sender-only)", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPost, "/transfers/"+transferID+"/cancel", nil, tokenBob)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("alice cannot accept (recipient-only)", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPost, "/transfers/"+transferID+"/accept", nil, tokenAlice)
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+}
+
+// TestItemTransferShouldBlockMutationsWhenPending covers scenario 6:
+// While a transfer is pending, all write operations on the item return 409 with
+// "item has a pending transfer". Read operations continue to work for both Alice and Bob.
+func TestItemTransferShouldBlockMutationsWhenPending(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, tokenBob, _, _, bobID, carolID := setupThreeUsers(t, srv)
+
+	itemID := createItem(t, srv, tokenAlice, "Blocked Item")
+	locID := createLocation(t, srv, tokenAlice, "Wardrobe")
+	outfitID := createOutfit(t, srv, tokenAlice)
+
+	// Share item with Carol before initiating transfer.
+	createShare(t, srv, tokenAlice, carolID, "item", itemID)
+
+	// Initiate transfer — item is now locked.
+	createTransfer(t, srv, tokenAlice, itemID, bobID, false)
+
+	const pendingErr = "item has a pending transfer"
+
+	t.Run("update blocked", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
+			map[string]any{"name": "New Name"}, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("archive blocked", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("assign location blocked", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID+"/location",
+			map[string]any{"location_id": locID}, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("delete blocked", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodDelete, "/items/"+itemID, nil, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("add photo blocked", func(t *testing.T) {
+		var buf bytes.Buffer
+		mw := multipart.NewWriter(&buf)
+		fw, err := mw.CreateFormFile("photo", "dummy.jpg")
+		require.NoError(t, err)
+		_, err = fw.Write([]byte("fake"))
+		require.NoError(t, err)
+		require.NoError(t, mw.Close())
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+			srv.URL+"/items/"+itemID+"/photos", &buf)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("Authorization", "Bearer "+tokenAlice)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("add to outfit blocked", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/items",
+			map[string]any{"item_id": itemID}, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("log wear blocked", func(t *testing.T) {
+		resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
+			map[string]any{"worn_on": "2026-04-01"}, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("share blocked", func(t *testing.T) {
+		// Register Dave and resolve his ID for use as share recipient.
+		registerUser(t, srv, "dave", "password-dave-secure")
+		daveID := findUserID(t, listUsers(t, srv, tokenAlice), "dave")
+
+		resp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
+			"recipient_id": daveID,
+			"target_type":  "item",
+			"target_id":    itemID,
+		}, tokenAlice)
+		assert.Equal(t, http.StatusConflict, resp.StatusCode)
+		var body map[string]string
+		decodeJSON(t, resp, &body)
+		assert.Equal(t, pendingErr, body["error"])
+	})
+
+	t.Run("read still works for Alice", func(t *testing.T) {
+		resp := getItem(t, srv, tokenAlice, itemID)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	})
+
+	// Bob is the pending recipient; he cannot GET /items/{id} directly (no ownership/share),
+	// but he can still read the pending transfer itself via GET /transfers/incoming.
+	t.Run("incoming transfer still readable for Bob", func(t *testing.T) {
+		pending := listIncomingTransfers(t, srv, tokenBob)
+		require.Len(t, pending, 1)
+		assert.Equal(t, "pending", pending[0]["status"])
+	})
+}
+
+// TestItemTransferShouldUnlockItemWhenRejected covers scenario 4:
+// Bob rejects the transfer. Item still belongs to Alice, status=rejected, decided_at set,
+// and Alice can mutate the item again (item is unlocked).
+func TestItemTransferShouldUnlockItemWhenRejected(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, tokenBob, _, _, bobID, _ := setupThreeUsers(t, srv)
+
+	itemID := createItem(t, srv, tokenAlice, "Yellow Scarf")
+	transferID := createTransfer(t, srv, tokenAlice, itemID, bobID, false)
+
+	result := rejectTransfer(t, srv, tokenBob, transferID)
+	assert.Equal(t, "rejected", result["status"])
+	assert.NotNil(t, result["decided_at"])
+
+	// Item still belongs to Alice.
+	aliceGetResp := getItem(t, srv, tokenAlice, itemID)
+	require.Equal(t, http.StatusOK, aliceGetResp.StatusCode)
+	var itemBody map[string]any
+	decodeJSON(t, aliceGetResp, &itemBody)
+	assert.Equal(t, "active", itemBody["status"])
+
+	// Alice can update the item again (lock was released).
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
+		map[string]any{"name": "Yellow Scarf Updated"}, tokenAlice)
+	assert.Equal(t, http.StatusOK, updateResp.StatusCode)
+}
+
+// TestItemTransferShouldUnlockItemWhenCancelled covers scenario 5:
+// Alice cancels the transfer. Item still belongs to Alice, status=cancelled, decided_at set,
+// and Alice can mutate the item again.
+func TestItemTransferShouldUnlockItemWhenCancelled(t *testing.T) {
+	srv := startIntegrationServer(t)
+	tokenAlice, _, _, _, bobID, _ := setupThreeUsers(t, srv)
+
+	itemID := createItem(t, srv, tokenAlice, "Purple Hat")
+	transferID := createTransfer(t, srv, tokenAlice, itemID, bobID, false)
+
+	result := cancelTransfer(t, srv, tokenAlice, transferID)
+	assert.Equal(t, "cancelled", result["status"])
+	assert.NotNil(t, result["decided_at"])
+
+	// Item still belongs to Alice.
+	aliceGetResp := getItem(t, srv, tokenAlice, itemID)
+	require.Equal(t, http.StatusOK, aliceGetResp.StatusCode)
+	var itemBody map[string]any
+	decodeJSON(t, aliceGetResp, &itemBody)
+	assert.Equal(t, "active", itemBody["status"])
+
+	// Alice can update the item again (lock was released).
+	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
+		map[string]any{"name": "Purple Hat Updated"}, tokenAlice)
+	assert.Equal(t, http.StatusOK, updateResp.StatusCode)
+}
+
+// ─── Happy path tests ─────────────────────────────────────────────────────────
 
 // TestItemTransferShouldTransferOwnershipWithHistoryWhenAccepted covers scenario 1:
 // Alice creates an item with a wear log, shares it with Carol, then transfers to Bob
@@ -428,8 +701,7 @@ func TestItemTransferShouldDetachFromOutfitWhenAccepted(t *testing.T) {
 
 	// Item is detached from outfit — outfit shows no items.
 	outfitData := getOutfit(t, srv, tokenAlice, outfitID)
-	items := outfitData["items"].([]any)
-	assert.Empty(t, items)
+	assert.Empty(t, outfitData["items"])
 
 	// Wear logs for the item are gone (no history transfer).
 	wearLogs := listWearLogs(t, srv, tokenBob, itemID)
@@ -439,256 +711,4 @@ func TestItemTransferShouldDetachFromOutfitWhenAccepted(t *testing.T) {
 	outfitLogs := listOutfitLogs(t, srv, tokenAlice, outfitID)
 	require.Len(t, outfitLogs, 1)
 	assert.Equal(t, "2026-03-01", outfitLogs[0]["worn_on"])
-}
-
-// TestItemTransferShouldUnlockItemWhenRejected covers scenario 4:
-// Bob rejects the transfer. Item still belongs to Alice, status=rejected, decided_at set,
-// and Alice can mutate the item again (item is unlocked).
-func TestItemTransferShouldUnlockItemWhenRejected(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, tokenBob, _, _, bobID, _ := setupThreeUsers(t, srv)
-
-	itemID := createItem(t, srv, tokenAlice, "Yellow Scarf")
-	transferID := createTransfer(t, srv, tokenAlice, itemID, bobID, false)
-
-	result := rejectTransfer(t, srv, tokenBob, transferID)
-	assert.Equal(t, "rejected", result["status"])
-	assert.NotNil(t, result["decided_at"])
-
-	// Item still belongs to Alice.
-	aliceGetResp := getItem(t, srv, tokenAlice, itemID)
-	require.Equal(t, http.StatusOK, aliceGetResp.StatusCode)
-	var itemBody map[string]any
-	decodeJSON(t, aliceGetResp, &itemBody)
-	assert.Equal(t, "active", itemBody["status"])
-
-	// Alice can update the item again (lock was released).
-	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
-		map[string]any{"name": "Yellow Scarf Updated"}, tokenAlice)
-	assert.Equal(t, http.StatusOK, updateResp.StatusCode)
-}
-
-// TestItemTransferShouldUnlockItemWhenCancelled covers scenario 5:
-// Alice cancels the transfer. Item still belongs to Alice, status=cancelled, decided_at set,
-// and Alice can mutate the item again.
-func TestItemTransferShouldUnlockItemWhenCancelled(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, _, _, _, bobID, _ := setupThreeUsers(t, srv)
-
-	itemID := createItem(t, srv, tokenAlice, "Purple Hat")
-	transferID := createTransfer(t, srv, tokenAlice, itemID, bobID, false)
-
-	result := cancelTransfer(t, srv, tokenAlice, transferID)
-	assert.Equal(t, "cancelled", result["status"])
-	assert.NotNil(t, result["decided_at"])
-
-	// Item still belongs to Alice.
-	aliceGetResp := getItem(t, srv, tokenAlice, itemID)
-	require.Equal(t, http.StatusOK, aliceGetResp.StatusCode)
-	var itemBody map[string]any
-	decodeJSON(t, aliceGetResp, &itemBody)
-	assert.Equal(t, "active", itemBody["status"])
-
-	// Alice can update the item again (lock was released).
-	updateResp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
-		map[string]any{"name": "Purple Hat Updated"}, tokenAlice)
-	assert.Equal(t, http.StatusOK, updateResp.StatusCode)
-}
-
-// TestItemTransferShouldBlockMutationsWhenPending covers scenario 6:
-// While a transfer is pending, all write operations on the item return 409 with
-// "item has a pending transfer". Read operations continue to work for both Alice and Bob.
-func TestItemTransferShouldBlockMutationsWhenPending(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, tokenBob, _, _, bobID, carolID := setupThreeUsers(t, srv)
-
-	itemID := createItem(t, srv, tokenAlice, "Blocked Item")
-	outfitID := createOutfit(t, srv, tokenAlice)
-
-	// Share item with Carol before initiating transfer (so Carol is a recipient of a share).
-	createShare(t, srv, tokenAlice, carolID, "item", itemID)
-
-	// Initiate transfer — item is now locked.
-	createTransfer(t, srv, tokenAlice, itemID, bobID, false)
-
-	const pendingErr = "item has a pending transfer"
-
-	t.Run("update blocked", func(t *testing.T) {
-		resp := doJSON(t, srv, http.MethodPatch, "/items/"+itemID,
-			map[string]any{"name": "New Name"}, tokenAlice)
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		var body map[string]string
-		decodeJSON(t, resp, &body)
-		assert.Equal(t, pendingErr, body["error"])
-	})
-
-	t.Run("archive blocked", func(t *testing.T) {
-		resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, tokenAlice)
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		var body map[string]string
-		decodeJSON(t, resp, &body)
-		assert.Equal(t, pendingErr, body["error"])
-	})
-
-	t.Run("add photo blocked", func(t *testing.T) {
-		// Simulate photo upload: the service will check transfer-pending before accessing media.
-		// We send a real multipart form; the transfer-pending check fires first.
-		var buf bytes.Buffer
-		mw := multipart.NewWriter(&buf)
-		fw, err := mw.CreateFormFile("photo", "dummy.jpg")
-		require.NoError(t, err)
-		_, err = fw.Write([]byte("fake"))
-		require.NoError(t, err)
-		require.NoError(t, mw.Close())
-
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
-			srv.URL+"/items/"+itemID+"/photos", &buf)
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", mw.FormDataContentType())
-		req.Header.Set("Authorization", "Bearer "+tokenAlice)
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-	})
-
-	t.Run("add to outfit blocked", func(t *testing.T) {
-		resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/items",
-			map[string]any{"item_id": itemID}, tokenAlice)
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		var body map[string]string
-		decodeJSON(t, resp, &body)
-		assert.Equal(t, pendingErr, body["error"])
-	})
-
-	t.Run("log wear blocked", func(t *testing.T) {
-		resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
-			map[string]any{"worn_on": "2026-04-01"}, tokenAlice)
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		var body map[string]string
-		decodeJSON(t, resp, &body)
-		assert.Equal(t, pendingErr, body["error"])
-	})
-
-	t.Run("share blocked", func(t *testing.T) {
-		// Register Dave and resolve his ID for use as share recipient.
-		registerUser(t, srv, "dave", "password-dave-secure")
-		daveID := findUserID(t, listUsers(t, srv, tokenAlice), "dave")
-
-		resp := doJSON(t, srv, http.MethodPost, "/shares", map[string]any{
-			"recipient_id": daveID,
-			"target_type":  "item",
-			"target_id":    itemID,
-		}, tokenAlice)
-		assert.Equal(t, http.StatusConflict, resp.StatusCode)
-		var body map[string]string
-		decodeJSON(t, resp, &body)
-		assert.Equal(t, pendingErr, body["error"])
-	})
-
-	t.Run("read still works for Alice", func(t *testing.T) {
-		resp := getItem(t, srv, tokenAlice, itemID)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-	})
-
-	// Bob is the pending recipient; he cannot GET /items/{id} directly (no ownership/share),
-	// but he can still read the pending transfer itself via GET /transfers/incoming.
-	t.Run("incoming transfer still readable for Bob", func(t *testing.T) {
-		pending := listIncomingTransfers(t, srv, tokenBob)
-		require.Len(t, pending, 1)
-		assert.Equal(t, "pending", pending[0]["status"])
-	})
-}
-
-// TestItemTransferShouldReturn409WhenSecondTransferInitiatedWhilePending covers scenario 7:
-// Alice initiates a transfer; while it is pending she attempts a second transfer to Dave → 409.
-func TestItemTransferShouldReturn409WhenSecondTransferInitiatedWhilePending(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, _, _, _, bobID, _ := setupThreeUsers(t, srv)
-
-	// Register Dave (4th user).
-	daveToken := registerUser(t, srv, "dave", "password-dave-secure")
-	_ = daveToken
-	allUsers := listUsers(t, srv, tokenAlice)
-	daveID := findUserID(t, allUsers, "dave")
-
-	itemID := createItem(t, srv, tokenAlice, "Contested Item")
-
-	// First transfer to Bob.
-	createTransfer(t, srv, tokenAlice, itemID, bobID, false)
-
-	// Second transfer attempt to Dave — must return 409.
-	resp := doJSON(t, srv, http.MethodPost, "/transfers", map[string]any{
-		"item_id":      itemID,
-		"recipient_id": daveID,
-	}, tokenAlice)
-	require.Equal(t, http.StatusConflict, resp.StatusCode)
-	var body map[string]string
-	decodeJSON(t, resp, &body)
-	assert.Equal(t, "item has a pending transfer", body["error"])
-}
-
-// TestItemTransferShouldReturn403WhenUninvolvedPartyOrWrongRole covers scenario 8:
-// - Carol (uninvolved) attempts GET /transfers/{id} → 403
-// - Bob (recipient) attempts cancel (sender-only) → 403
-// - Alice (sender) attempts accept (recipient-only) → 403
-func TestItemTransferShouldReturn403WhenUninvolvedPartyOrWrongRole(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, tokenBob, tokenCarol, _, bobID, _ := setupThreeUsers(t, srv)
-
-	itemID := createItem(t, srv, tokenAlice, "Role-Tested Item")
-	transferID := createTransfer(t, srv, tokenAlice, itemID, bobID, false)
-
-	t.Run("carol cannot get transfer", func(t *testing.T) {
-		resp := getTransfer(t, srv, tokenCarol, transferID)
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
-	t.Run("bob cannot cancel (sender-only)", func(t *testing.T) {
-		resp := doJSON(t, srv, http.MethodPost, "/transfers/"+transferID+"/cancel", nil, tokenBob)
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
-	t.Run("alice cannot accept (recipient-only)", func(t *testing.T) {
-		resp := doJSON(t, srv, http.MethodPost, "/transfers/"+transferID+"/accept", nil, tokenAlice)
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-}
-
-// TestItemTransferShouldReturn422WhenSelfTransfer covers scenario 9:
-// Alice attempts to transfer an item to herself → 422.
-func TestItemTransferShouldReturn422WhenSelfTransfer(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, _, _, aliceID, _, _ := setupThreeUsers(t, srv)
-
-	itemID := createItem(t, srv, tokenAlice, "Self-Transfer Item")
-
-	resp := doJSON(t, srv, http.MethodPost, "/transfers", map[string]any{
-		"item_id":      itemID,
-		"recipient_id": aliceID,
-	}, tokenAlice)
-	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
-	var body map[string]string
-	decodeJSON(t, resp, &body)
-	assert.Equal(t, "cannot transfer to yourself", body["error"])
-}
-
-// TestItemTransferShouldReturn422WhenItemIsArchived covers scenario 10:
-// Alice archives an item, then attempts to transfer it → 422.
-func TestItemTransferShouldReturn422WhenItemIsArchived(t *testing.T) {
-	srv := startIntegrationServer(t)
-	tokenAlice, _, _, _, bobID, _ := setupThreeUsers(t, srv)
-
-	itemID := createItem(t, srv, tokenAlice, "Archived Item")
-
-	// Archive the item.
-	archiveResp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/archive", nil, tokenAlice)
-	require.Equal(t, http.StatusNoContent, archiveResp.StatusCode)
-
-	// Attempt transfer → 422.
-	resp := doJSON(t, srv, http.MethodPost, "/transfers", map[string]any{
-		"item_id":      itemID,
-		"recipient_id": bobID,
-	}, tokenAlice)
-	require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode)
 }

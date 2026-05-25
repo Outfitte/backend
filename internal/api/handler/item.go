@@ -229,6 +229,10 @@ func (h *ItemHandler) AssignLocation(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		log.ErrorContext(ctx, "assign location failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return

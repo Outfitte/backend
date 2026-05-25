@@ -395,6 +395,22 @@ func TestAssignLocationHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestAssignLocationHandlerShouldReturn409WhenServiceReturnsItemTransferPendingError(t *testing.T) {
+	svc := &fakeItemService{
+		assignLocationFn: func(_ context.Context, _, _ string, _ *string) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	h := handler.NewItemHandler(svc, slog.New(slog.DiscardHandler))
+
+	w := patchItemLocation(t, h, "item-1", "user-1", `{}`)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
+}
+
 func TestAssignLocationHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
 		assignLocationFn: func(_ context.Context, _, _ string, _ *string) error {
