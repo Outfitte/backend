@@ -93,7 +93,7 @@ func (m *mockWearLogRepo) CountByItem(_ context.Context, itemID string) (int, er
 // ── DeleteWearLog ─────────────────────────────────────────────────────────────
 
 func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -102,7 +102,7 @@ func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenContextIsCancelled(t *t
 }
 
 func TestWearLogServiceDeleteWearLogShouldReturnErrNotFoundWhenLogDoesNotExist(t *testing.T) {
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -114,10 +114,36 @@ func TestWearLogServiceDeleteWearLogShouldReturnErrForbiddenWhenCallerIsNotOwner
 	log.ItemID = "item-1"
 	log.OwnerID = "owner-2"
 
-	svc := NewWearLogService(&mockWearLogRepo{logs: []domain.WearLog{log}}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{logs: []domain.WearLog{log}}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestWearLogServiceDeleteWearLogShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	var log domain.WearLog
+	log.ID = "log-1"
+	log.ItemID = "item-1"
+	log.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewWearLogService(&mockWearLogRepo{logs: []domain.WearLog{log}}, &mockItemRepo{}, &mockShareAccessChecker{}, transferRepo)
+
+	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var log domain.WearLog
+	log.ID = "log-1"
+	log.ItemID = "item-1"
+	log.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewWearLogService(&mockWearLogRepo{logs: []domain.WearLog{log}}, &mockItemRepo{}, &mockShareAccessChecker{}, transferRepo)
+
+	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenDeleteFails(t *testing.T) {
@@ -127,7 +153,7 @@ func TestWearLogServiceDeleteWearLogShouldReturnErrorWhenDeleteFails(t *testing.
 	log.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}, delErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(logRepo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -140,7 +166,7 @@ func TestWearLogServiceDeleteWearLogShouldDeleteLogWhenSuccessful(t *testing.T) 
 	log.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log}}
-	svc := NewWearLogService(logRepo, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(logRepo, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	err := svc.DeleteWearLog(t.Context(), "owner-1", "log-1")
 	require.NoError(t, err)
@@ -150,7 +176,7 @@ func TestWearLogServiceDeleteWearLogShouldDeleteLogWhenSuccessful(t *testing.T) 
 // ── ListByItem ────────────────────────────────────────────────────────────────
 
 func TestWearLogServiceListByItemShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -159,7 +185,7 @@ func TestWearLogServiceListByItemShouldReturnErrorWhenContextIsCancelled(t *test
 }
 
 func TestWearLogServiceListByItemShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	_, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -170,7 +196,7 @@ func TestWearLogServiceListByItemShouldReturnErrForbiddenWhenCallerHasNoSharedAc
 	item.ID = "item-1"
 	item.OwnerID = "owner-2"
 
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{hasAccess: false})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{hasAccess: false}, &mockTransferRepo{})
 
 	_, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -181,7 +207,7 @@ func TestWearLogServiceListByItemShouldReturnErrorWhenShareCheckFails(t *testing
 	item.ID = "item-1"
 	item.OwnerID = "owner-2"
 
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{err: domain.ErrIO})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{err: domain.ErrIO}, &mockTransferRepo{})
 
 	_, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -193,7 +219,7 @@ func TestWearLogServiceListByItemShouldReturnErrorWhenRepoListByItemFails(t *tes
 	item.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{listByItemErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{})
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	_, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -210,7 +236,7 @@ func TestWearLogServiceListByItemShouldReturnLogsWhenCallerHasSharedAccess(t *te
 	log1.OwnerID = "owner-2"
 
 	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log1}}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{hasAccess: true})
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{hasAccess: true}, &mockTransferRepo{})
 
 	got, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
 	require.NoError(t, err)
@@ -231,7 +257,7 @@ func TestWearLogServiceListByItemShouldReturnLogsWhenCallerIsOwner(t *testing.T)
 	log2.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{logs: []domain.WearLog{log1, log2}}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{})
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	got, err := svc.ListByItem(t.Context(), "owner-1", "item-1")
 	require.NoError(t, err)
@@ -241,7 +267,7 @@ func TestWearLogServiceListByItemShouldReturnLogsWhenCallerIsOwner(t *testing.T)
 // ── LogWear ───────────────────────────────────────────────────────────────────
 
 func TestWearLogServiceLogWearShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -250,7 +276,7 @@ func TestWearLogServiceLogWearShouldReturnErrorWhenContextIsCancelled(t *testing
 }
 
 func TestWearLogServiceLogWearShouldReturnErrNotFoundWhenItemDoesNotExist(t *testing.T) {
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now(), nil)
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -261,7 +287,7 @@ func TestWearLogServiceLogWearShouldReturnErrForbiddenWhenCallerIsNotOwner(t *te
 	item.ID = "item-1"
 	item.OwnerID = "owner-2"
 
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now(), nil)
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -273,10 +299,34 @@ func TestWearLogServiceLogWearShouldReturnErrFutureDateNotAllowedWhenWornOnIsInF
 	item.OwnerID = "owner-1"
 
 	future := time.Now().Add(24 * time.Hour)
-	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{})
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", future, nil)
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
+}
+
+func TestWearLogServiceLogWearShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, transferRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now().Add(-time.Hour), nil)
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestWearLogServiceLogWearShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewWearLogService(&mockWearLogRepo{}, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, transferRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now().Add(-time.Hour), nil)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestWearLogServiceLogWearShouldReturnErrorWhenWearLogSaveFails(t *testing.T) {
@@ -285,7 +335,7 @@ func TestWearLogServiceLogWearShouldReturnErrorWhenWearLogSaveFails(t *testing.T
 	item.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{saveErr: domain.ErrIO}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{})
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	_, err := svc.LogWear(t.Context(), "owner-1", "item-1", time.Now(), nil)
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -297,7 +347,7 @@ func TestWearLogServiceLogWearShouldCreateLogWhenSuccessful(t *testing.T) {
 	item.OwnerID = "owner-1"
 
 	logRepo := &mockWearLogRepo{}
-	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{})
+	svc := NewWearLogService(logRepo, &mockItemRepo{items: []domain.Item{item}}, &mockShareAccessChecker{}, &mockTransferRepo{})
 
 	note := "first test wear"
 	wornOn := time.Now().Add(-24 * time.Hour).UTC()

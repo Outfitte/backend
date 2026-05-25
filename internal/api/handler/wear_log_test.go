@@ -150,6 +150,22 @@ func TestLogWearShouldReturn403WhenCallerDoesNotOwnItem(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestLogWearShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeWearLogService{
+		logWearFn: func(_ context.Context, _, _ string, _ time.Time, _ *string) (domain.WearLog, error) {
+			return domain.WearLog{}, domain.ErrItemTransferPending
+		},
+	}
+	h := newWearLogHandler(svc)
+
+	w := postWearLog(t, h, "item-1", "user-1", `{"worn_on":"2026-03-01"}`)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
+}
+
 func TestLogWearShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeWearLogService{
 		logWearFn: func(_ context.Context, _, _ string, _ time.Time, _ *string) (domain.WearLog, error) {
@@ -310,6 +326,22 @@ func TestDeleteWearLogShouldReturn403WhenCallerDoesNotOwnLog(t *testing.T) {
 	w := deleteWearLog(t, h, "item-1", "log-1", "user-1")
 
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDeleteWearLogShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeWearLogService{
+		deleteWearLogFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	h := newWearLogHandler(svc)
+
+	w := deleteWearLog(t, h, "item-1", "log-1", "user-1")
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestDeleteWearLogShouldReturn500WhenServiceFails(t *testing.T) {

@@ -146,7 +146,7 @@ func outfitLogWithOwner(id, outfitID, ownerID string, wornOn time.Time) domain.O
 }
 
 func newOutfitLogSvc(outfits *mockOutfitRepo, outfitLogs *mockOutfitLogRepo, transactor *mockOutfitLogTransactor, shares *mockShareAccessChecker) *OutfitLogService {
-	return NewOutfitLogService(outfits, outfitLogs, transactor, shares)
+	return NewOutfitLogService(outfits, outfitLogs, transactor, shares, &mockTransferRepo{})
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────
@@ -413,6 +413,36 @@ func TestOutfitLogServiceLogWearShouldReturnErrFutureDateNotAllowedWhenWornOnIsI
 	future := time.Now().Add(24 * time.Hour)
 	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", future, nil)
 	require.ErrorIs(t, err, domain.ErrFutureDateNotAllowed)
+}
+
+func TestOutfitLogServiceLogWearShouldReturnErrItemTransferPendingWhenOutfitItemHasPendingTransfer(t *testing.T) {
+	outfit := outfitWithOwner("outfit-1", "owner-1")
+	outfit.Items = []domain.OutfitItem{
+		{OutfitID: "outfit-1", ItemID: "item-1", Position: 0},
+		{OutfitID: "outfit-1", ItemID: "item-2", Position: 1},
+	}
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	transactor := &mockOutfitLogTransactor{}
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := NewOutfitLogService(outfitRepo, &mockOutfitLogRepo{}, transactor, &mockShareAccessChecker{}, transferRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", time.Now().Add(-time.Hour), nil)
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+	require.Empty(t, transactor.createdLog.GetID(), "no outfit log should be created when an item has a pending transfer")
+}
+
+func TestOutfitLogServiceLogWearShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	outfit := outfitWithOwner("outfit-1", "owner-1")
+	outfit.Items = []domain.OutfitItem{
+		{OutfitID: "outfit-1", ItemID: "item-1", Position: 0},
+	}
+	outfitRepo := &mockOutfitRepo{outfits: []domain.Outfit{outfit}}
+	transactor := &mockOutfitLogTransactor{}
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := NewOutfitLogService(outfitRepo, &mockOutfitLogRepo{}, transactor, &mockShareAccessChecker{}, transferRepo)
+
+	_, err := svc.LogWear(t.Context(), "owner-1", "outfit-1", time.Now().Add(-time.Hour), nil)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestOutfitLogServiceLogWearShouldReturnErrorWhenTransactorCreateFails(t *testing.T) {
