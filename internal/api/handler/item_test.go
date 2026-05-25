@@ -745,6 +745,9 @@ func TestUpdateHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
 	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt"}`)
 
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestUpdateHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1020,6 +1023,9 @@ func TestDeleteHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
 	w := deleteItem(t, h, "item-1", "user-1")
 
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestDeleteHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1123,6 +1129,9 @@ func TestUploadPhotoHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.
 	w := uploadPhoto(t, h, "item-1", "user-1", "photo.jpg", "data")
 
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestUploadPhotoHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1209,6 +1218,9 @@ func TestDeletePhotoHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.
 	w := deletePhoto(t, h, "item-1", "user-1", "key-1")
 
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestDeletePhotoHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1655,6 +1667,9 @@ func TestArchiveHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
 	}
 	w := postArchive(t, newItemHandler(svc), "42", "user-1")
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestArchiveHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1731,6 +1746,9 @@ func TestUnarchiveHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T)
 	}
 	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestUnarchiveHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1816,6 +1834,9 @@ func TestDisposeHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
 	}
 	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
 	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
 }
 
 func TestDisposeHandlerShouldReturn500WhenServiceFails(t *testing.T) {
