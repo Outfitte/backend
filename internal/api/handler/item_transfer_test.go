@@ -222,6 +222,17 @@ func TestTransferAcceptShouldReturn422WhenServiceReturnsValidationError(t *testi
 	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
 }
 
+func TestTransferAcceptShouldReturn409WhenServiceReturnsConflictError(t *testing.T) {
+	svc := &fakeTransferService{
+		acceptFn: func(_ context.Context, _, _ string) (service.TransferView, error) {
+			return service.TransferView{}, domain.ErrConflict
+		},
+	}
+	h := newTransferHandler(svc)
+	w := postTransferAction(t, h, "accept", "user-2", "transfer-1")
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestTransferAcceptShouldReturn500WhenServiceReturnsUnexpectedError(t *testing.T) {
 	svc := &fakeTransferService{
 		acceptFn: func(_ context.Context, _, _ string) (service.TransferView, error) {
@@ -302,6 +313,17 @@ func TestTransferRejectShouldReturn422WhenServiceReturnsValidationError(t *testi
 	h := newTransferHandler(svc)
 	w := postTransferAction(t, h, "reject", "user-2", "transfer-1")
 	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
+}
+
+func TestTransferRejectShouldReturn409WhenServiceReturnsConflictError(t *testing.T) {
+	svc := &fakeTransferService{
+		rejectFn: func(_ context.Context, _, _ string) (service.TransferView, error) {
+			return service.TransferView{}, domain.ErrConflict
+		},
+	}
+	h := newTransferHandler(svc)
+	w := postTransferAction(t, h, "reject", "user-2", "transfer-1")
+	require.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestTransferRejectShouldReturn500WhenServiceReturnsUnexpectedError(t *testing.T) {
@@ -386,6 +408,17 @@ func TestTransferCancelShouldReturn422WhenServiceReturnsValidationError(t *testi
 	require.Equal(t, http.StatusUnprocessableEntity, w.Code)
 }
 
+func TestTransferCancelShouldReturn409WhenServiceReturnsConflictError(t *testing.T) {
+	svc := &fakeTransferService{
+		cancelFn: func(_ context.Context, _, _ string) (service.TransferView, error) {
+			return service.TransferView{}, domain.ErrConflict
+		},
+	}
+	h := newTransferHandler(svc)
+	w := postTransferAction(t, h, "cancel", "user-1", "transfer-1")
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestTransferCancelShouldReturn500WhenServiceReturnsUnexpectedError(t *testing.T) {
 	svc := &fakeTransferService{
 		cancelFn: func(_ context.Context, _, _ string) (service.TransferView, error) {
@@ -452,6 +485,34 @@ func TestTransferListIncomingShouldReturn500WhenServiceFails(t *testing.T) {
 	h := newTransferHandler(svc)
 	w := listIncomingTransfers(t, h, "user-1", "")
 	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestTransferListIncomingShouldReturn200WithEmptyArrayWhenNoTransfers(t *testing.T) {
+	svc := &fakeTransferService{
+		listIncomingFn: func(_ context.Context, _ string, _ *domain.TransferStatus) ([]service.TransferView, error) {
+			return []service.TransferView{}, nil
+		},
+	}
+	h := newTransferHandler(svc)
+	w := listIncomingTransfers(t, h, "user-1", "")
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body []any
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Empty(t, body)
+}
+
+func TestTransferListIncomingShouldReturn200WithFilteredTransfersWhenStatusProvided(t *testing.T) {
+	svc := &fakeTransferService{
+		listIncomingFn: func(_ context.Context, _ string, status *domain.TransferStatus) ([]service.TransferView, error) {
+			require.NotNil(t, status)
+			require.Equal(t, domain.TransferStatusPending, *status)
+			return []service.TransferView{}, nil
+		},
+	}
+	h := newTransferHandler(svc)
+	w := listIncomingTransfers(t, h, "user-2", "status=pending")
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestTransferListIncomingShouldReturn200WithTransfersWhenSuccessful(t *testing.T) {
@@ -547,7 +608,6 @@ func TestTransferListOutgoingShouldReturn200WithTransfersWhenSuccessful(t *testi
 }
 
 func TestTransferListOutgoingShouldReturn200WithFilteredTransfersWhenStatusProvided(t *testing.T) {
-	pending := domain.TransferStatusPending
 	svc := &fakeTransferService{
 		listOutgoingFn: func(_ context.Context, _ string, status *domain.TransferStatus) ([]service.TransferView, error) {
 			require.NotNil(t, status)
@@ -556,7 +616,6 @@ func TestTransferListOutgoingShouldReturn200WithFilteredTransfersWhenStatusProvi
 		},
 	}
 	h := newTransferHandler(svc)
-	_ = pending
 	w := listOutgoingTransfers(t, h, "user-1", "status=pending")
 	require.Equal(t, http.StatusOK, w.Code)
 }

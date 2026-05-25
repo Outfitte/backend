@@ -346,6 +346,10 @@ func (h *ItemTransferHandler) handleTransferActionError(ctx context.Context, w h
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "invalid request"})
 		return
 	}
+	if errors.Is(err, domain.ErrConflict) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+		return
+	}
 	log.ErrorContext(ctx, msg, "error", err)
 	writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 }

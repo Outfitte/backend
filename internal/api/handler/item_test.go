@@ -734,6 +734,19 @@ func TestUpdateHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestUpdateHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
+			return domain.Item{}, domain.ErrItemTransferPending
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := patchItem(t, h, "item-1", "user-1", `{"name":"shirt"}`)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestUpdateHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
 		updateFn: func(_ context.Context, _, _ string, _ service.UpdateItemInput) (domain.Item, error) {
@@ -996,6 +1009,19 @@ func TestDeleteHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestDeleteHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		deleteFn: func(_ context.Context, _, _ string) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deleteItem(t, h, "item-1", "user-1")
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestDeleteHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
 		deleteFn: func(_ context.Context, _, _ string) error {
@@ -1086,6 +1112,19 @@ func TestUploadPhotoHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T)
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestUploadPhotoHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := uploadPhoto(t, h, "item-1", "user-1", "photo.jpg", "data")
+
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestUploadPhotoHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
 		uploadPhotoFn: func(_ context.Context, _, _ string, _ io.Reader, _ string) error {
@@ -1157,6 +1196,19 @@ func TestDeletePhotoHandlerShouldReturn403WhenCallerIsNotItemOwner(t *testing.T)
 	w := deletePhoto(t, h, "item-1", "user-2", "key-1")
 
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDeletePhotoHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		deletePhotoFn: func(_ context.Context, _, _, _ string) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	h := newItemHandler(svc)
+
+	w := deletePhoto(t, h, "item-1", "user-1", "key-1")
+
+	require.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestDeletePhotoHandlerShouldReturn500WhenServiceFails(t *testing.T) {
@@ -1597,6 +1649,14 @@ func TestArchiveHandlerShouldReturn409WhenItemAlreadyArchived(t *testing.T) {
 	require.Equal(t, http.StatusConflict, w.Code)
 }
 
+func TestArchiveHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		archiveFn: func(_ context.Context, _, _ string) error { return domain.ErrItemTransferPending },
+	}
+	w := postArchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestArchiveHandlerShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeItemService{
 		archiveFn: func(_ context.Context, _, _ string) error { return errors.New("unexpected") },
@@ -1660,6 +1720,14 @@ func TestUnarchiveHandlerShouldReturn403WhenCallerDoesNotOwnItem(t *testing.T) {
 func TestUnarchiveHandlerShouldReturn409WhenItemNotArchived(t *testing.T) {
 	svc := &fakeItemService{
 		unarchiveFn: func(_ context.Context, _, _ string) error { return domain.ErrNotArchived },
+	}
+	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
+func TestUnarchiveHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		unarchiveFn: func(_ context.Context, _, _ string) error { return domain.ErrItemTransferPending },
 	}
 	w := postUnarchive(t, newItemHandler(svc), "42", "user-1")
 	require.Equal(t, http.StatusConflict, w.Code)
@@ -1738,6 +1806,16 @@ func TestDisposeHandlerShouldReturn403WhenCallerDoesNotOwnItem(t *testing.T) {
 	}
 	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestDisposeHandlerShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeItemService{
+		disposeFn: func(_ context.Context, _, _ string, _ domain.DisposalReason) error {
+			return domain.ErrItemTransferPending
+		},
+	}
+	w := postDispose(t, newItemHandler(svc), "42", "user-1", `{"reason":"donated"}`)
+	require.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestDisposeHandlerShouldReturn500WhenServiceFails(t *testing.T) {
