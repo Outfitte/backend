@@ -67,6 +67,8 @@ Every HTTP handler method must check `ctx.Err()` immediately after the "started"
 
 Error messages in JSON responses must always be hardcoded string literals — never use `err.Error()`. If the domain error message is intentionally user-facing, copy the string explicitly. Using `err.Error()` couples the API contract to domain error wording, which can change silently.
 
+**Every domain error that a service can return must have an explicit `errors.Is` branch in every handler that calls that service method** — unhandled domain errors fall through to the 500 catch-all, producing spurious error logs and misleading responses. Whenever a new domain error is introduced, audit all handlers that exercise the affected code paths and add the appropriate HTTP status mapping (e.g. `ErrItemTransferPending` → 409 Conflict).
+
 Response DTO types belong in the same file as the handler for their primary entity (e.g. `locationResponse` lives in `location.go`, not in `share.go` even though `share.go` embeds it). Define a response type once in its primary handler file; other handlers import it from there.
 
 ## Ports Guidelines

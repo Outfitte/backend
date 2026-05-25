@@ -192,6 +192,22 @@ func TestLogOutfitWearShouldReturn403WhenCallerDoesNotOwnOutfit(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestLogOutfitWearShouldReturn409WhenOutfitItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeOutfitLogService{
+		logWearFn: func(_ context.Context, _, _ string, _ time.Time, _ *string) (domain.OutfitLog, error) {
+			return domain.OutfitLog{}, domain.ErrItemTransferPending
+		},
+	}
+	h := newOutfitLogHandler(svc)
+
+	w := postOutfitLog(t, h, "outfit-1", "user-1", `{"worn_on":"2026-03-01"}`)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	require.Equal(t, "item has a pending transfer", body["error"])
+}
+
 func TestLogOutfitWearShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeOutfitLogService{
 		logWearFn: func(_ context.Context, _, _ string, _ time.Time, _ *string) (domain.OutfitLog, error) {

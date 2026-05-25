@@ -12,14 +12,15 @@ import (
 
 // WearLogService manages wear log entries for wardrobe items.
 type WearLogService struct {
-	wearLogs ports.WearLogRepository
-	items    ports.ItemRepository
-	shares   shareAccessChecker
+	wearLogs  ports.WearLogRepository
+	items     ports.ItemRepository
+	shares    shareAccessChecker
+	transfers ports.ItemTransferRepository
 }
 
 // NewWearLogService constructs a WearLogService backed by the given repositories and share checker.
-func NewWearLogService(wearLogs ports.WearLogRepository, items ports.ItemRepository, shares shareAccessChecker) *WearLogService {
-	return &WearLogService{wearLogs: wearLogs, items: items, shares: shares}
+func NewWearLogService(wearLogs ports.WearLogRepository, items ports.ItemRepository, shares shareAccessChecker, transfers ports.ItemTransferRepository) *WearLogService {
+	return &WearLogService{wearLogs: wearLogs, items: items, shares: shares, transfers: transfers}
 }
 
 // LogWear records a wear event for itemID on the given date.
@@ -30,10 +31,24 @@ func (s *WearLogService) LogWear(ctx context.Context, callerID, itemID string, w
 	if _, err := s.getOwnedItem(ctx, callerID, itemID); err != nil {
 		return domain.WearLog{}, err
 	}
+	if err := s.rejectIfTransferPending(ctx, itemID); err != nil {
+		return domain.WearLog{}, err
+	}
 	if wornOn.UTC().After(time.Now().UTC()) {
 		return domain.WearLog{}, domain.ErrFutureDateNotAllowed
 	}
 	return s.saveNewWearLog(ctx, callerID, itemID, wornOn, notes)
+}
+
+func (s *WearLogService) rejectIfTransferPending(ctx context.Context, itemID string) error {
+	pending, err := s.transfers.HasPending(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return domain.ErrItemTransferPending
+	}
+	return nil
 }
 
 func (s *WearLogService) saveNewWearLog(ctx context.Context, callerID, itemID string, wornOn time.Time, notes *string) (domain.WearLog, error) {
@@ -83,7 +98,11 @@ func (s *WearLogService) DeleteWearLog(ctx context.Context, callerID, logID stri
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := s.getOwnedWearLog(ctx, callerID, logID); err != nil {
+	log, err := s.getOwnedWearLog(ctx, callerID, logID)
+	if err != nil {
+		return err
+	}
+	if err := s.rejectIfTransferPending(ctx, log.ItemID); err != nil {
 		return err
 	}
 	return s.wearLogs.Delete(ctx, logID)
