@@ -52,3 +52,18 @@ jobs:
             }
           prompt: |
             Use the /implement-task skill for issue #${{ github.event.issue.number }}.
+
+      - name: Signal n8n — implementation complete
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" = "success" ]; then
+            gh issue edit "$ISSUE_NUMBER" --add-label "claude: done" \
+              --repo "${{ github.repository }}"
+          else
+            gh issue edit "$ISSUE_NUMBER" --add-label "claude: failed" \
+              --repo "${{ github.repository }}"
+          fi
