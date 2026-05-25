@@ -407,6 +407,10 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		log.ErrorContext(ctx, "update item failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -436,6 +440,10 @@ func (h *ItemHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrForbidden) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "delete item failed", "error", err)
@@ -477,6 +485,10 @@ func (h *ItemHandler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		log.ErrorContext(ctx, "upload photo failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -508,6 +520,10 @@ func (h *ItemHandler) DeletePhoto(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrForbidden) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "delete photo failed", "error", err)
@@ -546,6 +562,10 @@ func (h *ItemHandler) Archive(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "already archived"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		log.ErrorContext(ctx, "archive item failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -580,6 +600,10 @@ func (h *ItemHandler) Unarchive(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrNotArchived) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "not archived"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "unarchive item failed", "error", err)
@@ -630,6 +654,10 @@ func (h *ItemHandler) Dispose(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrForbidden) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "dispose item failed", "error", err)

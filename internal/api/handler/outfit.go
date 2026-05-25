@@ -345,6 +345,10 @@ func (h *OutfitHandler) AddItem(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
 			return
 		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
+			return
+		}
 		log.ErrorContext(ctx, "add item failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
@@ -374,6 +378,10 @@ func (h *OutfitHandler) RemoveItem(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, domain.ErrForbidden) {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden"})
+			return
+		}
+		if errors.Is(err, domain.ErrItemTransferPending) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "item has a pending transfer"})
 			return
 		}
 		log.ErrorContext(ctx, "remove item failed", "error", err)

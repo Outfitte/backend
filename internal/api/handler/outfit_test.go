@@ -628,6 +628,14 @@ func TestOutfitAddItemShouldReturn403WhenForbidden(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestOutfitAddItemShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeOutfitService{
+		addItemFn: func(_ context.Context, _, _, _ string) error { return domain.ErrItemTransferPending },
+	}
+	w := addOutfitItem(t, newOutfitHandler(svc), "o1", "user1", `{"item_id":"i1"}`)
+	require.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestOutfitAddItemShouldReturn500WhenServiceFails(t *testing.T) {
 	svc := &fakeOutfitService{
 		addItemFn: func(_ context.Context, _, _, _ string) error { return errors.New("boom") },
@@ -678,6 +686,14 @@ func TestOutfitRemoveItemShouldReturn403WhenForbidden(t *testing.T) {
 	}
 	w := removeOutfitItem(t, newOutfitHandler(svc), "o1", "i1", "user1")
 	require.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestOutfitRemoveItemShouldReturn409WhenItemHasPendingTransfer(t *testing.T) {
+	svc := &fakeOutfitService{
+		removeItemFn: func(_ context.Context, _, _, _ string) error { return domain.ErrItemTransferPending },
+	}
+	w := removeOutfitItem(t, newOutfitHandler(svc), "o1", "i1", "user1")
+	require.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestOutfitRemoveItemShouldReturn500WhenServiceFails(t *testing.T) {
