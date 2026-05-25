@@ -2,7 +2,11 @@ package store_test
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
 	"testing"
+
+	_ "modernc.org/sqlite"
 
 	"github.com/stretchr/testify/require"
 
@@ -30,6 +34,21 @@ func TestNewRepositoriesShouldReturnErrWhenContextCancelledForSQLite(t *testing.
 	cfg := config.Config{DB: config.DBConfig{Driver: "sqlite", DSN: ":memory:"}}
 	_, _, err := store.NewRepositories(ctx, cfg)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestNewRepositoriesShouldReturnErrWhenSQLiteMigrationFails(t *testing.T) {
+	// Pre-seed a temp SQLite file with a conflicting table so that the first
+	// migration (CREATE TABLE users) fails, exercising the RunMigrations error path.
+	tmpFile := filepath.Join(t.TempDir(), "conflict.db")
+	db, err := sql.Open("sqlite", tmpFile)
+	require.NoError(t, err)
+	_, err = db.Exec("CREATE TABLE users (id TEXT NOT NULL PRIMARY KEY)")
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	cfg := config.Config{DB: config.DBConfig{Driver: "sqlite", DSN: tmpFile}}
+	_, _, err = store.NewRepositories(t.Context(), cfg)
+	require.Error(t, err)
 }
 
 func TestNewRepositoriesShouldReturnRepositoriesAndCloserWhenDriverIsSQLite(t *testing.T) {
