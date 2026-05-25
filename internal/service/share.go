@@ -56,6 +56,7 @@ type ShareService struct {
 	items     ports.ItemRepository
 	outfits   ports.OutfitRepository
 	locations ports.LocationRepository
+	transfers ports.ItemTransferRepository
 }
 
 // NewShareService constructs a ShareService backed by the given repositories.
@@ -65,6 +66,7 @@ func NewShareService(
 	items ports.ItemRepository,
 	outfits ports.OutfitRepository,
 	locations ports.LocationRepository,
+	transfers ports.ItemTransferRepository,
 ) *ShareService {
 	return &ShareService{
 		shares:    shares,
@@ -72,6 +74,7 @@ func NewShareService(
 		items:     items,
 		outfits:   outfits,
 		locations: locations,
+		transfers: transfers,
 	}
 }
 
@@ -96,7 +99,23 @@ func (s *ShareService) Create(ctx context.Context, callerID string, input Create
 	if existing != nil {
 		return domain.Share{}, domain.ErrDuplicateShare
 	}
+	if input.TargetType == domain.ShareTargetItem {
+		if err := s.checkItemNotLocked(ctx, input.TargetID); err != nil {
+			return domain.Share{}, err
+		}
+	}
 	return s.saveNewShare(ctx, callerID, input)
+}
+
+func (s *ShareService) checkItemNotLocked(ctx context.Context, itemID string) error {
+	pending, err := s.transfers.HasPending(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return domain.ErrItemTransferPending
+	}
+	return nil
 }
 
 func (s *ShareService) saveNewShare(ctx context.Context, ownerID string, input CreateShareInput) (domain.Share, error) {
@@ -325,6 +344,11 @@ func (s *ShareService) Revoke(ctx context.Context, callerID, shareID string) err
 	}
 	if share.OwnerID != callerID {
 		return domain.ErrForbidden
+	}
+	if share.TargetType == domain.ShareTargetItem {
+		if err := s.checkItemNotLocked(ctx, share.TargetID); err != nil {
+			return err
+		}
 	}
 	return s.shares.Delete(ctx, shareID)
 }

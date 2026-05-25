@@ -139,8 +139,9 @@ func newTestShareService(
 	itemRepo ports.ItemRepository,
 	outfitRepo ports.OutfitRepository,
 	locationRepo ports.LocationRepository,
+	transferRepo ports.ItemTransferRepository,
 ) *ShareService {
-	return NewShareService(shareRepo, userRepo, itemRepo, outfitRepo, locationRepo)
+	return NewShareService(shareRepo, userRepo, itemRepo, outfitRepo, locationRepo, transferRepo)
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -155,7 +156,7 @@ func TestShareServiceCreateShouldReturnErrorWhenRepoSaveFails(t *testing.T) {
 	item.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepo{saveErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -166,7 +167,7 @@ func TestShareServiceCreateShouldReturnErrorWhenRepoSaveFails(t *testing.T) {
 }
 
 func TestShareServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -179,7 +180,7 @@ func TestShareServiceCreateShouldReturnErrorWhenContextIsCancelled(t *testing.T)
 }
 
 func TestShareServiceCreateShouldReturnErrNotFoundWhenRecipientDoesNotExist(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -194,7 +195,7 @@ func TestShareServiceCreateShouldReturnErrSelfShareWhenRecipientIsTheCaller(t *t
 	user.ID = "owner-1"
 	user.Email = "owner@example.com"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{user}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{user}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "owner-1",
@@ -209,7 +210,7 @@ func TestShareServiceCreateShouldReturnErrNotFoundWhenItemTargetDoesNotExist(t *
 	recipient.ID = "user-2"
 	recipient.Email = "user2@example.com"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -228,7 +229,7 @@ func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnItemTarge
 	item.ID = "item-1"
 	item.OwnerID = "owner-2"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -243,7 +244,7 @@ func TestShareServiceCreateShouldReturnErrNotFoundWhenOutfitTargetDoesNotExist(t
 	recipient.ID = "user-2"
 	recipient.Email = "user2@example.com"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -262,7 +263,7 @@ func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnOutfitTar
 	outfit.ID = "outfit-1"
 	outfit.OwnerID = "owner-2"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -277,7 +278,7 @@ func TestShareServiceCreateShouldReturnErrNotFoundWhenLocationTargetDoesNotExist
 	recipient.ID = "user-2"
 	recipient.Email = "user2@example.com"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -296,7 +297,7 @@ func TestShareServiceCreateShouldReturnErrForbiddenWhenCallerDoesNotOwnLocationT
 	loc.ID = "loc-1"
 	loc.OwnerID = "owner-2"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -323,7 +324,7 @@ func TestShareServiceCreateShouldReturnErrDuplicateShareWhenShareAlreadyExists(t
 	existing.TargetID = "item-1"
 
 	shareRepo := &mockShareRepo{findByTargetResult: &existing}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -343,7 +344,47 @@ func TestShareServiceCreateShouldReturnErrorWhenFindByTargetFails(t *testing.T) 
 	item.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepo{findByTargetErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestShareServiceCreateShouldReturnErrItemTransferPendingWhenItemHasPendingTransfer(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
+
+	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
+		RecipientID: "user-2",
+		TargetType:  domain.ShareTargetItem,
+		TargetID:    "item-1",
+	})
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestShareServiceCreateShouldReturnErrorWhenHasPendingCheckFails(t *testing.T) {
+	var recipient domain.User
+	recipient.ID = "user-2"
+	recipient.Email = "user2@example.com"
+
+	var item domain.Item
+	item.ID = "item-1"
+	item.OwnerID = "owner-1"
+
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -363,7 +404,7 @@ func TestShareServiceCreateShouldReturnShareWhenInputIsValid(t *testing.T) {
 	item.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepo{}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -383,7 +424,7 @@ func TestShareServiceCreateShouldReturnShareWhenInputIsValid(t *testing.T) {
 // ── ListOutgoing ──────────────────────────────────────────────────────────────
 
 func TestShareServiceListOutgoingShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -393,7 +434,7 @@ func TestShareServiceListOutgoingShouldReturnErrorWhenContextIsCancelled(t *test
 
 func TestShareServiceListOutgoingShouldReturnErrorWhenRepoListByOwnerFails(t *testing.T) {
 	shareRepo := &mockShareRepo{listByOwnerErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListOutgoing(t.Context(), "owner-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -409,7 +450,7 @@ func TestShareServiceListOutgoingShouldReturnErrorWhenRecipientUserGetFails(t *t
 	userRepo := &mockUserStore{getByEmailErr: domain.ErrIO}
 	// Override Get to fail
 	userRepo.users = nil
-	svc := newTestShareService(shareRepo, userRepo, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, userRepo, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListOutgoing(t.Context(), "owner-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -429,7 +470,7 @@ func TestShareServiceListOutgoingShouldReturnShareViewsWithRecipientSummaries(t 
 
 	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
 	userRepo := &mockUserStore{users: []domain.User{recipient}}
-	svc := newTestShareService(shareRepo, userRepo, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, userRepo, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.ListOutgoing(t.Context(), "owner-1")
 	require.NoError(t, err)
@@ -442,7 +483,7 @@ func TestShareServiceListOutgoingShouldReturnShareViewsWithRecipientSummaries(t 
 // ── ListSharedWithMe ──────────────────────────────────────────────────────────
 
 func TestShareServiceListSharedWithMeShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -452,7 +493,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenContextIsCancelled(t *
 
 func TestShareServiceListSharedWithMeShouldReturnErrorWhenListByRecipientAndTypeForItemsFails(t *testing.T) {
 	shareRepo := &mockShareRepo{listByRecipientAndTypeErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -469,7 +510,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenItemGetFails(t *testin
 	shareRepo := &mockShareRepoByType{
 		itemShares: []domain.Share{itemShare},
 	}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{getErr: domain.ErrIO}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{getErr: domain.ErrIO}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -488,7 +529,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenOwnerGetFailsForItem(t
 	item.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepoByType{itemShares: []domain.Share{itemShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -511,7 +552,7 @@ func TestShareServiceListSharedWithMeShouldReturnSharedItemsWithOwnerSummaries(t
 	owner.Email = "owner@example.com"
 
 	shareRepo := &mockShareRepoByType{itemShares: []domain.Share{itemShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.NoError(t, err)
@@ -540,7 +581,7 @@ func TestShareServiceListSharedWithMeShouldReturnSharedOutfitsWithOwnerSummaries
 	owner.Email = "owner@example.com"
 
 	shareRepo := &mockShareRepoByType{outfitShares: []domain.Share{outfitShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.NoError(t, err)
@@ -574,7 +615,7 @@ func TestShareServiceListSharedWithMeShouldReturnSharedLocationsWithItemsAndOwne
 	owner.Email = "owner@example.com"
 
 	shareRepo := &mockShareRepoByType{locationShares: []domain.Share{locShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}}, &mockTransferRepo{})
 
 	got, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.NoError(t, err)
@@ -596,7 +637,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenHydrateSharedOutfitsFa
 	outfitShare.TargetID = "outfit-1"
 
 	shareRepo := &mockShareRepoByType{outfitShares: []domain.Share{outfitShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{getErr: domain.ErrIO}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{getErr: domain.ErrIO}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -611,7 +652,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenHydrateSharedLocations
 	locShare.TargetID = "loc-1"
 
 	shareRepo := &mockShareRepoByType{locationShares: []domain.Share{locShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{getErr: domain.ErrIO})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{getErr: domain.ErrIO}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -630,7 +671,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenOwnerGetFailsForOutfit
 	outfit.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepoByType{outfitShares: []domain.Share{outfitShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{outfits: []domain.Outfit{outfit}}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -649,7 +690,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenOwnerGetFailsForLocati
 	loc.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepoByType{locationShares: []domain.Share{locShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -672,7 +713,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenCollectLocationItemsFa
 	owner.Email = "owner@example.com"
 
 	shareRepo := &mockShareRepoByType{locationShares: []domain.Share{locShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{listByOwnerErr: domain.ErrIO}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{listByOwnerErr: domain.ErrIO}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -713,7 +754,7 @@ func TestShareServiceListSharedWithMeShouldIncludeDescendantLocationsItemsWhenLo
 	owner.Email = "owner@example.com"
 
 	shareRepo := &mockShareRepoByType{locationShares: []domain.Share{locShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{items: []domain.Item{itemInRoot, itemInChild}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{root, child}})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{items: []domain.Item{itemInRoot, itemInChild}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{root, child}}, &mockTransferRepo{})
 
 	got, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.NoError(t, err)
@@ -723,7 +764,7 @@ func TestShareServiceListSharedWithMeShouldIncludeDescendantLocationsItemsWhenLo
 
 func TestShareServiceListSharedWithMeShouldReturnErrorWhenListByRecipientAndTypeForOutfitsFails(t *testing.T) {
 	shareRepo := &mockShareRepoByType{outfitListErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -731,7 +772,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenListByRecipientAndType
 
 func TestShareServiceListSharedWithMeShouldReturnErrorWhenListByRecipientAndTypeForLocationsFails(t *testing.T) {
 	shareRepo := &mockShareRepoByType{locationListErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -754,7 +795,7 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenLocationListByOwnerFai
 	owner.Email = "owner@example.com"
 
 	shareRepo := &mockShareRepoByType{locationShares: []domain.Share{locShare}}
-	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}, listByOwnerErr: domain.ErrIO})
+	svc := newTestShareService(shareRepo, &mockUserStore{users: []domain.User{owner}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}, listByOwnerErr: domain.ErrIO}, &mockTransferRepo{})
 
 	_, err := svc.ListSharedWithMe(t.Context(), "user-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -791,7 +832,7 @@ func (m *mockShareRepoByType) ListByRecipientAndType(_ context.Context, _ string
 // ── Revoke ────────────────────────────────────────────────────────────────────
 
 func TestShareServiceRevokeShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -800,7 +841,7 @@ func TestShareServiceRevokeShouldReturnErrorWhenContextIsCancelled(t *testing.T)
 }
 
 func TestShareServiceRevokeShouldReturnErrNotFoundWhenShareDoesNotExist(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	err := svc.Revoke(t.Context(), "owner-1", "share-1")
 	require.ErrorIs(t, err, domain.ErrNotFound)
@@ -812,7 +853,7 @@ func TestShareServiceRevokeShouldReturnErrForbiddenWhenCallerIsNotShareOwner(t *
 	share.OwnerID = "owner-2"
 
 	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	err := svc.Revoke(t.Context(), "owner-1", "share-1")
 	require.ErrorIs(t, err, domain.ErrForbidden)
@@ -824,10 +865,55 @@ func TestShareServiceRevokeShouldReturnErrorWhenRepoDeleteFails(t *testing.T) {
 	share.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepo{shares: []domain.Share{share}, deleteErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	err := svc.Revoke(t.Context(), "owner-1", "share-1")
 	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestShareServiceRevokeShouldReturnErrItemTransferPendingWhenItemShareHasPendingTransfer(t *testing.T) {
+	var share domain.Share
+	share.ID = "share-1"
+	share.OwnerID = "owner-1"
+	share.TargetType = domain.ShareTargetItem
+	share.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
+	transferRepo := &mockTransferRepo{hasPending: true}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
+
+	err := svc.Revoke(t.Context(), "owner-1", "share-1")
+	require.ErrorIs(t, err, domain.ErrItemTransferPending)
+}
+
+func TestShareServiceRevokeShouldReturnErrorWhenHasPendingCheckFailsForItemShare(t *testing.T) {
+	var share domain.Share
+	share.ID = "share-1"
+	share.OwnerID = "owner-1"
+	share.TargetType = domain.ShareTargetItem
+	share.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
+	transferRepo := &mockTransferRepo{hasPendingErr: domain.ErrIO}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, transferRepo)
+
+	err := svc.Revoke(t.Context(), "owner-1", "share-1")
+	require.ErrorIs(t, err, domain.ErrIO)
+}
+
+func TestShareServiceRevokeShouldDeleteItemShareWhenItemHasNoPendingTransfer(t *testing.T) {
+	var share domain.Share
+	share.ID = "share-1"
+	share.OwnerID = "owner-1"
+	share.TargetType = domain.ShareTargetItem
+	share.TargetID = "item-1"
+
+	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{hasPending: false})
+
+	err := svc.Revoke(t.Context(), "owner-1", "share-1")
+	require.NoError(t, err)
+	require.Empty(t, shareRepo.shares)
 }
 
 func TestShareServiceRevokeShouldDeleteShareWhenCallerIsOwner(t *testing.T) {
@@ -836,7 +922,7 @@ func TestShareServiceRevokeShouldDeleteShareWhenCallerIsOwner(t *testing.T) {
 	share.OwnerID = "owner-1"
 
 	shareRepo := &mockShareRepo{shares: []domain.Share{share}}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	err := svc.Revoke(t.Context(), "owner-1", "share-1")
 	require.NoError(t, err)
@@ -846,7 +932,7 @@ func TestShareServiceRevokeShouldDeleteShareWhenCallerIsOwner(t *testing.T) {
 // ── HasReadAccess ─────────────────────────────────────────────────────────────
 
 func TestShareServiceHasReadAccessShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -855,7 +941,7 @@ func TestShareServiceHasReadAccessShouldReturnErrorWhenContextIsCancelled(t *tes
 }
 
 func TestShareServiceHasReadAccessShouldReturnFalseWhenTargetTypeIsUnknown(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetType("unknown"), "entity-1")
 	require.NoError(t, err)
@@ -864,7 +950,7 @@ func TestShareServiceHasReadAccessShouldReturnFalseWhenTargetTypeIsUnknown(t *te
 
 func TestShareServiceHasReadAccessShouldReturnErrorWhenHasDirectAccessFails(t *testing.T) {
 	shareRepo := &mockShareRepo{hasDirectAccessErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetOutfit, "outfit-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -872,7 +958,7 @@ func TestShareServiceHasReadAccessShouldReturnErrorWhenHasDirectAccessFails(t *t
 
 func TestShareServiceHasReadAccessShouldReturnTrueWhenOutfitIsDirectlyShared(t *testing.T) {
 	shareRepo := &mockShareRepo{hasDirectAccessResult: true}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetOutfit, "outfit-1")
 	require.NoError(t, err)
@@ -880,7 +966,7 @@ func TestShareServiceHasReadAccessShouldReturnTrueWhenOutfitIsDirectlyShared(t *
 }
 
 func TestShareServiceHasReadAccessShouldReturnFalseWhenOutfitIsNotShared(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetOutfit, "outfit-1")
 	require.NoError(t, err)
@@ -889,7 +975,7 @@ func TestShareServiceHasReadAccessShouldReturnFalseWhenOutfitIsNotShared(t *test
 
 func TestShareServiceHasReadAccessShouldReturnTrueWhenItemIsDirectlyShared(t *testing.T) {
 	shareRepo := &mockShareRepo{hasDirectAccessResult: true}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetItem, "item-1")
 	require.NoError(t, err)
@@ -901,7 +987,7 @@ func TestShareServiceHasReadAccessShouldReturnFalseWhenItemIsNotSharedAtAll(t *t
 	item.ID = "item-1"
 	item.OwnerID = "owner-1"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetItem, "item-1")
 	require.NoError(t, err)
@@ -911,7 +997,7 @@ func TestShareServiceHasReadAccessShouldReturnFalseWhenItemIsNotSharedAtAll(t *t
 func TestShareServiceHasReadAccessShouldReturnErrorWhenItemGetFailsDuringLocationCheck(t *testing.T) {
 	// no direct access; item.Get fails
 	itemRepo := &mockItemRepo{getErr: domain.ErrIO}
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, itemRepo, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, itemRepo, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetItem, "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -937,7 +1023,7 @@ func TestShareServiceHasReadAccessShouldReturnTrueWhenItemLocationIsShared(t *te
 		trueForType: domain.ShareTargetLocation,
 		trueForID:   "loc-1",
 	}
-	svc := newTestShareService(customShareRepo, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+	svc := newTestShareService(customShareRepo, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetItem, "item-1")
 	require.NoError(t, err)
@@ -966,7 +1052,7 @@ func TestShareServiceHasReadAccessShouldReturnTrueWhenItemLocationAncestorIsShar
 		trueForType: domain.ShareTargetLocation,
 		trueForID:   "loc-parent",
 	}
-	svc := newTestShareService(customShareRepo, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc, parent}})
+	svc := newTestShareService(customShareRepo, &mockUserStore{}, &mockItemRepo{items: []domain.Item{item}}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc, parent}}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetItem, "item-1")
 	require.NoError(t, err)
@@ -975,7 +1061,7 @@ func TestShareServiceHasReadAccessShouldReturnTrueWhenItemLocationAncestorIsShar
 
 func TestShareServiceHasReadAccessShouldReturnTrueWhenLocationIsDirectlyShared(t *testing.T) {
 	shareRepo := &mockShareRepo{hasDirectAccessResult: true}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetLocation, "loc-1")
 	require.NoError(t, err)
@@ -997,7 +1083,7 @@ func TestShareServiceHasReadAccessShouldReturnTrueWhenLocationAncestorIsShared(t
 		trueForType: domain.ShareTargetLocation,
 		trueForID:   "loc-parent",
 	}
-	svc := newTestShareService(customShareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc, parent}})
+	svc := newTestShareService(customShareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc, parent}}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetLocation, "loc-1")
 	require.NoError(t, err)
@@ -1009,7 +1095,7 @@ func TestShareServiceHasReadAccessShouldReturnFalseWhenLocationIsNotShared(t *te
 	loc.ID = "loc-1"
 	loc.OwnerID = "owner-1"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{locations: []domain.Location{loc}}, &mockTransferRepo{})
 
 	got, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetLocation, "loc-1")
 	require.NoError(t, err)
@@ -1027,7 +1113,7 @@ func TestShareServiceHasReadAccessShouldReturnErrorWhenLocationGetFailsDuringAnc
 		locations: []domain.Location{loc},
 		getErrFor: map[string]error{"loc-parent": domain.ErrIO},
 	}
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, locRepo)
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, locRepo, &mockTransferRepo{})
 
 	_, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetLocation, "loc-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -1055,7 +1141,7 @@ func TestShareServiceHasReadAccessShouldReturnFalseWhenLocationTreeHasCycle(t *t
 	loc2.ParentID = &parent2
 
 	locRepo := &mockLocationRepo{locations: []domain.Location{loc1, loc2}}
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, locRepo)
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, locRepo, &mockTransferRepo{})
 
 	ok, err := svc.HasReadAccess(t.Context(), "user-1", domain.ShareTargetLocation, "loc-1")
 	require.NoError(t, err)
@@ -1118,7 +1204,7 @@ func TestShareServiceCreateShouldReturnErrValidationWhenTargetTypeIsUnknown(t *t
 	recipient.ID = "user-2"
 	recipient.Email = "user2@example.com"
 
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{users: []domain.User{recipient}}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	_, err := svc.Create(t.Context(), "owner-1", CreateShareInput{
 		RecipientID: "user-2",
@@ -1131,7 +1217,7 @@ func TestShareServiceCreateShouldReturnErrValidationWhenTargetTypeIsUnknown(t *t
 // ── DeleteByTarget ────────────────────────────────────────────────────────────
 
 func TestShareServiceDeleteByTargetShouldReturnErrorWhenContextIsCancelled(t *testing.T) {
-	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(&mockShareRepo{}, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -1141,7 +1227,7 @@ func TestShareServiceDeleteByTargetShouldReturnErrorWhenContextIsCancelled(t *te
 
 func TestShareServiceDeleteByTargetShouldReturnErrorWhenRepoFails(t *testing.T) {
 	shareRepo := &mockShareRepo{deleteByTargetErr: domain.ErrIO}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	err := svc.DeleteByTarget(t.Context(), domain.ShareTargetItem, "item-1")
 	require.ErrorIs(t, err, domain.ErrIO)
@@ -1149,7 +1235,7 @@ func TestShareServiceDeleteByTargetShouldReturnErrorWhenRepoFails(t *testing.T) 
 
 func TestShareServiceDeleteByTargetShouldDelegateToRepoWhenSuccessful(t *testing.T) {
 	shareRepo := &mockShareRepo{}
-	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{})
+	svc := newTestShareService(shareRepo, &mockUserStore{}, &mockItemRepo{}, &mockOutfitRepo{}, &mockLocationRepo{}, &mockTransferRepo{})
 
 	err := svc.DeleteByTarget(t.Context(), domain.ShareTargetItem, "item-1")
 	require.NoError(t, err)
