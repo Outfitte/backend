@@ -48,7 +48,7 @@ func TestNewRepositoriesShouldReturnErrWhenSQLiteMigrationFails(t *testing.T) {
 
 	cfg := config.Config{DB: config.DBConfig{Driver: "sqlite", DSN: tmpFile}}
 	_, _, err = store.NewRepositories(t.Context(), cfg)
-	require.Error(t, err)
+	require.ErrorIs(t, err, domain.ErrIO)
 }
 
 func TestNewRepositoriesShouldReturnRepositoriesAndCloserWhenDriverIsSQLite(t *testing.T) {
@@ -62,6 +62,9 @@ func TestNewRepositoriesShouldReturnRepositoriesAndCloserWhenDriverIsSQLite(t *t
 	require.NotNil(t, repos.Locations)
 	require.NotNil(t, repos.WearLogs)
 	require.NotNil(t, repos.AppSettings)
+	require.NotNil(t, repos.Outfits)
+	require.NotNil(t, repos.OutfitLogs)
+	require.NotNil(t, repos.OutfitLogTransactor)
 	require.NotNil(t, repos.Shares)
 	require.NotNil(t, repos.ItemTransfers)
 	require.NotNil(t, repos.ItemTransferTransactor)
@@ -85,6 +88,9 @@ func TestNewRepositoriesShouldReturnRepositoriesAndNopCloserWhenDriverIsJSON(t *
 	require.NotNil(t, repos.Locations)
 	require.NotNil(t, repos.WearLogs)
 	require.NotNil(t, repos.AppSettings)
+	require.NotNil(t, repos.Outfits)
+	require.NotNil(t, repos.OutfitLogs)
+	require.NotNil(t, repos.OutfitLogTransactor)
 	require.NotNil(t, repos.Shares)
 	require.NotNil(t, repos.ItemTransfers)
 	require.NotNil(t, repos.ItemTransferTransactor)
