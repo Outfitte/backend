@@ -23,6 +23,8 @@ func TestNewRepositoriesShouldReturnPopulatedRepositories(t *testing.T) {
 	require.NotNil(t, repos.OutfitLogs)
 	require.NotNil(t, repos.OutfitLogTransactor)
 	require.NotNil(t, repos.Shares)
+	require.NotNil(t, repos.ItemTransfers)
+	require.NotNil(t, repos.ItemTransferTransactor)
 }
 
 func TestNewRepositoriesShouldReturnCorrectInterfaceTypes(t *testing.T) {
@@ -40,4 +42,6 @@ func TestNewRepositoriesShouldReturnCorrectInterfaceTypes(t *testing.T) {
 	require.Implements(t, (*ports.OutfitLogRepository)(nil), repos.OutfitLogs)
 	require.Implements(t, (*ports.OutfitLogTransactor)(nil), repos.OutfitLogTransactor)
 	require.Implements(t, (*ports.ShareRepository)(nil), repos.Shares)
+	require.Implements(t, (*ports.ItemTransferRepository)(nil), repos.ItemTransfers)
+	require.Implements(t, (*ports.ItemTransferTransactor)(nil), repos.ItemTransferTransactor)
 }
