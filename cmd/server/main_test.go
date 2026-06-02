@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/backend/internal/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/config"
 )
 
 func freePort(t *testing.T) int {
@@ -18,7 +19,7 @@ func freePort(t *testing.T) int {
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	require.NoError(t, l.Close())
 	return port
 }
 
