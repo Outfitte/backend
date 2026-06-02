@@ -19,7 +19,7 @@ type ItemTransfer struct {
 	SenderID        string
 	RecipientID     string
 	Status          TransferStatus
-	TransferHistory bool      // whether the item's wear history is included in the transfer
+	TransferHistory bool // whether the item's wear history is included in the transfer
 	CreatedAt       time.Time
 	DecidedAt       *time.Time // non-nil once status transitions away from pending
 }

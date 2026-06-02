@@ -31,7 +31,7 @@ type ShareView struct {
 
 // SharedEntity wraps a domain entity with the owner's summary.
 type SharedEntity[T any] struct {
-	Entity  T
+	Entity   T
 	SharedBy UserSummary
 }
 
@@ -410,4 +410,3 @@ func (s *ShareService) hasLocationReadAccess(ctx context.Context, callerID, loca
 	}
 	return false, nil
 }
-

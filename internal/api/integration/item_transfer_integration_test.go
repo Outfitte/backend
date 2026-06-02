@@ -10,12 +10,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	localmedia "github.com/outfitte/backend/internal/adapter/media/local"
 	"github.com/outfitte/backend/internal/adapter/store"
 	"github.com/outfitte/backend/internal/api/server"
 	"github.com/outfitte/backend/internal/config"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // ─── Server setup ────────────────────────────────────────────────────────────
@@ -114,7 +115,9 @@ func createLocation(t *testing.T, srv *httptest.Server, token, label string) str
 	t.Helper()
 	resp := doJSON(t, srv, http.MethodPost, "/locations", map[string]any{"label": label}, token)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var result struct{ ID string `json:"id"` }
+	var result struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, resp, &result)
 	require.NotEmpty(t, result.ID)
 	return result.ID
@@ -132,7 +135,9 @@ func logWear(t *testing.T, srv *httptest.Server, token, itemID, wornOn string) s
 	resp := doJSON(t, srv, http.MethodPost, "/items/"+itemID+"/wear-logs",
 		map[string]any{"worn_on": wornOn}, token)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var result struct{ ID string `json:"id"` }
+	var result struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, resp, &result)
 	require.NotEmpty(t, result.ID)
 	return result.ID
@@ -155,7 +160,9 @@ func createShare(t *testing.T, srv *httptest.Server, token, recipientID, targetT
 		"target_id":    targetID,
 	}, token)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var result struct{ ID string `json:"id"` }
+	var result struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, resp, &result)
 	require.NotEmpty(t, result.ID)
 	return result.ID
@@ -194,7 +201,9 @@ func createTransfer(t *testing.T, srv *httptest.Server, token, itemID, recipient
 		"transfer_history": transferHistory,
 	}, token)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var result struct{ ID string `json:"id"` }
+	var result struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, resp, &result)
 	require.NotEmpty(t, result.ID)
 	return result.ID
@@ -250,7 +259,9 @@ func createOutfit(t *testing.T, srv *httptest.Server, token string) string {
 	t.Helper()
 	resp := doJSON(t, srv, http.MethodPost, "/outfits", map[string]any{}, token)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var result struct{ ID string `json:"id"` }
+	var result struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, resp, &result)
 	require.NotEmpty(t, result.ID)
 	return result.ID
@@ -268,7 +279,9 @@ func logOutfit(t *testing.T, srv *httptest.Server, token, outfitID, wornOn strin
 	resp := doJSON(t, srv, http.MethodPost, "/outfits/"+outfitID+"/logs",
 		map[string]any{"worn_on": wornOn}, token)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
-	var result struct{ ID string `json:"id"` }
+	var result struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, resp, &result)
 	require.NotEmpty(t, result.ID)
 	return result.ID

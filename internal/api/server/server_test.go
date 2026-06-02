@@ -14,10 +14,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/outfitte/backend/internal/config"
-	"github.com/outfitte/backend/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/config"
+	"github.com/outfitte/backend/internal/ports"
 )
 
 func discardLogger() *slog.Logger {
@@ -59,7 +60,7 @@ func TestRunShouldListenAndShutdownCleanly(t *testing.T) {
 	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 	port := l.Addr().(*net.TCPAddr).Port
-	l.Close()
+	require.NoError(t, l.Close())
 
 	cfg := &config.Config{ServerPort: strconv.Itoa(port)}
 	srv := New(cfg, discardLogger(), ports.Repositories{}, nil)

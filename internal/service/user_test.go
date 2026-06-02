@@ -5,20 +5,21 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/require"
 )
 
 // mockUserStore is an in-memory UserRepository for tests.
 type mockUserStore struct {
-	users              []domain.User
-	listErr            error
-	countErr           error
-	countErrOnNthCall  int // if > 0, return countErr only on this call number (1-indexed)
-	countCallCount     int
-	getByEmailErr      error
-	saveErr            error
+	users             []domain.User
+	listErr           error
+	countErr          error
+	countErrOnNthCall int // if > 0, return countErr only on this call number (1-indexed)
+	countCallCount    int
+	getByEmailErr     error
+	saveErr           error
 }
 
 func (m *mockUserStore) Get(_ context.Context, id string) (domain.User, error) {

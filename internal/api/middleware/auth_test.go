@@ -31,10 +31,6 @@ func makeToken(secret []byte, sub, role string, iss, aud string, exp time.Time) 
 	return signed
 }
 
-func validToken() string {
-	return makeToken([]byte(testSecret), "user-1", "member", "outfitte", "outfitte-api", time.Now().Add(time.Hour))
-}
-
 // okHandler is a simple next handler that records it was called.
 var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)

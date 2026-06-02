@@ -4,29 +4,30 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/require"
 )
 
 // ── mocks ─────────────────────────────────────────────────────────────────────
 
 // mockShareRepo is an in-memory ports.ShareRepository for tests.
 type mockShareRepo struct {
-	shares              []domain.Share
-	getErr              error
-	saveErr             error
-	deleteErr           error
-	listByOwnerErr      error
-	listByRecipientErr  error
-	findByTargetErr     error
-	findByTargetResult  *domain.Share
-	deleteByTargetErr        error
-	deleteByTargetCallCount  int
-	deleteByTargetTargetType domain.ShareTargetType
-	deleteByTargetTargetID   string
-	hasDirectAccessErr       error
-	hasDirectAccessResult bool
+	shares                       []domain.Share
+	getErr                       error
+	saveErr                      error
+	deleteErr                    error
+	listByOwnerErr               error
+	listByRecipientErr           error
+	findByTargetErr              error
+	findByTargetResult           *domain.Share
+	deleteByTargetErr            error
+	deleteByTargetCallCount      int
+	deleteByTargetTargetType     domain.ShareTargetType
+	deleteByTargetTargetID       string
+	hasDirectAccessErr           error
+	hasDirectAccessResult        bool
 	listByRecipientAndTypeErr    error
 	listByRecipientAndTypeResult []domain.Share
 }
@@ -804,10 +805,10 @@ func TestShareServiceListSharedWithMeShouldReturnErrorWhenLocationListByOwnerFai
 // mockShareRepoByType is a share repo that returns different shares per target type query.
 type mockShareRepoByType struct {
 	mockShareRepo
-	itemShares     []domain.Share
-	outfitShares   []domain.Share
-	locationShares []domain.Share
-	outfitListErr  error
+	itemShares      []domain.Share
+	outfitShares    []domain.Share
+	locationShares  []domain.Share
+	outfitListErr   error
 	locationListErr error
 }
 
@@ -1243,4 +1244,3 @@ func TestShareServiceDeleteByTargetShouldDelegateToRepoWhenSuccessful(t *testing
 	require.Equal(t, domain.ShareTargetItem, shareRepo.deleteByTargetTargetType)
 	require.Equal(t, "item-1", shareRepo.deleteByTargetTargetID)
 }
-

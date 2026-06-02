@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // ── Error sentinels ───────────────────────────────────────────────────────────

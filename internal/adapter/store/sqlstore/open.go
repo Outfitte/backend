@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 
+	_ "modernc.org/sqlite"
+
 	"github.com/outfitte/backend/internal/config"
 	"github.com/outfitte/backend/internal/domain"
-	_ "modernc.org/sqlite"
 )
 
 const sqlitePragmas = "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"

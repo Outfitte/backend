@@ -10,22 +10,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 // --- fakes ---
 
 type fakeTransferService struct {
-	createFn      func(ctx context.Context, callerID string, input service.CreateTransferInput) (service.TransferView, error)
-	getFn         func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
+	createFn       func(ctx context.Context, callerID string, input service.CreateTransferInput) (service.TransferView, error)
+	getFn          func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
 	listOutgoingFn func(ctx context.Context, callerID string, status *domain.TransferStatus) ([]service.TransferView, error)
 	listIncomingFn func(ctx context.Context, callerID string, status *domain.TransferStatus) ([]service.TransferView, error)
-	acceptFn      func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
-	rejectFn      func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
-	cancelFn      func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
+	acceptFn       func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
+	rejectFn       func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
+	cancelFn       func(ctx context.Context, callerID, transferID string) (service.TransferView, error)
 }
 
 func (f *fakeTransferService) Create(ctx context.Context, callerID string, input service.CreateTransferInput) (service.TransferView, error) {

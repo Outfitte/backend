@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestItemTransferShouldImplementPortsEntityWhenGetIDCalled(t *testing.T) {

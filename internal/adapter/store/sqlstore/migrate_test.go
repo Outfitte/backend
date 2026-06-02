@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
+
+	"github.com/outfitte/backend/internal/adapter/store/sqlstore"
+	"github.com/outfitte/backend/internal/domain"
 )
 
 func TestRunMigrationsShouldReturnErrIOWhenDBIsClosed(t *testing.T) {

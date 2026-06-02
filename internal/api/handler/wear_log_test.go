@@ -11,16 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/outfitte/backend/internal/domain"
-	"github.com/stretchr/testify/require"
 )
 
 // --- fakes ---
 
 type fakeWearLogService struct {
-	logWearFn      func(ctx context.Context, callerID, itemID string, wornOn time.Time, notes *string) (domain.WearLog, error)
-	listByItemFn   func(ctx context.Context, callerID, itemID string) ([]domain.WearLog, error)
+	logWearFn       func(ctx context.Context, callerID, itemID string, wornOn time.Time, notes *string) (domain.WearLog, error)
+	listByItemFn    func(ctx context.Context, callerID, itemID string) ([]domain.WearLog, error)
 	deleteWearLogFn func(ctx context.Context, callerID, logID string) error
 }
 

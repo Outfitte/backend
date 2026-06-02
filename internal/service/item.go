@@ -33,7 +33,7 @@ type CreateItemInput struct {
 // A non-nil outer pointer to nil means the field was explicitly set to null — clear the value.
 // A non-nil outer pointer to a value means the field was set — update to that value.
 type UpdateItemInput struct {
-	Name             *string              // two-state: nil = preserve, non-nil = update
+	Name             *string // two-state: nil = preserve, non-nil = update
 	Brand            domain.Nullable[string]
 	CategoryID       domain.Nullable[string]
 	Color            domain.Nullable[string]

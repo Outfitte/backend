@@ -9,17 +9,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/outfitte/backend/internal/api/middleware"
 	"github.com/outfitte/backend/internal/domain"
-	"github.com/stretchr/testify/require"
 )
 
 // --- fakes ---
 
 type fakeSettingsService struct {
-	getSettingsFn                func(ctx context.Context) (domain.AppSettings, error)
-	updateRegistrationEnabledFn  func(ctx context.Context, callerID string, enabled bool) error
+	getSettingsFn               func(ctx context.Context) (domain.AppSettings, error)
+	updateRegistrationEnabledFn func(ctx context.Context, callerID string, enabled bool) error
 }
 
 func (f *fakeSettingsService) GetSettings(ctx context.Context) (domain.AppSettings, error) {

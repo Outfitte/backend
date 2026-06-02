@@ -10,22 +10,28 @@ linters:
     - unused
     - misspell
     - revive
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*os.File).Close
+        - (*net.Listener).Close
+        - os.Chmod
+    revive:
+      rules:
+        - name: exported
+          disabled: true
 
 formatters:
   enable:
     - gofmt
     - goimports
-
-formatters-settings:
-  goimports:
-    local-prefixes:
-      - github.com/outfitte/outfitte
-
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-        severity: warning
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/outfitte/backend
 
 issues:
   max-issues-per-linter: 0

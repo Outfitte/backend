@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/outfitte/backend/internal/domain"
-	"github.com/stretchr/testify/require"
 )
 
 // --- fake ---

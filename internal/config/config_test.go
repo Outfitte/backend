@@ -122,7 +122,6 @@ func TestLoadShouldReadJWTSecretWhenSetAndLongEnough(t *testing.T) {
 	assert.Equal(t, "a-secure-random-string-that-is-32-chars!!", cfg.JWTSecret)
 }
 
-
 func TestLoadShouldErrorWhenDBDSNMissingForJSONDriver(t *testing.T) {
 	t.Setenv("MEDIA_STORAGE_PATH", "/media")
 	t.Setenv("JWT_SECRET", "a-secure-random-string-that-is-32-chars!!")

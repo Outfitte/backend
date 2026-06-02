@@ -60,7 +60,7 @@ func (h *SettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 	}
 
 	log.InfoContext(ctx, "succeeded")
-	writeJSON(w, http.StatusOK, settingsResponse{RegistrationEnabled: req.RegistrationEnabled})
+	writeJSON(w, http.StatusOK, settingsResponse(req))
 }
 
 // GetSettings handles GET /admin/settings.

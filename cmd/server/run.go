@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	store "github.com/outfitte/backend/internal/adapter/store"
 	localmedia "github.com/outfitte/backend/internal/adapter/media/local"
+	store "github.com/outfitte/backend/internal/adapter/store"
 	"github.com/outfitte/backend/internal/api/server"
 	"github.com/outfitte/backend/internal/config"
 )

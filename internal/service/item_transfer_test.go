@@ -5,21 +5,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // ── fakes ─────────────────────────────────────────────────────────────────────
 
 type mockTransferRepo struct {
-	transfers     []domain.ItemTransfer
-	getErr        error
-	saveErr       error
-	deleteErr     error
-	listErr       error
-	hasPendingErr error
-	hasPending    bool
-	findPending   *domain.ItemTransfer
+	transfers      []domain.ItemTransfer
+	getErr         error
+	saveErr        error
+	deleteErr      error
+	listErr        error
+	hasPendingErr  error
+	hasPending     bool
+	findPending    *domain.ItemTransfer
 	findPendingErr error
 }
 
