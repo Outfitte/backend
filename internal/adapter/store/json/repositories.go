@@ -17,17 +17,17 @@ func NewRepositories(dataPath string) ports.Repositories {
 	itemTransfers := NewItemTransferRepository(dataPath)
 	mu := &sync.Mutex{}
 	return ports.Repositories{
-		Items:               items,
-		Users:               NewUserRepository(dataPath),
-		Sessions:            NewSessionRepository(dataPath),
-		Locations:           NewLocationRepository(dataPath),
-		WearLogs:            wearLogs,
-		AppSettings:         NewAppSettingsRepository(dataPath),
-		Outfits:             outfits,
-		OutfitLogs:          outfitLogs,
-		OutfitLogTransactor: NewOutfitLogTransactor(outfitLogs, wearLogs),
-		Shares:              shares,
-		ItemTransfers:       itemTransfers,
+		Items:                  items,
+		Users:                  NewUserRepository(dataPath),
+		Sessions:               NewSessionRepository(dataPath),
+		Locations:              NewLocationRepository(dataPath),
+		WearLogs:               wearLogs,
+		AppSettings:            NewAppSettingsRepository(dataPath),
+		Outfits:                outfits,
+		OutfitLogs:             outfitLogs,
+		OutfitLogTransactor:    NewOutfitLogTransactor(outfitLogs, wearLogs),
+		Shares:                 shares,
+		ItemTransfers:          itemTransfers,
 		ItemTransferTransactor: NewItemTransferTransactor(itemTransfers, items, wearLogs, outfits, shares, outfitLogs, mu),
 	}
 }

@@ -35,8 +35,8 @@ type itemRepositoryStub struct{}
 func (s *itemRepositoryStub) Get(ctx context.Context, _ string) (domain.Item, error) {
 	return domain.Item{}, nil
 }
-func (s *itemRepositoryStub) Save(ctx context.Context, _ domain.Item) error          { return nil }
-func (s *itemRepositoryStub) Delete(ctx context.Context, _ string) error             { return nil }
+func (s *itemRepositoryStub) Save(ctx context.Context, _ domain.Item) error { return nil }
+func (s *itemRepositoryStub) Delete(ctx context.Context, _ string) error    { return nil }
 func (s *itemRepositoryStub) ListByOwner(ctx context.Context, _ string, _ ports.ItemListFilter) ([]domain.Item, error) {
 	return nil, nil
 }
@@ -58,7 +58,7 @@ func (s *userRepositoryStub) Save(ctx context.Context, _ domain.User) error { re
 func (s *userRepositoryStub) GetByEmail(ctx context.Context, _ string) (domain.User, error) {
 	return domain.User{}, nil
 }
-func (s *userRepositoryStub) Count(ctx context.Context) (int, error)           { return 0, nil }
+func (s *userRepositoryStub) Count(ctx context.Context) (int, error)          { return 0, nil }
 func (s *userRepositoryStub) List(ctx context.Context) ([]domain.User, error) { return nil, nil }
 
 type sessionRepositoryStub struct{}

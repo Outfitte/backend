@@ -172,4 +172,3 @@ func (h *WearLogHandler) DeleteWearLog(w http.ResponseWriter, r *http.Request) {
 	log.InfoContext(ctx, "succeeded", "log_id", logID)
 	w.WriteHeader(http.StatusNoContent)
 }
-

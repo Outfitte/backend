@@ -61,17 +61,17 @@ func (d *fakeRowsErrDriver) Open(_ string) (driver.Conn, error) { return &fakeRo
 func (c *fakeRowsErrConn) Prepare(_ string) (driver.Stmt, error) {
 	return &fakeRowsErrStmt{}, nil
 }
-func (c *fakeRowsErrConn) Close() error             { return nil }
+func (c *fakeRowsErrConn) Close() error              { return nil }
 func (c *fakeRowsErrConn) Begin() (driver.Tx, error) { return nil, errFakeDB }
 
-func (s *fakeRowsErrStmt) Close() error                                  { return nil }
-func (s *fakeRowsErrStmt) NumInput() int                                  { return -1 }
-func (s *fakeRowsErrStmt) Exec(_ []driver.Value) (driver.Result, error)  { return nil, errFakeDB }
-func (s *fakeRowsErrStmt) Query(_ []driver.Value) (driver.Rows, error)   { return &fakeErrRows{}, nil }
+func (s *fakeRowsErrStmt) Close() error                                 { return nil }
+func (s *fakeRowsErrStmt) NumInput() int                                { return -1 }
+func (s *fakeRowsErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return nil, errFakeDB }
+func (s *fakeRowsErrStmt) Query(_ []driver.Value) (driver.Rows, error)  { return &fakeErrRows{}, nil }
 
-func (r *fakeErrRows) Columns() []string             { return nil }
-func (r *fakeErrRows) Close() error                  { return nil }
-func (r *fakeErrRows) Next(_ []driver.Value) error   { return errFakeDB }
+func (r *fakeErrRows) Columns() []string           { return nil }
+func (r *fakeErrRows) Close() error                { return nil }
+func (r *fakeErrRows) Next(_ []driver.Value) error { return errFakeDB }
 
 // ── fake-scan-err ─────────────────────────────────────────────────────────────
 // rows.Next() returns one row with a value that cannot be scanned into a string,
@@ -88,11 +88,11 @@ func (d *fakeScanErrDriver) Open(_ string) (driver.Conn, error) { return &fakeSc
 func (c *fakeScanErrConn) Prepare(_ string) (driver.Stmt, error) {
 	return &fakeScanErrStmt{}, nil
 }
-func (c *fakeScanErrConn) Close() error             { return nil }
+func (c *fakeScanErrConn) Close() error              { return nil }
 func (c *fakeScanErrConn) Begin() (driver.Tx, error) { return nil, errFakeDB }
 
 func (s *fakeScanErrStmt) Close() error                                 { return nil }
-func (s *fakeScanErrStmt) NumInput() int                                 { return -1 }
+func (s *fakeScanErrStmt) NumInput() int                                { return -1 }
 func (s *fakeScanErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return nil, errFakeDB }
 func (s *fakeScanErrStmt) Query(_ []driver.Value) (driver.Rows, error) {
 	return &fakeScanErrRows{}, nil
@@ -126,16 +126,16 @@ func (d *fakeCommitErrDriver) Open(_ string) (driver.Conn, error) {
 	return &fakeCommitErrConn{}, nil
 }
 func (c *fakeCommitErrConn) Prepare(_ string) (driver.Stmt, error) { return &fakeOKStmt{}, nil }
-func (c *fakeCommitErrConn) Close() error                           { return nil }
-func (c *fakeCommitErrConn) Begin() (driver.Tx, error)              { return &fakeCommitErrTx{}, nil }
+func (c *fakeCommitErrConn) Close() error                          { return nil }
+func (c *fakeCommitErrConn) Begin() (driver.Tx, error)             { return &fakeCommitErrTx{}, nil }
 
 func (tx *fakeCommitErrTx) Commit() error   { return errFakeDB }
 func (tx *fakeCommitErrTx) Rollback() error { return nil }
 
-func (s *fakeOKStmt) Close() error                                  { return nil }
-func (s *fakeOKStmt) NumInput() int                                  { return -1 }
-func (s *fakeOKStmt) Exec(_ []driver.Value) (driver.Result, error)  { return &fakeOKResult{}, nil }
-func (s *fakeOKStmt) Query(_ []driver.Value) (driver.Rows, error)   { return nil, errFakeDB }
+func (s *fakeOKStmt) Close() error                                 { return nil }
+func (s *fakeOKStmt) NumInput() int                                { return -1 }
+func (s *fakeOKStmt) Exec(_ []driver.Value) (driver.Result, error) { return &fakeOKResult{}, nil }
+func (s *fakeOKStmt) Query(_ []driver.Value) (driver.Rows, error)  { return nil, errFakeDB }
 
 func (r *fakeOKResult) LastInsertId() (int64, error) { return 0, nil }
 func (r *fakeOKResult) RowsAffected() (int64, error) { return 1, nil }
@@ -156,11 +156,11 @@ func (d *fakeRowsAffErrDriver) Open(_ string) (driver.Conn, error) {
 func (c *fakeRowsAffErrConn) Prepare(_ string) (driver.Stmt, error) {
 	return &fakeRowsAffErrStmt{}, nil
 }
-func (c *fakeRowsAffErrConn) Close() error             { return nil }
+func (c *fakeRowsAffErrConn) Close() error              { return nil }
 func (c *fakeRowsAffErrConn) Begin() (driver.Tx, error) { return nil, errFakeDB }
 
-func (s *fakeRowsAffErrStmt) Close() error                                  { return nil }
-func (s *fakeRowsAffErrStmt) NumInput() int                                  { return -1 }
+func (s *fakeRowsAffErrStmt) Close() error  { return nil }
+func (s *fakeRowsAffErrStmt) NumInput() int { return -1 }
 func (s *fakeRowsAffErrStmt) Exec(_ []driver.Value) (driver.Result, error) {
 	return &fakeRowsAffErrResult{}, nil
 }
@@ -185,16 +185,18 @@ func (d *fakeTxRowsErrDriver) Open(_ string) (driver.Conn, error) {
 func (c *fakeTxRowsErrConn) Prepare(_ string) (driver.Stmt, error) {
 	return &fakeTxRowsErrStmt{}, nil
 }
-func (c *fakeTxRowsErrConn) Close() error             { return nil }
+func (c *fakeTxRowsErrConn) Close() error              { return nil }
 func (c *fakeTxRowsErrConn) Begin() (driver.Tx, error) { return &fakeTxRowsErrTx{}, nil }
 
 func (tx *fakeTxRowsErrTx) Commit() error   { return nil }
 func (tx *fakeTxRowsErrTx) Rollback() error { return nil }
 
-func (s *fakeTxRowsErrStmt) Close() error                                 { return nil }
-func (s *fakeTxRowsErrStmt) NumInput() int                                 { return -1 }
-func (s *fakeTxRowsErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return &fakeOKResult{}, nil }
-func (s *fakeTxRowsErrStmt) Query(_ []driver.Value) (driver.Rows, error)  { return &fakeErrRows{}, nil }
+func (s *fakeTxRowsErrStmt) Close() error  { return nil }
+func (s *fakeTxRowsErrStmt) NumInput() int { return -1 }
+func (s *fakeTxRowsErrStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	return &fakeOKResult{}, nil
+}
+func (s *fakeTxRowsErrStmt) Query(_ []driver.Value) (driver.Rows, error) { return &fakeErrRows{}, nil }
 
 // ── fake-tx-scan-err ──────────────────────────────────────────────────────────
 // Begin() succeeds; Query returns rows where Scan fails.
@@ -212,15 +214,17 @@ func (d *fakeTxScanErrDriver) Open(_ string) (driver.Conn, error) {
 func (c *fakeTxScanErrConn) Prepare(_ string) (driver.Stmt, error) {
 	return &fakeTxScanErrStmt{}, nil
 }
-func (c *fakeTxScanErrConn) Close() error             { return nil }
+func (c *fakeTxScanErrConn) Close() error              { return nil }
 func (c *fakeTxScanErrConn) Begin() (driver.Tx, error) { return &fakeTxScanErrTx{}, nil }
 
 func (tx *fakeTxScanErrTx) Commit() error   { return nil }
 func (tx *fakeTxScanErrTx) Rollback() error { return nil }
 
-func (s *fakeTxScanErrStmt) Close() error                                 { return nil }
-func (s *fakeTxScanErrStmt) NumInput() int                                 { return -1 }
-func (s *fakeTxScanErrStmt) Exec(_ []driver.Value) (driver.Result, error) { return &fakeOKResult{}, nil }
+func (s *fakeTxScanErrStmt) Close() error  { return nil }
+func (s *fakeTxScanErrStmt) NumInput() int { return -1 }
+func (s *fakeTxScanErrStmt) Exec(_ []driver.Value) (driver.Result, error) {
+	return &fakeOKResult{}, nil
+}
 func (s *fakeTxScanErrStmt) Query(_ []driver.Value) (driver.Rows, error) {
 	return &fakeScanErrRows{}, nil
 }
@@ -303,12 +307,14 @@ func (d *fakeTxExecOKCommitFailDriver) Open(_ string) (driver.Conn, error) {
 func (c *fakeTxExecOKCommitFailConn) Prepare(_ string) (driver.Stmt, error) {
 	return &fakeTxExecOKCommitFailStmt{}, nil
 }
-func (c *fakeTxExecOKCommitFailConn) Close() error              { return nil }
-func (c *fakeTxExecOKCommitFailConn) Begin() (driver.Tx, error) { return &fakeTxExecOKCommitFailTx{}, nil }
-func (tx *fakeTxExecOKCommitFailTx) Commit() error              { return errFakeDB }
-func (tx *fakeTxExecOKCommitFailTx) Rollback() error            { return nil }
-func (s *fakeTxExecOKCommitFailStmt) Close() error              { return nil }
-func (s *fakeTxExecOKCommitFailStmt) NumInput() int             { return -1 }
+func (c *fakeTxExecOKCommitFailConn) Close() error { return nil }
+func (c *fakeTxExecOKCommitFailConn) Begin() (driver.Tx, error) {
+	return &fakeTxExecOKCommitFailTx{}, nil
+}
+func (tx *fakeTxExecOKCommitFailTx) Commit() error   { return errFakeDB }
+func (tx *fakeTxExecOKCommitFailTx) Rollback() error { return nil }
+func (s *fakeTxExecOKCommitFailStmt) Close() error   { return nil }
+func (s *fakeTxExecOKCommitFailStmt) NumInput() int  { return -1 }
 func (s *fakeTxExecOKCommitFailStmt) Exec(_ []driver.Value) (driver.Result, error) {
 	return &fakeOKResult{}, nil
 }
@@ -366,7 +372,9 @@ type (
 	fakeTxWithRowExecFailAfter1Driver struct{}
 	fakeTxWithRowExecFailAfter1Conn   struct{ execCount int }
 	fakeTxWithRowExecFailAfter1Tx     struct{}
-	fakeTxWithRowExecFailAfter1Stmt   struct{ conn *fakeTxWithRowExecFailAfter1Conn }
+	fakeTxWithRowExecFailAfter1Stmt   struct {
+		conn *fakeTxWithRowExecFailAfter1Conn
+	}
 )
 
 func (d *fakeTxWithRowExecFailAfter1Driver) Open(_ string) (driver.Conn, error) {

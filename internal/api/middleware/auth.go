@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/outfitte/backend/internal/domain"
 )
 

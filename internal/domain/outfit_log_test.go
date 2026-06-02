@@ -3,9 +3,10 @@ package domain_test
 import (
 	"testing"
 
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/domain"
 )
 
 func TestOutfitLogShouldHaveNilNotesWhenNotSet(t *testing.T) {

@@ -10,19 +10,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 // --- fakes ---
 
 type fakeShareService struct {
-	createFn          func(ctx context.Context, callerID string, input service.CreateShareInput) (domain.Share, error)
-	listOutgoingFn    func(ctx context.Context, callerID string) ([]service.ShareView, error)
+	createFn           func(ctx context.Context, callerID string, input service.CreateShareInput) (domain.Share, error)
+	listOutgoingFn     func(ctx context.Context, callerID string) ([]service.ShareView, error)
 	listSharedWithMeFn func(ctx context.Context, callerID string) (service.SharedWithMeResult, error)
-	revokeFn          func(ctx context.Context, callerID, shareID string) error
+	revokeFn           func(ctx context.Context, callerID, shareID string) error
 }
 
 func (f *fakeShareService) Create(ctx context.Context, callerID string, input service.CreateShareInput) (domain.Share, error) {

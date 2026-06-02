@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/adapter/store/json"
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewItemRepositoryShouldImplementItemRepository(t *testing.T) {

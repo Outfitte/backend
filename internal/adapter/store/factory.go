@@ -46,4 +46,3 @@ func openSQLiteRepositories(ctx context.Context, cfg config.Config) (ports.Repos
 	}
 	return sqlstore.NewRepositories(db), db, nil
 }
-

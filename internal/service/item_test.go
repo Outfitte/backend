@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/require"
 )
 
 // mockItemRepo is an in-memory ports.ItemRepository for tests.
@@ -129,8 +130,8 @@ type mockLocationRepo struct {
 	saveErr   error
 	deleteErr error
 
-	listByOwnerErr  error
-	hasChildrenErr  error
+	listByOwnerErr    error
+	hasChildrenErr    error
 	hasChildrenResult bool
 }
 
@@ -251,7 +252,6 @@ func (m *mockShareAccessChecker) DeleteByTarget(_ context.Context, targetType do
 }
 
 // ── NewItemService ────────────────────────────────────────────────────────────
-
 
 // ── AssignLocation ────────────────────────────────────────────────────────────
 

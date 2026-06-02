@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // ── ValidateMetadataKey ───────────────────────────────────────────────────────

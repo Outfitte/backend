@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/adapter/store/json"
 	"github.com/outfitte/backend/internal/domain"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewOutfitLogRepositoryShouldImplementOutfitLogRepository(t *testing.T) {

@@ -11,10 +11,18 @@ linters:
     - misspell
     - revive
   settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*os.File).Close
+        - (*net.Listener).Close
+        - os.Chmod
     revive:
       rules:
         - name: exported
-          severity: warning
+          disabled: true
 
 formatters:
   enable:

@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/backend/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/config"
 )
 
 // integrationJWTSecret is a 32+ char secret used by all integration tests.
@@ -440,7 +441,9 @@ func TestIntegrationArchiveCycle(t *testing.T) {
 	// Item appears in active list by default.
 	activeResp := doJSON(t, srv, http.MethodGet, "/items", nil, token)
 	require.Equal(t, http.StatusOK, activeResp.StatusCode)
-	var activeItems []struct{ ID string `json:"id"` }
+	var activeItems []struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, activeResp, &activeItems)
 	require.Len(t, activeItems, 1)
 	assert.Equal(t, itemID, activeItems[0].ID)
@@ -459,7 +462,9 @@ func TestIntegrationArchiveCycle(t *testing.T) {
 	// Archived item appears in archived list.
 	archivedResp := doJSON(t, srv, http.MethodGet, "/items?status=archived", nil, token)
 	require.Equal(t, http.StatusOK, archivedResp.StatusCode)
-	var archivedItems []struct{ ID string `json:"id"` }
+	var archivedItems []struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, archivedResp, &archivedItems)
 	require.Len(t, archivedItems, 1)
 	assert.Equal(t, itemID, archivedItems[0].ID)
@@ -471,7 +476,9 @@ func TestIntegrationArchiveCycle(t *testing.T) {
 	// Item is back in active list.
 	backResp := doJSON(t, srv, http.MethodGet, "/items", nil, token)
 	require.Equal(t, http.StatusOK, backResp.StatusCode)
-	var backItems []struct{ ID string `json:"id"` }
+	var backItems []struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, backResp, &backItems)
 	require.Len(t, backItems, 1)
 	assert.Equal(t, itemID, backItems[0].ID)
@@ -945,7 +952,9 @@ func TestIntegrationItemPatchPreservesAbsentFields(t *testing.T) {
 		"color": "Red",
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH with only color — brand should be preserved.
@@ -976,7 +985,9 @@ func TestIntegrationItemPatchClearsNullableField(t *testing.T) {
 		"brand": "Nike",
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH brand with explicit null — should clear.
@@ -1000,14 +1011,18 @@ func TestIntegrationItemPatchClearsLocation(t *testing.T) {
 
 	locResp := doJSON(t, srv, http.MethodPost, "/locations", map[string]any{"label": "Wardrobe"}, token)
 	require.Equal(t, http.StatusCreated, locResp.StatusCode)
-	var loc struct{ ID string `json:"id"` }
+	var loc struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, locResp, &loc)
 
 	itemID := createItem(t, srv, token, "Jeans", &loc.ID)
 
 	getResp := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, token)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
-	var before struct{ LocationID *string `json:"location_id"` }
+	var before struct {
+		LocationID *string `json:"location_id"`
+	}
 	decodeJSON(t, getResp, &before)
 	require.NotNil(t, before.LocationID)
 
@@ -1019,7 +1034,9 @@ func TestIntegrationItemPatchClearsLocation(t *testing.T) {
 
 	getResp2 := doJSON(t, srv, http.MethodGet, "/items/"+itemID, nil, token)
 	require.Equal(t, http.StatusOK, getResp2.StatusCode)
-	var after struct{ LocationID *string `json:"location_id"` }
+	var after struct {
+		LocationID *string `json:"location_id"`
+	}
 	decodeJSON(t, getResp2, &after)
 	assert.Nil(t, after.LocationID)
 }
@@ -1031,7 +1048,9 @@ func TestIntegrationItemPatchClearsCategory(t *testing.T) {
 	// Get a valid category ID.
 	listResp := doJSON(t, srv, http.MethodGet, "/categories", nil, token)
 	require.Equal(t, http.StatusOK, listResp.StatusCode)
-	var categories []struct{ ID string `json:"id"` }
+	var categories []struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, listResp, &categories)
 	require.NotEmpty(t, categories)
 	catID := categories[0].ID
@@ -1041,7 +1060,9 @@ func TestIntegrationItemPatchClearsCategory(t *testing.T) {
 		"category_id": catID,
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH with category_id: null — should clear.
@@ -1052,7 +1073,9 @@ func TestIntegrationItemPatchClearsCategory(t *testing.T) {
 
 	getResp := doJSON(t, srv, http.MethodGet, "/items/"+created.ID, nil, token)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
-	var item struct{ CategoryID *string `json:"category_id"` }
+	var item struct {
+		CategoryID *string `json:"category_id"`
+	}
 	decodeJSON(t, getResp, &item)
 	assert.Nil(t, item.CategoryID)
 }
@@ -1067,7 +1090,9 @@ func TestIntegrationItemPatchClearsPurchaseFields(t *testing.T) {
 		"purchase_currency": "USD",
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH with both purchase fields as null — should clear both.
@@ -1098,7 +1123,9 @@ func TestIntegrationItemPatchRejectsPurchasePairViolationOnPreservedField(t *tes
 		"purchase_currency": "USD",
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH with only currency=null: price is preserved from existing, resulting state
@@ -1117,7 +1144,9 @@ func TestIntegrationOutfitPatchPreservesNotes(t *testing.T) {
 		"notes": "casual",
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH with only name — notes should be preserved.
@@ -1128,7 +1157,9 @@ func TestIntegrationOutfitPatchPreservesNotes(t *testing.T) {
 
 	getResp := doJSON(t, srv, http.MethodGet, "/outfits/"+created.ID, nil, token)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
-	var outfit struct{ Notes *string `json:"notes"` }
+	var outfit struct {
+		Notes *string `json:"notes"`
+	}
 	decodeJSON(t, getResp, &outfit)
 	require.NotNil(t, outfit.Notes)
 	assert.Equal(t, "casual", *outfit.Notes)
@@ -1142,7 +1173,9 @@ func TestIntegrationOutfitPatchClearsNotes(t *testing.T) {
 		"notes": "casual",
 	}, token)
 	require.Equal(t, http.StatusCreated, createResp.StatusCode)
-	var created struct{ ID string `json:"id"` }
+	var created struct {
+		ID string `json:"id"`
+	}
 	decodeJSON(t, createResp, &created)
 
 	// PATCH notes with explicit null — should clear.
@@ -1153,7 +1186,9 @@ func TestIntegrationOutfitPatchClearsNotes(t *testing.T) {
 
 	getResp := doJSON(t, srv, http.MethodGet, "/outfits/"+created.ID, nil, token)
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
-	var outfit struct{ Notes *string `json:"notes"` }
+	var outfit struct {
+		Notes *string `json:"notes"`
+	}
 	decodeJSON(t, getResp, &outfit)
 	assert.Nil(t, outfit.Notes)
 }
@@ -1224,9 +1259,10 @@ func TestIntegrationSharingLifecycle(t *testing.T) {
 	require.Len(t, allUsers, 2)
 	var userAID, userBID string
 	for _, u := range allUsers {
-		if u.Email == "share-alice" {
+		switch u.Email {
+		case "share-alice":
 			userAID = u.ID
-		} else if u.Email == "share-bob" {
+		case "share-bob":
 			userBID = u.ID
 		}
 	}
@@ -1386,9 +1422,10 @@ func TestIntegrationShareEdgeCases(t *testing.T) {
 	users := listUsersAs(t, srv, tokenA)
 	var userAID, userBID string
 	for _, u := range users {
-		if u.Email == "share-edge-alice" {
+		switch u.Email {
+		case "share-edge-alice":
 			userAID = u.ID
-		} else if u.Email == "share-edge-bob" {
+		case "share-edge-bob":
 			userBID = u.ID
 		}
 	}

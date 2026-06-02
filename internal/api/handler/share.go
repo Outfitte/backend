@@ -31,17 +31,17 @@ func NewShareHandler(shares shareService, log *slog.Logger) *ShareHandler {
 }
 
 type createShareRequest struct {
-	RecipientID string                  `json:"recipient_id"`
-	TargetType  domain.ShareTargetType  `json:"target_type"`
-	TargetID    string                  `json:"target_id"`
+	RecipientID string                 `json:"recipient_id"`
+	TargetType  domain.ShareTargetType `json:"target_type"`
+	TargetID    string                 `json:"target_id"`
 }
 
 type shareResponse struct {
-	ID          string                  `json:"id"`
-	RecipientID string                  `json:"recipient_id"`
-	TargetType  domain.ShareTargetType  `json:"target_type"`
-	TargetID    string                  `json:"target_id"`
-	CreatedAt   time.Time               `json:"created_at"`
+	ID          string                 `json:"id"`
+	RecipientID string                 `json:"recipient_id"`
+	TargetType  domain.ShareTargetType `json:"target_type"`
+	TargetID    string                 `json:"target_id"`
+	CreatedAt   time.Time              `json:"created_at"`
 }
 
 // Create handles POST /shares.

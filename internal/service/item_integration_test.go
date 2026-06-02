@@ -6,11 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/adapter/media/local"
 	jsonstore "github.com/outfitte/backend/internal/adapter/store/json"
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 // noopShareChecker always denies access, satisfying the shareAccessChecker

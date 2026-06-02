@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // mockShareProvider is a test double for shareProvider.

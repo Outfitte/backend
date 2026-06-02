@@ -387,7 +387,6 @@ func TestOutfitLogTransactorUpdateOutfitLogDateShouldReturnErrIOWhenSelectWearLo
 	require.ErrorIs(t, err, domain.ErrIO)
 }
 
-
 // ── UpdateOutfitLogDate: updateOutfitLogDate error ───────────────────────────
 
 func TestOutfitLogTransactorUpdateOutfitLogDateShouldReturnErrIOWhenUpdateOutfitLogDateFails(t *testing.T) {

@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outfitte/backend/internal/domain"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/domain"
 )
 
 // mockOutfitRepo is an in-memory ports.OutfitRepository for tests.

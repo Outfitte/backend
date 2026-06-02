@@ -3,9 +3,10 @@ package json_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/outfitte/backend/internal/adapter/store/json"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewRepositoriesShouldReturnPopulatedRepositories(t *testing.T) {

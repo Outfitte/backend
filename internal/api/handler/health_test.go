@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/outfitte/backend/internal/api/handler"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outfitte/backend/internal/api/handler"
 )
 
 func TestHealthHandlerShouldReturn200WhenCalled(t *testing.T) {

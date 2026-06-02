@@ -3,9 +3,10 @@ package domain_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/outfitte/backend/internal/domain"
 	"github.com/outfitte/backend/internal/ports"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestItemShouldHaveCategoryIDAsOptionalPointerWhenUncategorised(t *testing.T) {

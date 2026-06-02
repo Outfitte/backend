@@ -3,9 +3,10 @@ package service_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	jsonstore "github.com/outfitte/backend/internal/adapter/store/json"
 	"github.com/outfitte/backend/internal/service"
-	"github.com/stretchr/testify/require"
 )
 
 func TestLocationServiceShouldCompleteFullCycleWhenCreateUpdateListMoveDelete(t *testing.T) {
