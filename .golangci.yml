@@ -15,11 +15,10 @@ formatters:
   enable:
     - gofmt
     - goimports
-
-formatters-settings:
-  goimports:
-    local-prefixes:
-      - github.com/outfitte/backend
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/outfitte/backend
 
 linters-settings:
   revive:
