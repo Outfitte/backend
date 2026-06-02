@@ -19,7 +19,7 @@ formatters:
 formatters-settings:
   goimports:
     local-prefixes:
-      - github.com/outfitte/outfitte
+      - github.com/outfitte/backend
 
 linters-settings:
   revive:
