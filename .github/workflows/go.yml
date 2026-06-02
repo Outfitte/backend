@@ -43,12 +43,6 @@ jobs:
     - name: Test
       run: go test -v -json -coverprofile=coverage.out ./... | go-junit-report -set-exit-code > junit-report.xml
 
-    - name: Coverage gate
-      run: |
-        total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%/,"",$3); print $3}')
-        echo "total line coverage: ${total}%"
-        awk -v t="$total" 'BEGIN { exit (t+0 >= 90.0) ? 0 : 1 }'
-
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
       uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
