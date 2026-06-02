@@ -10,6 +10,11 @@ linters:
     - unused
     - misspell
     - revive
+  settings:
+    revive:
+      rules:
+        - name: exported
+          severity: warning
 
 formatters:
   enable:
@@ -19,12 +24,6 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/outfitte/backend
-
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-        severity: warning
 
 issues:
   max-issues-per-linter: 0
