@@ -16,11 +16,11 @@ type tokenLogout interface {
 }
 
 type userRegistrar interface {
-	Register(ctx context.Context, username, password string) (domain.User, error)
+	Register(ctx context.Context, email, password string) (domain.User, error)
 }
 
 type tokenIssuer interface {
-	Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error)
+	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 }
 
 type tokenRefresher interface {
