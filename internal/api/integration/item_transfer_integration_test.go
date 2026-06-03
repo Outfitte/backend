@@ -80,7 +80,7 @@ func decodeJSON(t *testing.T, resp *http.Response, v any) {
 func registerUser(t *testing.T, srv *httptest.Server, username, password string) string {
 	t.Helper()
 	resp := doJSON(t, srv, http.MethodPost, "/auth/register", map[string]string{
-		"username": username,
+		"email":    username,
 		"password": password,
 	}, "")
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
