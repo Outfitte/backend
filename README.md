@@ -1,58 +1,66 @@
-[![Go](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/go.yml)
-[![codecov](https://codecov.io/gh/Outfitte/backend/graph/badge.svg?token=CCAGD8KF43)](https://codecov.io/gh/Outfitte/backend) 
-[![Dependabot Updates](https://github.com/Outfitte/Outfitte/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Outfitte/Outfitte/actions/workflows/dependabot/dependabot-updates)
+[![Go](https://github.com/Outfitte/backend/actions/workflows/go.yml/badge.svg)](https://github.com/Outfitte/backend/actions/workflows/go.yml)
+[![codecov](https://codecov.io/gh/Outfitte/backend/graph/badge.svg?token=CCAGD8KF43)](https://codecov.io/gh/Outfitte/backend)
+[![Dependabot Updates](https://github.com/Outfitte/backend/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/Outfitte/backend/actions/workflows/dependabot/dependabot-updates)
 
 # Outfitte
 
-Self-hosted wardrobe management application built in Go.
-
-> **Status:** Early development — M5 (Granular Sharing) in progress. Core REST API is functional.
-
-## Overview
+Self-hosted wardrobe management application built in Go (1.26).
 
 Outfitte lets you catalogue your clothing, organise items into locations, log wear events, and build outfit journals — all from your own infrastructure.
 
-## API Reference
-
-The full API specification is in [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.1).
-
-To render it locally:
+## Running locally
 
 ```bash
-# Redocly CLI
+export DB_DRIVER=sqlite
+export DB_DSN=/tmp/outfitte.db
+export JWT_SECRET=$(openssl rand -hex 32)
+export MEDIA_STORAGE_PATH=/tmp/outfitte-media
+export APP_ENV=dev
+export LOG_LEVEL=info
+
+go run ./cmd/server
+```
+
+## Self-hosting
+
+See [outfitte/deploy](https://github.com/Outfitte/deploy) for Docker Compose and deployment guides.
+
+## Environment variables
+
+| Variable | Default | Required | Description |
+|---|---|---|---|
+| `DB_DRIVER` | `sqlite` | | Storage driver (`sqlite` or `json`) |
+| `DB_DSN` | — | yes | SQLite: path to database file (e.g. `/data/outfitte.db`); JSON: path to storage directory |
+| `JWT_SECRET` | — | yes | Secret for signing JWTs — min 32 chars (`openssl rand -hex 32`) |
+| `MEDIA_STORAGE_PATH` | — | yes | Directory for uploaded media files |
+| `APP_ENV` | `dev` | | Runtime environment (`dev`/`prod`) |
+| `LOG_LEVEL` | `info` | | Log verbosity (`debug`/`info`/`warn`/`error`) |
+| `SERVER_PORT` | `8080` | | HTTP listen port |
+
+## API reference
+
+The full OpenAPI 3.1 specification lives at [`docs/openapi.yaml`](docs/openapi.yaml). To browse it locally:
+
+```bash
 npx @redocly/cli preview-docs docs/openapi.yaml
-
-# Or paste the file contents into https://editor.swagger.io
 ```
 
-## Running with Docker Compose
+A rendered HTML version is produced by CI and attached to each workflow run as the `api-reference` artifact.
+
+## Tests and coverage
 
 ```bash
-cp .env.example .env   # set JWT_SECRET and review DB_DSN / MEDIA_STORAGE_PATH
-docker compose up
+# run all tests
+go test ./...
+
+# with coverage report
+go test -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out
 ```
 
-See `.env.example` for all available variables.
+The CI gate requires ≥ 90% line coverage. New code is expected to maintain this threshold.
 
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `SERVER_PORT` | `8080` | HTTP listen port |
-| `APP_ENV` | `dev` | Runtime environment (`dev`/`prod`) |
-| `DB_DRIVER` | `sqlite` | Storage driver: `sqlite`, `json`, or `postgres` |
-| `DB_DSN` | *(required)* | Data source name for the selected driver (see below) |
-| `MEDIA_STORAGE_PATH` | *(required)* | Directory for media files |
-| `LOG_LEVEL` | `info` | Log verbosity |
-| `JWT_SECRET` | *(required)* | Secret key for signing JWTs; min 32 chars (`openssl rand -hex 32`) |
-
-### DB_DSN format
-
-- **SQLite** (`DB_DRIVER=sqlite`): path to the database file, e.g. `/data/outfitte.db`
-- **Postgres** (`DB_DRIVER=postgres`): standard DSN, e.g. `postgres://user:pass@host:5432/outfitte?sslmode=disable` — not yet implemented; the app will exit with an unsupported driver error on startup
-- **JSON** (`DB_DRIVER=json`): directory path for JSON storage files, e.g. `/data/storage` — the JSON file store is no longer the default but remains available for local development by swapping the adapter in `run.go`
-
-## Linting
+## Lint and format
 
 Install [golangci-lint](https://golangci-lint.run/usage/install/) then run:
 
@@ -60,14 +68,15 @@ Install [golangci-lint](https://golangci-lint.run/usage/install/) then run:
 golangci-lint run ./...
 ```
 
-## Roadmap
+The linter also enforces `gofmt` and `goimports` formatting. Run before committing:
 
-| Milestone | Description | Status |
-|-----------|-------------|--------|
-| M0 | Foundation — scaffold, config, health check | ✓ Done |
-| M1 | Users, Items & Locations | ✓ Done |
-| M2 | Wear & Archive Lifecycle | ✓ Done |
-| M3 | Outfits & Calendar | ✓ Done |
-| M4 | Seller URL & Price Tracking | ✓ Done |
-| M5 | Granular Sharing | In progress |
-| M6 | Polish & Public V1 Launch | Planned |
+```bash
+gofmt -w .
+goimports -local github.com/outfitte/backend -w .
+```
+
+## License
+
+Outfitte is released under the [GNU Affero General Public License v3.0 only](LICENSE) (AGPL-3.0-only).
+
+By contributing you agree to the project's [Contributor License Agreement](https://github.com/Outfitte/outfitte/issues/I0-002).
