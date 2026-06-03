@@ -8,6 +8,12 @@
 
 Only the latest patch release in the 0.1.x series receives security fixes.
 
+## Security posture
+
+The backend's V1 security review — covering token handling, secrets, CORS,
+transport, and known limitations — is documented in
+[`docs/SECURITY-REVIEW.md`](docs/SECURITY-REVIEW.md).
+
 ## Reporting a vulnerability
 
 **Do not open a public GitHub issue for security vulnerabilities.**
