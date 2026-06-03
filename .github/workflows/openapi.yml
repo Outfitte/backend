@@ -9,6 +9,7 @@ on:
     paths:
       - docs/openapi.yaml
       - .spectral.yaml
+  workflow_dispatch:
 
 jobs:
   spectral:
