@@ -22,3 +22,7 @@ Include as much of the following as possible:
 - Any suggested mitigations
 
 You can expect an acknowledgement within 72 hours and a status update within 7 days. We will coordinate a disclosure timeline with you once the issue is confirmed and a fix is in progress.
+
+## Security review
+
+An audit of the V1 backend covering token handling, secret validation, CORS posture, and transport security is documented in [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
