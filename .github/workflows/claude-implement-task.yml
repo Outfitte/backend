@@ -7,7 +7,7 @@ on:
 jobs:
   claude-implement:
     if: github.event.label.name == 'claude implement'
-    runs-on: claude-runner
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: write
