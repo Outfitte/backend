@@ -12,7 +12,7 @@ on:
 
 jobs:
   spectral:
-    runs-on: builder
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
