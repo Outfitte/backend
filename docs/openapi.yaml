@@ -1,12 +1,19 @@
 openapi: 3.1.0
 info:
   title: Outfitte API
-  version: "6"
+  version: "0.1.0"
   description: |
     REST API for Outfitte — a self-hosted wardrobe management application.
-    Current milestone: M6 (Item Transfer).
+    0.1.0 public release.
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+  contact:
+    url: https://github.com/Outfitte/backend
 
 servers:
+  - url: /api
+    description: Behind the nginx proxy
   - url: http://localhost:8080
     description: Local development
 
@@ -484,10 +491,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password]
+              required: [email, password]
               properties:
-                username:
+                email:
                   type: string
+                  format: email
+                  description: The user's email address, used as the login identifier.
                 password:
                   type: string
       responses:
@@ -507,6 +516,14 @@ paths:
                     type: string
         "400":
           $ref: '#/components/responses/BadRequest'
+        "403":
+          description: Registration is disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: registration is disabled
         "409":
           $ref: '#/components/responses/Conflict'
 
@@ -521,10 +538,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password]
+              required: [email, password]
               properties:
-                username:
+                email:
                   type: string
+                  format: email
+                  description: The user's email address, used as the login identifier.
                 password:
                   type: string
       responses:
