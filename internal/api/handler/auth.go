@@ -16,11 +16,11 @@ type tokenLogout interface {
 }
 
 type userRegistrar interface {
-	Register(ctx context.Context, username, password string) (domain.User, error)
+	Register(ctx context.Context, email, password string) (domain.User, error)
 }
 
 type tokenIssuer interface {
-	Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error)
+	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 }
 
 type tokenRefresher interface {
@@ -42,7 +42,7 @@ func NewAuthHandler(users userRegistrar, auth tokenIssuer, refresh tokenRefreshe
 }
 
 type registerRequest struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -71,10 +71,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.users.Register(ctx, req.Username, req.Password)
+	user, err := h.users.Register(ctx, req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrConflict) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "username already taken"})
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "email already taken"})
 			return
 		}
 		if errors.Is(err, domain.ErrRegistrationDisabled) {
@@ -86,7 +86,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.auth.Login(ctx, req.Username, req.Password)
+	accessToken, refreshToken, err := h.auth.Login(ctx, req.Email, req.Password)
 	if err != nil {
 		log.ErrorContext(ctx, "login after register failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -107,7 +107,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 type loginRequest struct {
-	Username string `json:"username"`
+	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -128,7 +128,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := h.auth.Login(ctx, req.Username, req.Password)
+	accessToken, refreshToken, err := h.auth.Login(ctx, req.Email, req.Password)
 	if err != nil {
 		if errors.Is(err, domain.ErrUnauthorized) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})

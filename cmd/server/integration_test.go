@@ -71,10 +71,10 @@ func decodeJSON(t *testing.T, resp *http.Response, v any) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(v))
 }
 
-func registerUser(t *testing.T, srv *httptest.Server, username, password string) (accessToken, refreshToken string) {
+func registerUser(t *testing.T, srv *httptest.Server, email, password string) (accessToken, refreshToken string) {
 	t.Helper()
 	resp := doJSON(t, srv, http.MethodPost, "/auth/register", map[string]string{
-		"username": username,
+		"email":    email,
 		"password": password,
 	}, "")
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -237,11 +237,11 @@ func TestIntegrationAuthCycleShouldLoginRefreshAndLogout(t *testing.T) {
 	srv := startIntegrationServer(t)
 
 	// Register creates the account and returns tokens.
-	_, refreshToken := registerUser(t, srv, "authcycleuser", "password-authcycle-secure")
+	_, refreshToken := registerUser(t, srv, "authcycleuser@example.com", "password-authcycle-secure")
 
 	// Login with credentials returns a fresh token pair.
 	loginResp := doJSON(t, srv, http.MethodPost, "/auth/login",
-		map[string]string{"username": "authcycleuser", "password": "password-authcycle-secure"}, "")
+		map[string]string{"email": "authcycleuser@example.com", "password": "password-authcycle-secure"}, "")
 	require.Equal(t, http.StatusOK, loginResp.StatusCode)
 	var loginResult struct {
 		AccessToken  string `json:"access_token"`
